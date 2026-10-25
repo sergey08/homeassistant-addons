@@ -197,6 +197,58 @@ def encryption_status():
     )
 
 
+@app.get("/api/crypto/preflight")
+def crypto_preflight():
+    """Read only: verify one encrypted path without revealing plaintext or keys."""
+    from livesync_crypto import decrypt_hkdf_string, UnsupportedEncryption
+    import base64
+    o = options()
+    if o.get("livesync_encryption_enabled") is not True or not o.get("livesync_e2ee_passphrase"):
+        return jsonify(status="encryption_not_configured"), 400
+    url = (o.get("couchdb_url") or "").rstrip("/")
+    db = o.get("couchdb_database") or ""
+    if url != "http://db21ed7f-obsidian-syncserver-ssl:5984" or not re.fullmatch(r"[A-Za-z0-9_.-]+", db):
+        return jsonify(status="unsupported_connection"), 400
+    headers = {"Accept": "application/json"}
+    user = o.get("couchdb_username") or ""
+    if user:
+        headers["Authorization"] = "Basic " + base64.b64encode(
+            (user + ":" + (o.get("couchdb_password") or "")).encode()).decode()
+    base = url + "/" + quote(db, safe="")
+    class NoRedirect(HTTPRedirectHandler):
+        def redirect_request(self, req, fp, code, msg, headers, newurl):
+            return None
+    opener = build_opener(NoRedirect())
+    def fetch(endpoint):
+        with opener.open(Request(base + endpoint, headers=headers), timeout=6) as response:
+            raw = response.read(350001)
+        if len(raw) > 350000:
+            raise ValueError("too_large")
+        return json.loads(raw)
+    try:
+        params = fetch("/_local/obsidian_livesync_sync_parameters")
+        salt = params.get("pbkdf2salt")
+        if not isinstance(salt, str) or not salt:
+            return jsonify(status="sync_salt_unavailable", read_only=True)
+        rows = fetch("/_all_docs?include_docs=true&limit=40").get("rows", [])
+        candidates = [
+            d.get("path") for row in rows if isinstance(row, dict)
+            for d in [row.get("doc")] if isinstance(d, dict)
+            if d.get("type") in ("plain", "newnote") and not d.get("deleted")
+            and isinstance(d.get("path"), str) and d["path"].startswith("/\\:%=")
+        ]
+        if not candidates:
+            return jsonify(status="no_supported_path_in_sample", read_only=True)
+        try:
+            result = decrypt_hkdf_string(candidates[0][3:], o["livesync_e2ee_passphrase"], salt)
+        except UnsupportedEncryption:
+            return jsonify(status="decryption_failed", read_only=True)
+        return jsonify(status="decrypted", valid_path=bool(result), read_only=True,
+                       note="Decrypted path withheld / Ruta descifrada no divulgada")
+    except (OSError, ValueError, HTTPError, URLError):
+        return jsonify(status="probe_failed", read_only=True), 502
+
+
 @app.get("/api/connection")
 def connection():
     """Read-only CouchDB connectivity check. Never return secrets."""
