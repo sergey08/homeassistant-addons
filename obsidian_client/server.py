@@ -17,9 +17,10 @@ def root_dir():
         options = json.loads(config.read_text()) if config.is_file() else {}
     except (OSError, ValueError):
         options = {}
-    root = Path(options.get("vault_path", "/share/obsidian-client/vault")).resolve()
-    if not root.is_relative_to(Path("/share").resolve()):
-        abort(400, "Vault path must be inside /share")
+    root = Path(options.get("vault_path", "/app_configs/obsidian_bridge/vault")).resolve()
+    allowed = (Path("/share").resolve(), Path("/app_configs/obsidian_bridge/vault").resolve())
+    if not any(root.is_relative_to(base) for base in allowed):
+        abort(400, "Vault path must be inside /share or the Obsidian bridge vault")
     return root
 
 
