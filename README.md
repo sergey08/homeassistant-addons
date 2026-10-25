@@ -1,46 +1,76 @@
-# SeRgEY — Home Assistant Apps
+# SeRgEY — Home Assistant Apps / Aplicaciones para Home Assistant
 
-Aplicaciones de código abierto para **Home Assistant OS / Supervised**.
+**EN:** Open-source Home Assistant apps, distributed through one repository.  
+**ES:** Aplicaciones de código abierto para Home Assistant, distribuidas desde un único repositorio.
 
-Este repositorio agrupa aplicaciones independientes que se instalan desde la **Tienda de aplicaciones** de Home Assistant. Una sola URL permite descubrir las aplicaciones actuales y las que publiquemos más adelante.
+[![Add this repository to Home Assistant](https://my.home-assistant.io/badges/supervisor_add_addon_repository.svg)](https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https%3A%2F%2Fgithub.com%2Fsergey08%2Fhomeassistant-addons)
 
-## Instalación del repositorio
+## English
 
-1. Abre **Home Assistant → Ajustes → Aplicaciones → Tienda de aplicaciones**.
-2. En el menú **⋮ → Repositorios**, añade:
-   `https://github.com/sergey08/homeassistant-addons`
-3. Actualiza la tienda de aplicaciones. Las aplicaciones compatibles aparecerán en el catálogo.
+### One-click repository setup
 
-> **Aviso:** las aplicaciones en fase de desarrollo no deben considerarse versiones estables.
+Click the **Add Repository** badge above. Choose your Home Assistant instance and confirm adding this repository. The button adds the *catalog*, not an app automatically.
 
-## Aplicaciones
+If the redirect does not pre-fill the repository dialog, open **Settings → Apps → App Store → ⋮ → Repositories** and paste:
 
-### 📓 Obsidian Client — en desarrollo (0.1.0-dev1)
+```text
+https://github.com/sergey08/homeassistant-addons
+```
 
-Visor Markdown integrado en Home Assistant mediante **Ingress** y acceso desde la barra lateral.
+### Available apps
 
-**Funcionalidades incluidas en el prototipo:**
-- Navegación de notas Markdown almacenadas localmente en `/share`.
-- Búsqueda por ruta y nombre.
-- Renderizado de Markdown, tablas y bloques de código.
-- Acceso en modo solo lectura sin necesidad de Obsidian MCP.
+**Obsidian Client — 0.1.0-dev1 (experimental)**
 
-**Pendiente:** conexión y sincronización con LiveSync/CouchDB, compatibilidad con bóvedas cifradas mediante un puente seguro, imágenes, enlaces wiki y pruebas de instalación.
+- Browse local Markdown notes under `/share` using Home Assistant Ingress.
+- Search note paths/names and render Markdown, tables and code blocks.
+- Read-only operation; no Obsidian MCP required.
 
-[Código de la aplicación](./obsidian_client/) · [Instrucciones y limitaciones](./obsidian_client/DOCS.md)
+**Not yet supported:** LiveSync/CouchDB connection and decryption, automatic sync, embedded attachments and wiki links. The app has not yet been installation-tested on Home Assistant; do not treat it as a stable release.
 
-## Otros proyectos relacionados
+[App source](./obsidian_client/) · [Documentation (EN/ES)](./obsidian_client/DOCS.md)
 
-- [Obsidian MCP for Home Assistant](https://github.com/sergey08/obsidian-mcp-homeassistant): acceso MCP a Obsidian para asistentes de IA. Proyecto independiente; no es un requisito del cliente visual.
+### Related project
 
-## Contribuir
+[Obsidian MCP for Home Assistant](https://github.com/sergey08/obsidian-mcp-homeassistant) is an independent project for AI assistant access to Obsidian, not a prerequisite for this reader.
 
-Puedes utilizar **Issues** para informar de errores y proponer mejoras, y **Pull requests** para enviar cambios. La publicación y aceptación de cambios queda a cargo del mantenedor.
+### Contributing and security
 
-## Seguridad
+Use **Issues** for bugs and feature requests and **Pull requests** for proposed changes. The maintainer controls changes to the main branch. Do not publish secrets, encryption keys, passwords or private vault contents.
 
-No publiques contraseñas, tokens, claves de cifrado, documentos privados ni archivos de tu bóveda en el repositorio.
+## Español
 
-## Licencia
+### Añadir el repositorio con un clic
+
+Pulsa el botón **Add Repository** situado arriba. Selecciona tu instancia de Home Assistant y confirma que quieres añadir este repositorio. El botón añade el *catálogo*, no instala automáticamente una aplicación.
+
+Si el enlace no rellena automáticamente el diálogo de repositorios, abre **Ajustes → Aplicaciones → Tienda de aplicaciones → ⋮ → Repositorios** y pega:
+
+```text
+https://github.com/sergey08/homeassistant-addons
+```
+
+### Aplicaciones disponibles
+
+**Obsidian Client — 0.1.0-dev1 (experimental)**
+
+- Navega por notas Markdown locales dentro de `/share` mediante Ingress.
+- Busca por ruta o nombre y muestra Markdown, tablas y bloques de código.
+- Funciona en modo solo lectura; no necesita Obsidian MCP.
+
+**Todavía no disponible:** conexión y descifrado LiveSync/CouchDB, sincronización automática, adjuntos y enlaces wiki. La instalación real en Home Assistant aún no se ha validado; no debe considerarse una versión estable.
+
+[Código de la aplicación](./obsidian_client/) · [Documentación (EN/ES)](./obsidian_client/DOCS.md)
+
+### Proyecto relacionado
+
+[Obsidian MCP para Home Assistant](https://github.com/sergey08/obsidian-mcp-homeassistant) es un proyecto independiente que permite a asistentes de IA acceder a Obsidian; no es necesario para este lector.
+
+### Colaboración y seguridad
+
+Utiliza **Issues** para informar de errores y proponer mejoras, y **Pull requests** para sugerir cambios. El mantenedor controla los cambios en la rama principal. No publiques contraseñas, claves de cifrado ni documentos privados.
+
+---
+
+## License / Licencia
 
 [MIT](./LICENSE).
