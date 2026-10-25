@@ -1,17 +1,37 @@
-# Obsidian Client — Vista previa de desarrollo
+# Obsidian Client — Developer preview / Vista previa de desarrollo
 
-Esta aplicación abre un explorador de archivos Markdown locales en la barra lateral de Home Assistant mediante Ingress.
+## English
 
-## Requisitos
+### Description
+Experimental, read-only Markdown browser integrated into the Home Assistant sidebar via Ingress.
 
-- Home Assistant OS / Supervised.
-- Carpeta Markdown local disponible en `/share/obsidian-client/vault` (o cambia `vault_path` por otra ruta dentro de `/share`).
+### Requirements and configuration
+- Home Assistant OS or Supervised.
+- A local folder containing Markdown files, for example `/share/obsidian-client/vault`.
+- Set `vault_path` to a path inside `/share`.
 
-## Limitaciones actuales
+### Current limitations
+- Read-only; does not edit or sync notes.
+- Does not connect to or decrypt CouchDB/LiveSync.
+- Wiki links, attachments and embedded media are not yet supported.
+- Building and installing the app in Home Assistant has not yet been verified.
 
-- Solo lectura; no edita notas.
-- No accede ni descifra directamente una base de datos CouchDB/LiveSync.
-- No sincroniza automáticamente con Obsidian Sync Server SSL.
-- No se ha verificado aún la compilación e instalación en Home Assistant.
+Never commit credentials, encryption passwords or personal notes.
 
-**No introduzcas credenciales ni claves de cifrado en GitHub.**
+## Español
+
+### Descripción
+Explorador experimental de Markdown en modo solo lectura, integrado en la barra lateral de Home Assistant mediante Ingress.
+
+### Requisitos y configuración
+- Home Assistant OS o Supervised.
+- Una carpeta local con archivos Markdown, por ejemplo `/share/obsidian-client/vault`.
+- Configura `vault_path` con una ruta dentro de `/share`.
+
+### Limitaciones actuales
+- Solo lectura; no edita ni sincroniza notas.
+- No conecta ni descifra CouchDB/LiveSync.
+- Los enlaces wiki, adjuntos y archivos multimedia incrustados todavía no están disponibles.
+- Aún no se ha verificado la compilación e instalación en Home Assistant.
+
+Nunca publiques credenciales, contraseñas de cifrado ni notas personales.
