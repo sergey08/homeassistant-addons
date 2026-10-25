@@ -2,7 +2,7 @@
 
 ## English
 
-**Current status:** read-only diagnostics only. The independent Obsidian Client does not use Obsidian MCP, and does not yet decode, decrypt, synchronise or write LiveSync notes.
+**Current status (0.1.0-dev13):** read-only diagnostics and a working **synthetic local decoder demo** (`/api/demo`). The independent Obsidian Client does not use Obsidian MCP. It still does not retrieve or decode notes from a real LiveSync database.
 
 | Feature | Current support |
 | --- | --- |
@@ -20,7 +20,7 @@ Source / Fuente:
 
 ## Español
 
-**Estado actual:** únicamente diagnósticos de solo lectura. Obsidian Client es independiente del MCP de Obsidian y todavía no interpreta, descifra, sincroniza ni escribe notas LiveSync.
+**Estado actual (0.1.0-dev13):** diagnóstico de solo lectura y **demostración local de decodificación ficticia** (`/api/demo`). Obsidian Client es independiente del MCP de Obsidian. Todavía no recupera ni interpreta notas de una base LiveSync real.
 
 | Función | Compatibilidad actual |
 | --- | --- |
@@ -36,6 +36,12 @@ Fuentes: enlaces anteriores.
 
 ## Offline prototype / Prototipo aislado
 
-English: `livesync_plain.py` is a deliberately narrow decoder for **synthetic fixtures only**. The 7 isolated unit tests pass locally, but **this is not a verified implementation of upstream LiveSync**, and the module is not wired to the Home Assistant app or any real CouchDB database. Compression, encryption, metadata variants and version-specific chunk formats remain unsupported.
+English: `livesync_plain.py` is a deliberately narrow decoder for **synthetic fixtures only**. GitHub Actions verifies the synthetic unit tests and a disposable real CouchDB round-trip. The module is bundled in the Home Assistant app for `/api/demo`, but **this does not demonstrate upstream LiveSync compatibility** and no production database is accessed. Compression, encryption, metadata variants and version-specific chunk formats remain unsupported.
 
-Español: `livesync_plain.py` es un decodificador limitado para **datos ficticios de prueba**. Las 7 pruebas aisladas pasan localmente, pero **no se ha validado su compatibilidad con LiveSync real** y el módulo no está conectado a la aplicación ni a una base CouchDB real. No admite todavía compresión, cifrado, variantes de metadatos ni formatos de fragmentos propios de cada versión.
+Español: `livesync_plain.py` es un decodificador limitado para **datos ficticios de prueba**. GitHub Actions verifica las pruebas ficticias y una prueba de lectura/escritura sobre un CouchDB real desechable. El módulo ya está incluido en la aplicación mediante `/api/demo`, pero **esto no demuestra compatibilidad con LiveSync real** y no se accede a ninguna base de producción. No admite todavía compresión, cifrado, variantes de metadatos ni formatos de fragmentos propios de cada versión.
+
+## Acceptance gate / Criterio de aceptación
+
+English: Before enabling remote note reading, create an **independent empty Obsidian vault**, configure its Self-hosted LiveSync plug-in to use a **separate test CouchDB database**, create one plaintext and one chunked Markdown note, and compare original note bytes with the reconstructed result. Validate deleted documents, encrypted and compressed configurations, missing chunks and revisions. Keep remote editing disabled until separate conflict-resolution tests pass. **Never reuse a production vault, database or account for these tests.**
+
+Español: Antes de habilitar la lectura remota, crear una **bóveda nueva y vacía de Obsidian**, configurar Self-hosted LiveSync contra una **base CouchDB de pruebas distinta**, crear una nota Markdown simple y otra dividida en fragmentos y comparar los bytes originales con el resultado reconstruido. Comprobar borrados, cifrado, compresión, fragmentos ausentes y revisiones. Mantener la edición remota deshabilitada hasta superar pruebas específicas de conflictos. **No reutilizar la bóveda, base de datos ni cuenta de producción para estos ensayos.**
