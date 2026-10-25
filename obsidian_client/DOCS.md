@@ -41,3 +41,29 @@ El endpoint `/api/notes` enumera nombres de archivos Markdown locales opcionales
 - Sin descifrado, interpretación, fusión, adjuntos o edición de documentos LiveSync.
 - Hay que verificar la conexión y la experiencia de usuario en una instalación real.
 - No habilitaremos la edición hasta implementar la gestión de conflictos de LiveSync.
+
+
+## Plan de desarrollo dev48 — edición Markdown (no implementado aún)
+
+La versión dev47 es de solo lectura. La rama dev48 prepara la creación y edición de notas sin modificar todavía la bóveda real.
+
+### Requisitos funcionales
+- Crear una nota `.md` en una carpeta seleccionada, con nombre validado.
+- Editar notas existentes con editor de texto y vista previa Markdown.
+- Advertir sobre cambios sin guardar; refrescar el árbol tras guardar.
+- Mantener carpetas contraídas por defecto (funcionalidad existente; no duplicar).
+
+### Seguridad e integridad
+- La fuente de verdad actual es CouchDB/Obsidian LiveSync, no el directorio local opcional.
+- No escribir documentos CouchDB directamente hasta disponer de un codificador LiveSync compatible, incluyendo fragmentos, metadatos, cifrado E2EE y gestión de revisiones/conflictos.
+- El montaje `share:ro` de dev47 debe mantenerse mientras no exista un flujo de escritura local seguro y explícito.
+- No registrar credenciales, frases E2EE ni contenido de notas en logs.
+- Proteger escrituras contra CSRF, rutas fuera de la bóveda, sobrescritura accidental y conflictos concurrentes.
+- Ante conflicto de revisión, rechazar guardado y ofrecer recuperar la versión más reciente.
+
+### Criterios de aceptación
+1. Leer una nota real, editarla y verla sincronizada en Obsidian sin pérdida de contenido.
+2. Crear una nota en una subcarpeta y comprobarla desde otro dispositivo.
+3. Rechazar escrituras con revisión obsoleta, rutas inválidas o permisos insuficientes.
+4. Comprobar el flujo con y sin E2EE; si una modalidad no está soportada, mantenerla en solo lectura.
+5. Conservar el funcionamiento de dev47 hasta superar estas pruebas.
