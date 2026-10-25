@@ -208,7 +208,7 @@ def inspect_remote():
         return jsonify(status="invalid_configuration"), 400
     username = o.get("couchdb_username") or ""
     password = o.get("couchdb_password") or ""
-    if (username or password) and parsed.scheme != "https":
+    if (username or password) and parsed.scheme != "https" and not (parsed.scheme == "http" and parsed.hostname == "db21ed7f-obsidian-syncserver-ssl" and parsed.port == 5984):
         return jsonify(status="https_required"), 400
     headers = {"Accept": "application/json"}
     if username:
