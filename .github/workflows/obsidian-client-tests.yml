@@ -55,6 +55,27 @@ jobs:
           else:
               raise RuntimeError('Test CouchDB did not start')
           PY
+      - name: Initialize single-node CouchDB / Inicializar CouchDB independiente
+        run: |
+          python - <<'PY'
+          import base64, json, urllib.request
+          root = 'http://127.0.0.1:5984'
+          token = base64.b64encode(b'testadmin:test-only-not-production').decode()
+          headers = {'Authorization': 'Basic ' + token, 'Content-Type': 'application/json'}
+          req = urllib.request.Request(root + '/_cluster_setup', headers=headers)
+          with urllib.request.urlopen(req, timeout=8) as response:
+              state = json.load(response)['state']
+          if state != 'single_node_enabled':
+              payload = json.dumps({
+                  'action': 'enable_single_node', 'bind_address': '0.0.0.0',
+                  'username': 'testadmin', 'password': 'test-only-not-production',
+                  'port': 5984
+              }).encode()
+              req = urllib.request.Request(root + '/_cluster_setup', data=payload,
+                                           headers=headers, method='POST')
+              with urllib.request.urlopen(req, timeout=15) as response:
+                  print('Setup HTTP:', response.status)
+          PY
       - name: Run isolated integration test / Ejecutar integración aislada
         working-directory: obsidian_client
         env:
