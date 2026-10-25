@@ -803,7 +803,7 @@ def remote_note_view():
     requested=request.args.get("path","")
     content,error=read_encrypted_note(requested)
     if error:
-        return page("<p><a href='./'>← Volver / Back</a></p><h2>No se pudo abrir la nota</h2><p>"+html.escape(error)+"</p>"),404
+        return page("<p><a href='../'>← Volver al listado / Back to notes</a></p><h2>No se pudo abrir la nota</h2><p>"+html.escape(error)+"</p>"),404
     # Escape all HTML in Obsidian markdown. External images/scripts are not loaded.
     rendered=markdown.markdown(html.escape(content),extensions=["tables","fenced_code"])
     return page("<p><a href='./'>← Volver / Back</a></p><h2>"+html.escape(requested)+"</h2><article>"+rendered+"</article><p class='muted'>Solo lectura / Read only</p>")
@@ -875,15 +875,31 @@ def home():
                             "</p>" + status)
             term = request.args.get("q", "").strip().casefold()[:200]
             visible = [p for p in index["notes"] if term in p.casefold()][:500]
-            rows = "".join("<li><a href=\"remote/note?path=" + quote(p,safe="") + "\">" + html.escape(p) + "</a></li>" for p in visible)
+            tree = {}
+            for note in visible:
+                node = tree
+                parts = note.split("/")
+                for folder in parts[:-1]:
+                    node = node.setdefault(folder, {})
+                node.setdefault("__notes__", []).append((parts[-1], note))
+            def render_tree(node):
+                items = []
+                for folder in sorted((k for k in node if k != "__notes__"), key=str.casefold):
+                    items.append("<li><details open><summary>📁 " + html.escape(folder) +
+                                 "</summary><ul>" + render_tree(node[folder]) + "</ul></details></li>")
+                for name, full in sorted(node.get("__notes__", []), key=lambda n: n[0].casefold()):
+                    items.append('<li>📄 <a href="remote/note?path=' + quote(full,safe="") +
+                                 '">' + html.escape(name) + "</a></li>")
+                return "".join(items)
+            rows = render_tree(tree)
             return page("<h1>Obsidian Client</h1><h2>LiveSync · Notas / Notes</h2>" +
                         "<p>Solo lectura · " + str(len(index["notes"])) +
                         " notas Markdown descifradas</p>" +
                         '<form><input name="q" placeholder="Buscar notas / Search notes" value="' +
                         html.escape(request.args.get("q", "")[:200], quote=True) +
                         '"></form><ul>' + rows + "</ul>" +
-                        "<p class='muted'>Vista de rutas. El contenido aún no está disponible. / "
-                        "Paths only; note content is not yet available.</p>" + status)
+                        "<p class='muted'>Selecciona una nota para leerla. / "
+                        "Select a note to read its contents.</p>" + status)
         notes, error = remote_note_index()
         if error:
             return page("<h1>Obsidian Client</h1><p>Remote vault unavailable / Bóveda remota no disponible: " +
