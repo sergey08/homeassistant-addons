@@ -9,6 +9,7 @@ import hashlib
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from cryptography.hazmat.primitives import hashes
+from cryptography.exceptions import InvalidTag
 
 class UnsupportedEncryption(ValueError):
     pass
@@ -31,5 +32,5 @@ def decrypt_hkdf_string(value: str, passphrase: str, pbkdf2_salt_b64: str) -> st
     try:
         plaintext = AESGCM(key).decrypt(iv, encrypted, None)
         return plaintext.decode("utf-8")
-    except (ValueError, UnicodeDecodeError):
+    except (InvalidTag, ValueError, UnicodeDecodeError):
         raise UnsupportedEncryption("decryption_failed") from None
