@@ -37,8 +37,8 @@ def demo_note():
               "children": ["first", "second"], "size": 11}
     chunks = {"first": {"type": "leaf", "data": "Hello "},
               "second": {"type": "leaf", "data": "world"}}
-    return jsonify(decode_plain_note(parent, chunks), source="synthetic",
-                   read_only=True)
+    result = decode_plain_note(parent, chunks)
+    return jsonify({**result, "source": "synthetic", "read_only": True})
 
 @app.get("/api/connection")
 def connection():
