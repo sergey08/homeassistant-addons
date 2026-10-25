@@ -1,7 +1,7 @@
 name: Obsidian Client (Development)
 slug: obsidian_client
-version: "0.1.0-dev1"
-description: "Read-only Markdown vault viewer for Home Assistant - developer preview"
+version: "0.1.0-dev2"
+description: "Read-only Markdown viewer (experimental) / Visor Markdown de solo lectura (experimental)"
 url: https://github.com/sergey08/homeassistant-addons/tree/main/obsidian_client
 arch:
   - amd64
