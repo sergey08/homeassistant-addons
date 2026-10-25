@@ -101,5 +101,19 @@ class PlainNoteTests(unittest.TestCase):
                   "h:second": {"_id": "h:second", "type": "leaf", "data": "world"}}
         self.assertEqual(decode_plain_note(parent, chunks)["content"], "Hello world")
 
+
+    def test_rejects_document_shell_reported_upstream(self):
+        # Sanitised metadata shape from upstream issue #1065; no note content.
+        shell = {"_id": "f:example", "type": "plain", "path": "/\\:obfuscated",
+                 "children": [], "size": 0, "ctime": 0, "mtime": 0, "eden": {}}
+        with self.assertRaises(UnsupportedNote):
+            decode_plain_note(shell, {})
+
+    def test_rejects_encrypted_leaf_from_upstream_issue(self):
+        parent = {"type": "plain", "path": "Example.md", "children": ["h:+example"]}
+        chunks = {"h:+example": {"type": "leaf", "data": "opaque", "e_": True}}
+        with self.assertRaises(UnsupportedNote):
+            decode_plain_note(parent, chunks)
+
 if __name__ == "__main__":
     unittest.main()
