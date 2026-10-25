@@ -345,6 +345,25 @@ def remote_format():
                 slot["path_f_prefix"] += 1
             else:
                 slot["path_other"] += 1
+    for item in rows:
+        doc = item.get("doc") if isinstance(item, dict) else None
+        if not isinstance(doc, dict) or not isinstance(doc.get("path"), str):
+            continue
+        path = doc["path"]
+        kind = doc.get("type")
+        kind = kind if kind in ("plain", "newnote", "leaf", "chunk") else "other"
+        slot = shapes[kind]
+        slot.setdefault("path_features", {"contains_slash": 0, "contains_dot": 0,
+                     "contains_colon": 0, "hex_only": 0, "base64_chars_only": 0,
+                     "length_1_32": 0, "length_33_80": 0, "length_over_80": 0})
+        f = slot["path_features"]
+        if "/" in path: f["contains_slash"] += 1
+        if "." in path: f["contains_dot"] += 1
+        if ":" in path: f["contains_colon"] += 1
+        if re.fullmatch(r"[0-9a-fA-F]+", path): f["hex_only"] += 1
+        if re.fullmatch(r"[A-Za-z0-9+/=_:-]+", path): f["base64_chars_only"] += 1
+        bucket = "length_1_32" if len(path) <= 32 else ("length_33_80" if len(path) <= 80 else "length_over_80")
+        f[bucket] += 1
     return jsonify(status="ok", inspected=len(rows), shapes=shapes, read_only=True)
 
 
