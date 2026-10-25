@@ -152,5 +152,21 @@ class PlainNoteTests(unittest.TestCase):
         note = {"type": "plain", "path": "Example.md", "data": "á", "size": 2}
         self.assertEqual(decode_plain_note(note, {})["content"], "á")
 
+
+    def test_chunked_utf8_size_inconsistency_is_rejected(self):
+        note = {"type": "plain", "path": "Notes/Unicode.md",
+                "children": ["h:one", "h:two"], "size": 3}
+        chunks = {"h:one": {"type": "leaf", "data": "á"},
+                  "h:two": {"type": "leaf", "data": "€"}}
+        with self.assertRaises(UnsupportedNote):
+            decode_plain_note(note, chunks)
+
+    def test_chunked_utf8_size_matching_is_accepted(self):
+        note = {"type": "plain", "path": "Notes/Unicode.md",
+                "children": ["h:one", "h:two"], "size": 5}
+        chunks = {"h:one": {"type": "leaf", "data": "á"},
+                  "h:two": {"type": "leaf", "data": "€"}}
+        self.assertEqual(decode_plain_note(note, chunks)["content"], "á€")
+
 if __name__ == "__main__":
     unittest.main()
