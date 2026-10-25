@@ -141,5 +141,15 @@ class PlainNoteTests(unittest.TestCase):
         with self.assertRaises(UnsupportedNote):
             decode_plain_note(parent, chunks)
 
+
+    def test_rejects_size_mismatch(self):
+        note = {"type": "plain", "path": "Example.md", "data": "Hello", "size": 20}
+        with self.assertRaises(UnsupportedNote):
+            decode_plain_note(note, {})
+
+    def test_validates_utf8_size_of_unicode_note(self):
+        note = {"type": "plain", "path": "Example.md", "data": "á", "size": 2}
+        self.assertEqual(decode_plain_note(note, {})["content"], "á")
+
 if __name__ == "__main__":
     unittest.main()
