@@ -360,6 +360,10 @@ def remote_format():
         if "/" in path: f["contains_slash"] += 1
         if "." in path: f["contains_dot"] += 1
         if ":" in path: f["contains_colon"] += 1
+        f.setdefault("metadata_encrypted_prefix", 0)
+        f.setdefault("prefix_obfuscated", 0)
+        if path.startswith("/\\:"): f["metadata_encrypted_prefix"] += 1
+        if path.startswith("f:"): f["prefix_obfuscated"] += 1
         if re.fullmatch(r"[0-9a-fA-F]+", path): f["hex_only"] += 1
         if re.fullmatch(r"[A-Za-z0-9+/=_:-]+", path): f["base64_chars_only"] += 1
         bucket = "length_1_32" if len(path) <= 32 else ("length_33_80" if len(path) <= 80 else "length_over_80")
