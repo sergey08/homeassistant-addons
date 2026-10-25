@@ -123,5 +123,12 @@ class PlainNoteTests(unittest.TestCase):
                 "size": 23, "children": [], "eden": {}}
         self.assertEqual(decode_plain_note(note, {})["content"], "First line\\nSecond line\\n")
 
+
+    def test_rejects_encrypted_h_plus_chunk_identifier(self):
+        parent = {"type": "plain", "path": "Demo/Test.md", "children": ["h:+encrypted"]}
+        chunks = {"h:+encrypted": {"type": "leaf", "data": "opaque"}}
+        with self.assertRaises(UnsupportedNote):
+            decode_plain_note(parent, chunks)
+
 if __name__ == "__main__":
     unittest.main()
