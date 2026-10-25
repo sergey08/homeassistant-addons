@@ -31,3 +31,10 @@ Sources: [LiveSync configuration](https://github.com/vrtmrz/obsidian-livesync/bl
 8. Repite con las opciones de cifrado y compresión habilitadas: por ahora el lector debe rechazarlas.
 
 **Seguridad:** no compartas notas privadas, tokens, contraseñas, enlaces Setup URI ni exportaciones de tu base de producción. La edición remota seguirá deshabilitada.
+
+
+## Upstream automated test runner / Pruebas automáticas oficiales
+
+**English:** The upstream LiveSync repository maintains a real-Obsidian E2E runner at [test/e2e-obsidian](https://github.com/vrtmrz/obsidian-livesync/tree/main/test/e2e-obsidian). It creates disposable vaults and isolated Obsidian profiles and can drive CouchDB scenarios using Obsidian itself. That is the preferred source for genuine, version-matched fixtures. The public `test/fixtures` directory does **not** currently provide a ready-to-use CouchDB note fixture, so the current decoder's synthetic tests are not proof of production compatibility.
+
+**Español:** El repositorio oficial de LiveSync dispone de un ejecutor E2E con Obsidian real en [test/e2e-obsidian](https://github.com/vrtmrz/obsidian-livesync/tree/main/test/e2e-obsidian). Crea bóvedas y perfiles de Obsidian temporales y permite probar flujos con CouchDB mediante Obsidian. Es la opción preferida para obtener muestras auténticas correspondientes a cada versión. La carpeta pública `test/fixtures` **no** contiene actualmente una muestra CouchDB de nota lista para reutilizar; por tanto, las pruebas ficticias todavía no demuestran compatibilidad en producción.
