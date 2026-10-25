@@ -127,6 +127,58 @@ def internal_diagnostics():
             results["6984"]["public_sni_tls"] = "connection_failed"
     return jsonify(host=host, ports=results, authenticated="not_checked")
 
+@app.get("/api/encryption/probe")
+def encryption_probe():
+    """One read-only HKDF decryption probe; no plaintext or secrets in result."""
+    cfg = options()
+    if cfg.get("livesync_encryption_enabled") is not True or not cfg.get("livesync_e2ee_passphrase"):
+        return jsonify(status="e2ee_not_configured"), 400
+    url = (cfg.get("couchdb_url") or "").strip().rstrip("/")
+    db = cfg.get("couchdb_database") or ""
+    if url != "http://db21ed7f-obsidian-syncserver-ssl:5984" or not re.fullmatch(r"[A-Za-z0-9_.-]+", db):
+        return jsonify(status="unsupported_connection"), 400
+    import base64
+    from livesync_crypto import decrypt_hkdf_string, UnsupportedEncryption
+    user = cfg.get("couchdb_username") or ""
+    password = cfg.get("couchdb_password") or ""
+    headers = {"Accept": "application/json"}
+    if user:
+        headers["Authorization"] = "Basic " + base64.b64encode((user + ":" + password).encode()).decode()
+    class NoRedirect(HTTPRedirectHandler):
+        def redirect_request(self, req, fp, code, msg, headers, newurl):
+            return None
+    opener = build_opener(NoRedirect())
+    root = url + "/" + quote(db, safe="")
+    def fetch(path, limit):
+        with opener.open(Request(root + path, headers=headers), timeout=8) as response:
+            content = response.read(limit + 1)
+        if len(content) > limit:
+            raise ValueError("too_large")
+        return json.loads(content)
+    try:
+        meta = fetch("/_local/obsidian_livesync_sync_parameters", 50000)
+        salt = meta.get("pbkdf2salt")
+        if not isinstance(salt, str) or not salt:
+            return jsonify(status="pbkdf2_salt_unavailable"), 422
+        result = fetch("/_all_docs?include_docs=true&limit=100", 2_000_000)
+        sample = next((item["doc"]["path"][3:] for item in result.get("rows", [])
+                       if isinstance(item.get("doc"), dict)
+                       and item["doc"].get("type") == "plain"
+                       and isinstance(item["doc"].get("path"), str)
+                       and item["doc"]["path"].startswith("/\\:")
+                       and item["doc"]["path"][3:].startswith(("%=", "%$"))), None)
+        if sample is None:
+            return jsonify(status="no_supported_ciphertext_in_sample"), 422
+        decrypted = decrypt_hkdf_string(sample, cfg["livesync_e2ee_passphrase"], salt)
+        return jsonify(status="decryption_authenticated", success=True, read_only=True,
+                       result_type="json" if decrypted.startswith("{") else "string",
+                       content_returned=False)
+    except UnsupportedEncryption:
+        return jsonify(status="decryption_failed_or_key_mismatch", success=False), 422
+    except (OSError, ValueError, HTTPError, URLError):
+        return jsonify(status="metadata_read_failed", success=False), 502
+
+
 @app.get("/api/encryption/status")
 def encryption_status():
     """Configuration readiness only. Never expose passphrases or derived keys."""
