@@ -65,6 +65,32 @@ def discovery():
         note="DNS only; HTTPS certificate and authenticated access not verified"
     )
 
+@app.get("/api/internal-diagnostics")
+def internal_diagnostics():
+    """Read-only network and verified TLS check / Diagnóstico sin credenciales."""
+    host = "db21ed7f-obsidian-syncserver-ssl"
+    outcome = {"host": host, "port": 6984, "tcp": "not_checked",
+               "tls": "not_checked", "authenticated": "not_checked"}
+    try:
+        with socket.create_connection((host, 6984), timeout=3) as raw:
+            outcome["tcp"] = "reachable"
+            context = ssl.create_default_context()
+            try:
+                with context.wrap_socket(raw, server_hostname=host) as secured:
+                    outcome["tls"] = "verified"
+                    outcome["tls_version"] = secured.version()
+            except ssl.SSLCertVerificationError:
+                outcome["tls"] = "certificate_verification_failed"
+            except ssl.SSLError:
+                outcome["tls"] = "handshake_failed"
+    except socket.gaierror:
+        outcome["tcp"] = "dns_failed"
+    except (TimeoutError, socket.timeout):
+        outcome["tcp"] = "timeout"
+    except OSError:
+        outcome["tcp"] = "connection_failed"
+    return jsonify(outcome)
+
 @app.get("/api/connection")
 def connection():
     """Read-only CouchDB connectivity check. Never return secrets."""
