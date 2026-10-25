@@ -36,5 +36,24 @@ class PlainNoteTests(unittest.TestCase):
             decode_plain_note({"type": "newnote", "path": "A.md"}, {})
 
 
+
+    def test_rejects_missing_inline_data(self):
+        with self.assertRaises(UnsupportedNote):
+            decode_plain_note({"type": "plain", "path": "Empty.md"}, {})
+
+    def test_allows_intentionally_empty_note(self):
+        self.assertEqual(
+            decode_plain_note({"type": "plain", "path": "Empty.md", "data": ""}, {}),
+            {"path": "Empty.md", "content": ""})
+
+    def test_rejects_nonstring_child_ids(self):
+        with self.assertRaises(UnsupportedNote):
+            decode_plain_note({"type": "plain", "path": "A.md", "children": [123]}, {})
+
+    def test_rejects_conflicted_chunks(self):
+        with self.assertRaises(UnsupportedNote):
+            decode_plain_note({"type": "plain", "path": "A.md", "children": ["x"]},
+                              {"x": {"type": "leaf", "data": "text", "_conflicts": ["2-abc"]}})
+
 if __name__ == "__main__":
     unittest.main()
