@@ -183,5 +183,19 @@ class ClientTests(unittest.TestCase):
         self.assertEqual(response.json["types"], {"other": 1})
         self.assertNotIn("sensitive-personal-label", response.get_data(as_text=True))
 
+
+    def test_remote_inspection_rejects_oversized_response(self):
+        from unittest.mock import MagicMock
+        opts = {"couchdb_url": "https://example.org", "couchdb_database": "sandbox"}
+        fake = MagicMock()
+        fake.__enter__.return_value = fake
+        fake.read.return_value = b"x" * 1_000_001
+        with patch.object(server, "options", return_value=opts):
+            with patch.object(server, "build_opener") as opener:
+                opener.return_value.open.return_value = fake
+                response = self.client.get("/api/remote/inspect")
+        self.assertEqual(response.status_code, 413)
+        self.assertEqual(response.json["status"], "response_too_large")
+
 if __name__ == "__main__":
     unittest.main()
