@@ -2,10 +2,9 @@
 import html
 import json
 import re
-import ssl
 from pathlib import Path
 from urllib.parse import quote, urlsplit
-from urllib.request import Request, build_opener, HTTPBasicAuthHandler, HTTPPasswordMgrWithDefaultRealm
+from urllib.request import Request, build_opener, HTTPRedirectHandler
 import markdown
 from flask import Flask, abort, request, jsonify
 
@@ -44,6 +43,8 @@ def connection():
         return jsonify(configured=True, connected=False, status="https_required"), 400
     if not re.fullmatch(r"[A-Za-z0-9_.-]+", database) or not database:
         return jsonify(configured=True, connected=False, status="invalid_database"), 400
+    if parsed.path not in ("", "/"):
+        return jsonify(configured=True, connected=False, status="invalid_url_path"), 400
     target = uri + "/" + quote(database, safe="")
     try:
         headers = {"Accept": "application/json"}
@@ -53,9 +54,12 @@ def connection():
             import base64
             token = base64.b64encode((username + ":" + password).encode()).decode()
             headers["Authorization"] = "Basic " + token
-        from urllib.request import urlopen
         req = Request(target, headers=headers, method="GET")
-        with urlopen(req, timeout=5) as response:
+        class NoRedirect(HTTPRedirectHandler):
+            def redirect_request(self, req, fp, code, msg, headers, newurl):
+                return None
+        opener = build_opener(NoRedirect())
+        with opener.open(req, timeout=5) as response:
             info = json.load(response)
         return jsonify(configured=True, connected=True, status="connected",
                        database=database, document_count=info.get("doc_count"))
@@ -65,7 +69,7 @@ def connection():
 @app.get("/")
 def home():
     root = vault_dir()
-    status = '<p><a href="api/connection">CouchDB status / Estado CouchDB (JSON)</a></p>'
+    status = '<p><a href="api/connection">CouchDB connection diagnostics / Diagnóstico de conexión CouchDB (JSON)</a></p>'
     if not root.is_dir():
         return page("<h1>Obsidian Client</h1><p>Local vault not found / Bóveda local no encontrada.</p>" + status +
                     '<p class="muted">LiveSync document decoding and editing are not implemented yet / El descifrado y la edición todavía no están implementados.</p>')
