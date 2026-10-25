@@ -103,6 +103,21 @@ def internal_diagnostics():
                 results[str(port)]["protocol"] = "http" if prefix.startswith(b"HTTP/") else "unknown"
         except (OSError, TimeoutError):
             results[str(port)]["protocol"] = "unknown"
+    # Try the public certificate's SNI while connecting to the internal host.
+    if results["6984"]["tcp"] == "reachable":
+        try:
+            with socket.create_connection((host, 6984), timeout=3) as raw:
+                with ssl.create_default_context().wrap_socket(
+                    raw, server_hostname="casamedia.duckdns.org"
+                ) as tls:
+                    results["6984"]["public_sni_tls"] = "verified"
+                    results["6984"]["public_sni_tls_version"] = tls.version()
+        except ssl.SSLCertVerificationError:
+            results["6984"]["public_sni_tls"] = "certificate_verification_failed"
+        except ssl.SSLError:
+            results["6984"]["public_sni_tls"] = "handshake_failed"
+        except OSError:
+            results["6984"]["public_sni_tls"] = "connection_failed"
     return jsonify(host=host, ports=results, authenticated="not_checked")
 
 @app.get("/api/connection")
