@@ -15,13 +15,18 @@ class UnsupportedEncryption(ValueError):
     pass
 
 def decrypt_hkdf_string(value: str, passphrase: str, pbkdf2_salt_b64: str) -> str:
-    if not isinstance(value, str) or not value.startswith("%="):
+    if not isinstance(value, str) or not value.startswith(("%=", "%$")):
         raise UnsupportedEncryption("unsupported_ciphertext")
     if not isinstance(passphrase, str) or not passphrase:
         raise UnsupportedEncryption("missing_passphrase")
     try:
-        salt = base64.b64decode(pbkdf2_salt_b64, validate=True)
         payload = base64.b64decode(value[2:], validate=True)
+        if value.startswith("%$"):
+            if len(payload) < 32 + 12 + 32 + 16:
+                raise UnsupportedEncryption("invalid_ciphertext_length")
+            salt, payload = payload[:32], payload[32:]
+        else:
+            salt = base64.b64decode(pbkdf2_salt_b64, validate=True)
     except (TypeError, ValueError, binascii.Error):
         raise UnsupportedEncryption("invalid_encoding") from None
     if not salt or len(payload) < 60 or len(payload) > 2_000_000:
