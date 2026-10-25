@@ -25,3 +25,40 @@ jobs:
       - name: Run tests / Ejecutar pruebas
         working-directory: obsidian_client
         run: python -m unittest discover -v -p 'test_*.py'
+
+  couchdb-integration:
+    name: Isolated CouchDB / CouchDB aislado
+    runs-on: ubuntu-latest
+    services:
+      couchdb:
+        image: couchdb:3.4
+        env:
+          COUCHDB_USER: testadmin
+          COUCHDB_PASSWORD: test-only-not-production
+        ports:
+          - 5984:5984
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Wait for test server / Esperar al servidor de pruebas
+        run: |
+          python - <<'PY'
+          import time, urllib.request
+          for attempt in range(40):
+              try:
+                  urllib.request.urlopen('http://127.0.0.1:5984/_up', timeout=2)
+                  break
+              except Exception:
+                  time.sleep(2)
+          else:
+              raise RuntimeError('Test CouchDB did not start')
+          PY
+      - name: Run isolated integration test / Ejecutar integración aislada
+        working-directory: obsidian_client
+        env:
+          TEST_COUCHDB_URL: http://127.0.0.1:5984
+          TEST_COUCHDB_USER: testadmin
+          TEST_COUCHDB_PASSWORD: test-only-not-production
+        run: python -m unittest -v test_real_couchdb
