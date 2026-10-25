@@ -67,29 +67,31 @@ def discovery():
 
 @app.get("/api/internal-diagnostics")
 def internal_diagnostics():
-    """Read-only network and verified TLS check / Diagnóstico sin credenciales."""
+    """Credential-free TCP probes and verified TLS / Pruebas seguras sin credenciales."""
     host = "db21ed7f-obsidian-syncserver-ssl"
-    outcome = {"host": host, "port": 6984, "tcp": "not_checked",
-               "tls": "not_checked", "authenticated": "not_checked"}
-    try:
-        with socket.create_connection((host, 6984), timeout=3) as raw:
-            outcome["tcp"] = "reachable"
-            context = ssl.create_default_context()
-            try:
-                with context.wrap_socket(raw, server_hostname=host) as secured:
-                    outcome["tls"] = "verified"
-                    outcome["tls_version"] = secured.version()
-            except ssl.SSLCertVerificationError:
-                outcome["tls"] = "certificate_verification_failed"
-            except ssl.SSLError:
-                outcome["tls"] = "handshake_failed"
-    except socket.gaierror:
-        outcome["tcp"] = "dns_failed"
-    except (TimeoutError, socket.timeout):
-        outcome["tcp"] = "timeout"
-    except OSError:
-        outcome["tcp"] = "connection_failed"
-    return jsonify(outcome)
+    results = {}
+    for port in (5984, 6984):
+        state = {"tcp": "not_checked"}
+        try:
+            with socket.create_connection((host, port), timeout=3) as raw:
+                state["tcp"] = "reachable"
+                if port == 6984:
+                    try:
+                        with ssl.create_default_context().wrap_socket(raw, server_hostname=host) as tls:
+                            state["tls"] = "verified"
+                            state["tls_version"] = tls.version()
+                    except ssl.SSLCertVerificationError:
+                        state["tls"] = "certificate_verification_failed"
+                    except ssl.SSLError:
+                        state["tls"] = "handshake_failed"
+        except socket.gaierror:
+            state["tcp"] = "dns_failed"
+        except (TimeoutError, socket.timeout):
+            state["tcp"] = "timeout"
+        except OSError:
+            state["tcp"] = "connection_failed"
+        results[str(port)] = state
+    return jsonify(host=host, ports=results, authenticated="not_checked")
 
 @app.get("/api/connection")
 def connection():
