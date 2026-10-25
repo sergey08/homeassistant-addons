@@ -72,5 +72,37 @@ class ClientTests(unittest.TestCase):
         self.assertEqual(result.status_code, 502)
         self.assertNotIn("private secret", result.get_data(as_text=True))
 
+
+    def test_local_note_preview_is_read_only(self):
+        from pathlib import Path
+        from tempfile import TemporaryDirectory
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "sample.md").write_text("# Test note", encoding="utf-8")
+            with patch.object(server, "vault_dir", return_value=root):
+                response = self.client.get("/?path=sample.md")
+            self.assertEqual(response.status_code, 200)
+            self.assertIn("Test note", response.get_data(as_text=True))
+            self.assertEqual((root / "sample.md").read_text(), "# Test note")
+
+    def test_local_note_rejects_parent_traversal(self):
+        from pathlib import Path
+        from tempfile import TemporaryDirectory
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            with patch.object(server, "vault_dir", return_value=root):
+                response = self.client.get("/?path=../secret.md")
+            self.assertEqual(response.status_code, 404)
+
+    def test_local_note_rejects_non_markdown(self):
+        from pathlib import Path
+        from tempfile import TemporaryDirectory
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "private.txt").write_text("secret", encoding="utf-8")
+            with patch.object(server, "vault_dir", return_value=root):
+                response = self.client.get("/?path=private.txt")
+            self.assertEqual(response.status_code, 404)
+
 if __name__ == "__main__":
     unittest.main()
