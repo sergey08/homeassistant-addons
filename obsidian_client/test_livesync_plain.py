@@ -91,5 +91,15 @@ class PlainNoteTests(unittest.TestCase):
         self.assertEqual(result["content"], "AB")
         self.assertEqual((parent, chunks), snapshot)
 
+
+    def test_upstream_shaped_plain_metadata_with_eden(self):
+        # Synthetic shape from public LiveSync schema, not a production fixture.
+        parent = {"_id": "f:example", "type": "plain", "datatype": "plain",
+                  "path": "Notes/Example.md", "children": ["h:first", "h:second"],
+                  "eden": {}, "size": 11, "deleted": False}
+        chunks = {"h:first": {"_id": "h:first", "type": "leaf", "data": "Hello "},
+                  "h:second": {"_id": "h:second", "type": "leaf", "data": "world"}}
+        self.assertEqual(decode_plain_note(parent, chunks)["content"], "Hello world")
+
 if __name__ == "__main__":
     unittest.main()
