@@ -395,6 +395,22 @@ def remote_format():
             typ = "percent_equal" if suffix.startswith("%=") else ("percent_dollar" if suffix.startswith("%$") else "other")
             f["encrypted_payload_shapes"][typ] += 1
         if path.startswith("f:"): f["prefix_obfuscated"] += 1
+        if path.startswith("/\\:"):
+            payload = path[3:]
+            categories = f.setdefault("encrypted_payload_shape", {
+                "hkdf_percent_equals": 0, "hkdf_percent_dollar": 0,
+                "legacy_percent": 0, "base64_like": 0, "other": 0
+            })
+            if payload.startswith("%="):
+                categories["hkdf_percent_equals"] += 1
+            elif payload.startswith("%$"):
+                categories["hkdf_percent_dollar"] += 1
+            elif payload.startswith("%"):
+                categories["legacy_percent"] += 1
+            elif re.fullmatch(r"[A-Za-z0-9+/=_-]+", payload):
+                categories["base64_like"] += 1
+            else:
+                categories["other"] += 1
         if re.fullmatch(r"[0-9a-fA-F]+", path): f["hex_only"] += 1
         if re.fullmatch(r"[A-Za-z0-9+/=_:-]+", path): f["base64_chars_only"] += 1
         bucket = "length_1_32" if len(path) <= 32 else ("length_33_80" if len(path) <= 80 else "length_over_80")
