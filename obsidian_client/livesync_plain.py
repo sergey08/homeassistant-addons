@@ -57,6 +57,13 @@ def decode_plain_note(parent, chunks):
     if not ids and "size" in parent and isinstance(parent["size"], (int, float)) and parent["size"] > 0 and not "".join(parts):
         raise UnsupportedNote("missing_document_content")
     body = "".join(parts)
-    if len(body.encode("utf-8")) > MAX_CONTENT:
+    byte_length = len(body.encode("utf-8"))
+    if byte_length > MAX_CONTENT:
         raise UnsupportedNote("content_too_large")
+    expected_size = parent.get("size")
+    if expected_size is not None:
+        if type(expected_size) is not int or expected_size < 0:
+            raise UnsupportedNote("invalid_size")
+        if byte_length != expected_size:
+            raise UnsupportedNote("size_mismatch")
     return {"path": path, "content": body}
