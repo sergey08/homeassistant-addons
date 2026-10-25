@@ -1,7 +1,7 @@
 name: Obsidian Client (Development)
 slug: obsidian_client
-version: "0.1.0-dev3"
-description: "Read-only Markdown viewer (experimental) / Visor Markdown de solo lectura (experimental)"
+version: "0.1.0-dev4"
+description: "Independent Obsidian client / Cliente Obsidian independiente (experimental)"
 url: https://github.com/sergey08/homeassistant-addons/tree/main/obsidian_client
 arch:
   - amd64
@@ -17,5 +17,13 @@ map:
   - share:ro
 options:
   vault_path: /share/obsidian-client/vault
+  couchdb_url: ""
+  couchdb_database: ""
+  couchdb_username: ""
+  couchdb_password: ""
 schema:
   vault_path: str
+  couchdb_url: str?
+  couchdb_database: str?
+  couchdb_username: str?
+  couchdb_password: password?
