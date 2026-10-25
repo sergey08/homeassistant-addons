@@ -643,19 +643,21 @@ def home():
     if not root.is_dir():
         cfg = options()
         if cfg.get("livesync_encryption_enabled"):
-            ready = bool(cfg.get("livesync_e2ee_passphrase"))
-            return page(
-                "<h1>Obsidian Client</h1><h2>LiveSync · Bóveda cifrada / Encrypted vault</h2>" +
-                "<p>Servidor configurado / Server configured: " +
-                ("Sí / Yes" if cfg.get("couchdb_url") else "No") + "</p>" +
-                "<p>Frase E2EE configurada / E2EE passphrase configured: " +
-                ("Sí / Yes" if ready else "No") + "</p>" +
-                "<p>Lectura de metadatos / Metadata diagnostics: " +
-                '<a href="api/connection">Conexión</a> · <a href="api/remote/format">Formato</a></p>' +
-                "<p><strong>Descifrado pendiente / Decryption not implemented yet.</strong> "
-                "No se muestran rutas cifradas como si fueran notas válidas. / "
-                "Encrypted paths are not presented as readable notes.</p>" + status
-            )
+            index, error = encrypted_note_paths()
+            if error:
+                return page("<h1>Obsidian Client</h1><p>LiveSync: " + html.escape(error) +
+                            "</p>" + status)
+            term = request.args.get("q", "").strip().casefold()[:200]
+            visible = [p for p in index["notes"] if term in p.casefold()][:500]
+            rows = "".join("<li>" + html.escape(p) + "</li>" for p in visible)
+            return page("<h1>Obsidian Client</h1><h2>LiveSync · Notas / Notes</h2>" +
+                        "<p>Solo lectura · " + str(len(index["notes"])) +
+                        " notas Markdown descifradas</p>" +
+                        '<form><input name="q" placeholder="Buscar notas / Search notes" value="' +
+                        html.escape(request.args.get("q", "")[:200], quote=True) +
+                        '"></form><ul>' + rows + "</ul>" +
+                        "<p class='muted'>Vista de rutas. El contenido aún no está disponible. / "
+                        "Paths only; note content is not yet available.</p>" + status)
         notes, error = remote_note_index()
         if error:
             return page("<h1>Obsidian Client</h1><p>Remote vault unavailable / Bóveda remota no disponible: " +
