@@ -115,5 +115,13 @@ class PlainNoteTests(unittest.TestCase):
         with self.assertRaises(UnsupportedNote):
             decode_plain_note(parent, chunks)
 
+
+    def test_plain_text_array_with_upstream_metadata_fields(self):
+        note = {"_id": "daily/note.md", "type": "plain", "datatype": "plain",
+                "path": "daily/note.md", "data": ["First line\\n", "Second line\\n"],
+                "mtime": 1740000000000, "ctime": 1740000000000,
+                "size": 23, "children": [], "eden": {}}
+        self.assertEqual(decode_plain_note(note, {})["content"], "First line\\nSecond line\\n")
+
 if __name__ == "__main__":
     unittest.main()
