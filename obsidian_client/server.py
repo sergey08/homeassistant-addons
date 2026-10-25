@@ -586,6 +586,20 @@ def encrypted_note_paths():
         if "." in path: shape["contains_dot"] += 1
         if ":" in path: shape["contains_colon"] += 1
         if len(path) > 128: shape["length_over_128"] += 1
+        detail = shape.setdefault("wrapping", {"json_object": 0, "json_string": 0, "json_array": 0, "md_followed_by_quote": 0, "md_followed_by_comma": 0, "md_followed_by_brace": 0, "md_followed_by_slash": 0, "md_followed_by_other": 0})
+        stripped = path.lstrip()
+        if stripped.startswith("{"): detail["json_object"] += 1
+        elif stripped.startswith('"'): detail["json_string"] += 1
+        elif stripped.startswith("["): detail["json_array"] += 1
+        md_at = path.lower().find(".md")
+        if md_at >= 0 and md_at + 3 < len(path):
+            next_char = path[md_at + 3]
+            key = ('md_followed_by_quote' if next_char in ('"', "'") else
+                   'md_followed_by_comma' if next_char == ',' else
+                   'md_followed_by_brace' if next_char in ('}', ']') else
+                   'md_followed_by_slash' if next_char == '/' else
+                   'md_followed_by_other')
+            detail[key] += 1
         if (path.endswith(".md") and len(path) <= 1024 and
             not path.startswith("/") and "\\" not in path and
             all(part not in ("", ".", "..") for part in path.split("/"))):
