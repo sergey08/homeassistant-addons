@@ -130,5 +130,16 @@ class PlainNoteTests(unittest.TestCase):
         with self.assertRaises(UnsupportedNote):
             decode_plain_note(parent, chunks)
 
+
+    def test_upstream_reported_empty_parent_shell_is_not_a_note(self):
+        # Upstream issue #1065: an empty f: metadata shell may coexist with
+        # uploaded h: chunks. These must not be presented as empty Markdown.
+        parent = {"_id": "f:example", "type": "plain",
+                  "path": "Docs/ShouldNotAppear.md", "size": 0,
+                  "children": [], "eden": {}, "mtime": 0, "ctime": 0}
+        chunks = {"h:orphan": {"type": "leaf", "data": "orphaned content"}}
+        with self.assertRaises(UnsupportedNote):
+            decode_plain_note(parent, chunks)
+
 if __name__ == "__main__":
     unittest.main()
