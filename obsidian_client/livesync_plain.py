@@ -52,6 +52,8 @@ def decode_plain_note(parent, chunks):
             parts = data
         else:
             raise UnsupportedNote("unsupported_inline_data")
+    if not ids and "size" in parent and isinstance(parent["size"], (int, float)) and parent["size"] > 0 and not "".join(parts):
+        raise UnsupportedNote("missing_document_content")
     body = "".join(parts)
     if len(body.encode("utf-8")) > MAX_CONTENT:
         raise UnsupportedNote("content_too_large")
