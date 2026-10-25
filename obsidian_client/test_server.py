@@ -46,5 +46,31 @@ class ClientTests(unittest.TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.json["status"], "invalid_database")
 
+
+    def test_connection_reads_only_database_metadata(self):
+        from unittest.mock import MagicMock
+        opts = {"couchdb_url": "https://example.org", "couchdb_database": "sandbox"}
+        response_obj = MagicMock()
+        response_obj.__enter__.return_value = response_obj
+        response_obj.read.return_value = b'{"doc_count":3}'
+        with patch.object(server, "options", return_value=opts), \
+             patch.object(server, "build_opener") as factory:
+            factory.return_value.open.return_value = response_obj
+            result = self.client.get("/api/connection")
+            req = factory.return_value.open.call_args.args[0]
+        self.assertEqual(result.status_code, 200)
+        self.assertEqual(result.json["document_count"], 3)
+        self.assertEqual(req.get_method(), "GET")
+        self.assertEqual(req.full_url, "https://example.org/sandbox")
+
+    def test_connection_failure_hides_internal_error(self):
+        opts = {"couchdb_url": "https://example.org", "couchdb_database": "sandbox"}
+        with patch.object(server, "options", return_value=opts), \
+             patch.object(server, "build_opener") as factory:
+            factory.return_value.open.side_effect = RuntimeError("private secret")
+            result = self.client.get("/api/connection")
+        self.assertEqual(result.status_code, 502)
+        self.assertNotIn("private secret", result.get_data(as_text=True))
+
 if __name__ == "__main__":
     unittest.main()
