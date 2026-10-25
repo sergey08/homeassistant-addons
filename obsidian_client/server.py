@@ -70,6 +70,32 @@ def connection():
     except Exception:
         return jsonify(configured=True, connected=False, status="connection_failed"), 502
 
+
+@app.get("/api/notes")
+def list_notes():
+    """Read-only local Markdown index / Índice local de solo lectura."""
+    root = vault_dir()
+    if not root.is_dir():
+        return jsonify(notes=[], count=0, status="vault_not_found")
+    term = request.args.get("q", "").strip().casefold()
+    if len(term) > 200:
+        return jsonify(error="query_too_long"), 400
+    notes = []
+    for p in root.rglob("*.md"):
+        relative = p.relative_to(root)
+        if any(part.startswith(".") for part in relative.parts):
+            continue
+        if not p.resolve().is_relative_to(root) or not p.is_file():
+            continue
+        name = relative.as_posix()
+        if term and term not in name.casefold():
+            continue
+        notes.append(name)
+        if len(notes) >= 2000:
+            break
+    notes.sort(key=str.casefold)
+    return jsonify(notes=notes, count=len(notes), truncated=len(notes) >= 2000)
+
 @app.get("/")
 def home():
     root = vault_dir()
