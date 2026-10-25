@@ -98,7 +98,7 @@ def internal_diagnostics():
         try:
             with socket.create_connection((host, port), timeout=3) as raw:
                 raw.settimeout(3)
-                raw.sendall(b"GET / HTTP/1.0\\r\\nHost: internal\\r\\nConnection: close\\r\\n\\r\\n")
+                raw.sendall(b"GET / HTTP/1.0\r\nHost: internal\r\nConnection: close\r\n\r\n")
                 prefix = raw.recv(32)
                 results[str(port)]["protocol"] = "http" if prefix.startswith(b"HTTP/") else "unknown"
         except (OSError, TimeoutError):
