@@ -578,6 +578,14 @@ def encrypted_note_paths():
             unsupported += 1
             continue
         stats["decrypted"] += 1
+        shape = stats.setdefault("decrypted_shape", {"prefix_f": 0, "prefix_i": 0, "prefix_slash": 0, "contains_md": 0, "contains_dot": 0, "contains_colon": 0, "length_over_128": 0})
+        if path.startswith("f:"): shape["prefix_f"] += 1
+        if path.startswith("i:"): shape["prefix_i"] += 1
+        if path.startswith("/"): shape["prefix_slash"] += 1
+        if ".md" in path.lower(): shape["contains_md"] += 1
+        if "." in path: shape["contains_dot"] += 1
+        if ":" in path: shape["contains_colon"] += 1
+        if len(path) > 128: shape["length_over_128"] += 1
         if (path.endswith(".md") and len(path) <= 1024 and
             not path.startswith("/") and "\\" not in path and
             all(part not in ("", ".", "..") for part in path.split("/"))):
