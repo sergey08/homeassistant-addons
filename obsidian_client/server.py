@@ -40,6 +40,8 @@ def connection():
     parsed = urlsplit(uri)
     if parsed.scheme not in ("https", "http") or not parsed.hostname or parsed.username or parsed.password or parsed.query or parsed.fragment:
         return jsonify(configured=True, connected=False, status="invalid_url"), 400
+    if (o.get("couchdb_username") or o.get("couchdb_password")) and parsed.scheme != "https":
+        return jsonify(configured=True, connected=False, status="https_required"), 400
     if not re.fullmatch(r"[A-Za-z0-9_.-]+", database) or not database:
         return jsonify(configured=True, connected=False, status="invalid_database"), 400
     target = uri + "/" + quote(database, safe="")
