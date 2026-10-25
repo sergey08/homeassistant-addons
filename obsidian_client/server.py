@@ -28,6 +28,18 @@ def page(content):
     a{color:#8774df}article{line-height:1.6;overflow-wrap:anywhere}pre{overflow:auto;background:#8882;padding:12px}input{padding:10px;width:100%;box-sizing:border-box}
     li{margin:9px 0}.muted{opacity:.75}</style></head><body>''' + content + "</body></html>"
 
+
+@app.get("/api/demo")
+def demo_note():
+    """Offline example only / Ejemplo aislado, sin acceso a CouchDB."""
+    from livesync_plain import decode_plain_note
+    parent = {"type": "plain", "path": "Demo/Hello.md",
+              "children": ["first", "second"], "size": 11}
+    chunks = {"first": {"type": "leaf", "data": "Hello "},
+              "second": {"type": "leaf", "data": "world"}}
+    return jsonify(decode_plain_note(parent, chunks), source="synthetic",
+                   read_only=True)
+
 @app.get("/api/connection")
 def connection():
     """Read-only CouchDB connectivity check. Never return secrets."""
