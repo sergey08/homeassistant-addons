@@ -641,6 +641,83 @@ def encrypted_note_paths():
             "truncated": len(docs.get("rows", [])) >= 1200}, None
 
 
+@app.get("/api/remote/chunk-preflight")
+def chunk_preflight():
+    """Read-only chunk structure check; returns counts only, no IDs or contents."""
+    from livesync_crypto import decrypt_hkdf_string, UnsupportedEncryption
+    import base64
+    cfg = options()
+    if not (cfg.get("livesync_encryption_enabled") and cfg.get("livesync_e2ee_passphrase")):
+        return jsonify(status="encryption_not_configured"), 400
+    if (cfg.get("couchdb_url") or "").rstrip("/") != "http://db21ed7f-obsidian-syncserver-ssl:5984":
+        return jsonify(status="unsupported_connection"), 400
+    db = cfg.get("couchdb_database") or ""
+    if not re.fullmatch(r"[A-Za-z0-9_.-]+", db):
+        return jsonify(status="invalid_database"), 400
+    user = cfg.get("couchdb_username") or ""
+    headers = {"Accept": "application/json"}
+    if user:
+        headers["Authorization"] = "Basic " + base64.b64encode(
+            (user + ":" + (cfg.get("couchdb_password") or "")).encode()).decode()
+    class NoRedirect(HTTPRedirectHandler):
+        def redirect_request(self, req, fp, code, msg, headers, newurl):
+            return None
+    opener = build_opener(NoRedirect())
+    base = cfg["couchdb_url"].rstrip("/") + "/" + quote(db, safe="")
+    def fetch(path, limit=500000):
+        with opener.open(Request(base + path, headers=headers), timeout=9) as response:
+            payload = response.read(limit+1)
+        if len(payload) > limit:
+            raise ValueError("response_too_large")
+        return json.loads(payload)
+    try:
+        salt = fetch("/_local/obsidian_livesync_sync_parameters",100000).get("pbkdf2salt")
+        if not isinstance(salt, str) or not salt:
+            return jsonify(status="salt_missing", read_only=True)
+        docs = fetch("/_all_docs?include_docs=true&limit=160",2000000).get("rows",[])
+        candidate = None
+        for row in docs:
+            doc = row.get("doc") if isinstance(row, dict) else None
+            if not isinstance(doc,dict) or doc.get("deleted") or doc.get("_deleted") or doc.get("_conflicts"):
+                continue
+            encrypted = doc.get("path")
+            if doc.get("type") not in ("plain","newnote") or not isinstance(encrypted,str) or not encrypted.startswith("/\\:%="):
+                continue
+            try:
+                meta = json.loads(decrypt_hkdf_string(encrypted[3:],cfg["livesync_e2ee_passphrase"],salt))
+            except (UnsupportedEncryption, ValueError):
+                continue
+            if isinstance(meta,dict) and isinstance(meta.get("path"),str) and meta["path"].endswith(".md") and isinstance(meta.get("children"),list) and meta["children"]:
+                candidate = meta
+                break
+        if candidate is None:
+            return jsonify(status="no_chunked_note_in_sample",read_only=True)
+        children=candidate["children"]
+        if len(children)>512 or not all(isinstance(c,str) and 0<len(c)<256 for c in children):
+            return jsonify(status="invalid_children",read_only=True)
+        counters={"referenced":len(children),"found":0,"missing":0,"encrypted_hkdf":0,"encrypted_other":0,"plaintext":0,"other_type":0}
+        for child in children[:12]:
+            try:
+                d=fetch("/"+quote(child,safe=""),150000)
+            except HTTPError as err:
+                if err.code==404:
+                    counters["missing"]+=1
+                    continue
+                raise
+            counters["found"]+=1
+            if d.get("type")!="leaf":
+                counters["other_type"]+=1
+            elif isinstance(d.get("data"),str) and d["data"].startswith("%="):
+                counters["encrypted_hkdf"]+=1
+            elif d.get("e_") or (isinstance(d.get("data"),str) and d["data"].startswith("%")):
+                counters["encrypted_other"]+=1
+            else:
+                counters["plaintext"]+=1
+        return jsonify(status="ok",read_only=True,checked=min(12,len(children)),counts=counters)
+    except (HTTPError, URLError, OSError, ValueError, TypeError):
+        return jsonify(status="chunk_probe_failed",read_only=True),502
+
+
 @app.get("/api/remote/encrypted-notes")
 def encrypted_notes():
     data, error = encrypted_note_paths()
