@@ -559,12 +559,15 @@ def encrypted_note_paths():
         return None, "connection_failed"
     paths = set()
     unsupported = 0
+    stats = {"candidate": 0, "decrypted": 0, "markdown": 0, "other_extension": 0, "invalid_path": 0, "deleted": 0}
     for row in docs.get("rows", []):
         doc = row.get("doc") if isinstance(row, dict) else None
         if not isinstance(doc, dict) or doc.get("type") not in ("plain", "newnote"):
             continue
         if doc.get("deleted") or doc.get("_deleted") or doc.get("_conflicts"):
+            stats["deleted"] += 1
             continue
+        stats["candidate"] += 1
         encrypted = doc.get("path")
         if not isinstance(encrypted, str) or not encrypted.startswith("/\\:%="):
             unsupported += 1
@@ -574,11 +577,18 @@ def encrypted_note_paths():
         except UnsupportedEncryption:
             unsupported += 1
             continue
+        stats["decrypted"] += 1
         if (path.endswith(".md") and len(path) <= 1024 and
             not path.startswith("/") and "\\" not in path and
             all(part not in ("", ".", "..") for part in path.split("/"))):
             paths.add(path)
+            stats["markdown"] += 1
+        elif not path.endswith(".md"):
+            stats["other_extension"] += 1
+        else:
+            stats["invalid_path"] += 1
     return {"notes": sorted(paths, key=str.casefold),
+            "stats": stats,
             "unsupported": unsupported,
             "truncated": len(docs.get("rows", [])) >= 1200}, None
 
@@ -593,7 +603,7 @@ def encrypted_notes():
         return jsonify(status="query_too_long"), 400
     notes = [p for p in data["notes"] if term in p.casefold()]
     return jsonify(status="ok", read_only=True, notes=notes, count=len(notes),
-                   unsupported=data["unsupported"], truncated=data["truncated"])
+                   unsupported=data["unsupported"], stats=data["stats"], truncated=data["truncated"])
 
 
 @app.get("/api/remote/notes")
