@@ -135,7 +135,7 @@ def connection():
         return jsonify(configured=True, connected=False, status="invalid_url"), 400
     if parsed.scheme not in ("https", "http") or not parsed.hostname or parsed.username is not None or parsed.password is not None or parsed.query or parsed.fragment:
         return jsonify(configured=True, connected=False, status="invalid_url"), 400
-    if (o.get("couchdb_username") or o.get("couchdb_password")) and parsed.scheme != "https":
+    if (o.get("couchdb_username") or o.get("couchdb_password")) and parsed.scheme != "https" and not (parsed.scheme == "http" and parsed.hostname == "db21ed7f-obsidian-syncserver-ssl" and parsed.port == 5984):
         return jsonify(configured=True, connected=False, status="https_required"), 400
     if not re.fullmatch(r"[A-Za-z0-9_.-]+", database) or not database:
         return jsonify(configured=True, connected=False, status="invalid_database"), 400
