@@ -1,0 +1,21 @@
+name: Obsidian Client (Development)
+slug: obsidian_client
+version: "0.1.0-dev1"
+description: "Read-only Markdown vault viewer for Home Assistant - developer preview"
+url: https://github.com/sergey08/homeassistant-addons/tree/main/obsidian_client
+arch:
+  - amd64
+  - aarch64
+startup: application
+boot: manual
+init: false
+ingress: true
+ingress_port: 8099
+panel_icon: mdi:notebook-outline
+panel_title: Obsidian
+map:
+  - share:ro
+options:
+  vault_path: /share/obsidian-client/vault
+schema:
+  vault_path: str
