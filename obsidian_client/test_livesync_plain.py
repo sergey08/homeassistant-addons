@@ -70,5 +70,26 @@ class PlainNoteTests(unittest.TestCase):
         with self.assertRaises(UnsupportedNote):
             decode_plain_note({"type": "plain", "path": "Lost.md", "size": 50, "children": [], "data": ""}, {})
 
+
+    def test_rejects_livesync_logical_deletion(self):
+        with self.assertRaises(UnsupportedNote):
+            decode_plain_note({"type": "plain", "path": "Deleted.md",
+                               "deleted": True, "data": "old content"}, {})
+
+    def test_rejects_pouchdb_tombstone(self):
+        with self.assertRaises(UnsupportedNote):
+            decode_plain_note({"type": "plain", "path": "Deleted.md",
+                               "_deleted": True, "data": "old content"}, {})
+
+    def test_preserves_order_and_does_not_modify_documents(self):
+        from copy import deepcopy
+        parent = {"type": "plain", "path": "Demo/Test.md", "children": ["second", "first"]}
+        chunks = {"first": {"type": "leaf", "data": "B"},
+                  "second": {"type": "leaf", "data": "A"}}
+        snapshot = deepcopy((parent, chunks))
+        result = decode_plain_note(parent, chunks)
+        self.assertEqual(result["content"], "AB")
+        self.assertEqual((parent, chunks), snapshot)
+
 if __name__ == "__main__":
     unittest.main()
