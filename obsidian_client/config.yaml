@@ -1,6 +1,6 @@
 name: Obsidian Client (Development)
 slug: obsidian_client
-version: "0.1.0-dev24"
+version: "0.1.0-dev25"
 description: "Independent Obsidian client / Cliente Obsidian independiente (experimental)"
 url: https://github.com/sergey08/homeassistant-addons/tree/main/obsidian_client
 arch:
@@ -21,9 +21,11 @@ options:
   couchdb_database: ""
   couchdb_username: ""
   couchdb_password: ""
+  livesync_e2ee_passphrase: ""
 schema:
   vault_path: str
   couchdb_url: str?
   couchdb_database: str?
   couchdb_username: str?
   couchdb_password: password?
+  livesync_e2ee_passphrase: password?
