@@ -294,6 +294,60 @@ def remote_note_index():
     return sorted(set(notes), key=str.casefold), None
 
 
+@app.get("/api/remote/format")
+def remote_format():
+    """Safe schema probe. Never include note IDs, paths or contents."""
+    o = options()
+    url = (o.get("couchdb_url") or "").strip().rstrip("/")
+    if url != "http://db21ed7f-obsidian-syncserver-ssl:5984":
+        return jsonify(status="unsupported_host"), 400
+    import base64
+    username = o.get("couchdb_username") or ""
+    password = o.get("couchdb_password") or ""
+    headers = {"Accept": "application/json"}
+    if username:
+        headers["Authorization"] = "Basic " + base64.b64encode((username + ":" + password).encode()).decode()
+    database = o.get("couchdb_database") or ""
+    if not re.fullmatch(r"[A-Za-z0-9_.-]+", database):
+        return jsonify(status="invalid_database"), 400
+    target = url + "/" + quote(database, safe="") + "/_all_docs?include_docs=true&limit=100"
+    class NoRedirect(HTTPRedirectHandler):
+        def redirect_request(self, req, fp, code, msg, headers, newurl):
+            return None
+    try:
+        with build_opener(NoRedirect()).open(Request(target, headers=headers), timeout=8) as resp:
+            raw = resp.read(1_000_001)
+        if len(raw) > 1_000_000:
+            return jsonify(status="response_too_large"), 413
+        rows = json.loads(raw).get("rows", [])
+    except (OSError, ValueError):
+        return jsonify(status="connection_failed"), 502
+    shapes = {}
+    for item in rows:
+        doc = item.get("doc") if isinstance(item, dict) else None
+        if not isinstance(doc, dict):
+            continue
+        kind = doc.get("type")
+        kind = kind if kind in ("plain", "newnote", "leaf", "chunk") else "other"
+        slot = shapes.setdefault(kind, {"count": 0, "path_present": 0, "path_md": 0,
+                                       "path_f_prefix": 0, "path_other": 0,
+                                       "keys": {}})
+        slot["count"] += 1
+        for key in doc:
+            if key in ("_id", "_rev", "path", "data", "children", "mtime", "ctime", "size", "type", "deleted", "eden", "e_"):
+                slot["keys"][key] = slot["keys"].get(key, 0) + 1
+        path = doc.get("path")
+        if isinstance(path, str):
+            slot["path_present"] += 1
+            if path.endswith(".md"):
+                slot["path_md"] += 1
+            elif path.startswith("f:"):
+                slot["path_f_prefix"] += 1
+            else:
+                slot["path_other"] += 1
+    return jsonify(status="ok", inspected=len(rows), shapes=shapes, read_only=True)
+
+
 @app.get("/api/remote/notes")
 def remote_notes():
     notes, error = remote_note_index()
