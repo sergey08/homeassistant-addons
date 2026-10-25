@@ -8,7 +8,7 @@
 | --- | --- |
 | CouchDB connection and document type counts | Read-only diagnostics |
 | Local Markdown file listing and preview | Read-only |
-| Remote plain-text notes and chunk reassembly | Not implemented |
+| Remote plain-text notes and chunk reassembly | Offline synthetic prototype only; remote integration not implemented |
 | E2EE V1/V2, obfuscated paths and encrypted metadata | Not implemented |
 | Attachments, editing, deletion and conflict resolution | Disabled |
 
@@ -26,10 +26,16 @@ Source / Fuente:
 | --- | --- |
 | Conexión CouchDB y recuentos de tipos de documentos | Diagnóstico de solo lectura |
 | Listado y vista previa de Markdown local | Solo lectura |
-| Notas remotas de texto y reconstrucción de fragmentos | No implementado |
+| Notas remotas de texto y reconstrucción de fragmentos | Prototipo aislado con datos ficticios; conexión remota no implementada |
 | E2EE V1/V2, rutas ofuscadas y metadatos cifrados | No implementado |
 | Adjuntos, edición, borrado y resolución de conflictos | Deshabilitados |
 
 Self-hosted LiveSync puede almacenar una misma nota mediante metadatos y varios fragmentos; un documento CouchDB no siempre equivale a una nota completa. Las configuraciones actuales también pueden cifrar el contenido y los metadatos internos. No se deben interpretar datos cifrados o comprimidos como texto. Existe una propuesta de especificación para clientes externos pendiente de revisión; no habilitaremos escrituras sin pruebas de compatibilidad y de conflictos.
 
 Fuentes: enlaces anteriores.
+
+## Offline prototype / Prototipo aislado
+
+English: `livesync_plain.py` is a deliberately narrow decoder for **synthetic fixtures only**. The 7 isolated unit tests pass locally, but **this is not a verified implementation of upstream LiveSync**, and the module is not wired to the Home Assistant app or any real CouchDB database. Compression, encryption, metadata variants and version-specific chunk formats remain unsupported.
+
+Español: `livesync_plain.py` es un decodificador limitado para **datos ficticios de prueba**. Las 7 pruebas aisladas pasan localmente, pero **no se ha validado su compatibilidad con LiveSync real** y el módulo no está conectado a la aplicación ni a una base CouchDB real. No admite todavía compresión, cifrado, variantes de metadatos ni formatos de fragmentos propios de cada versión.
