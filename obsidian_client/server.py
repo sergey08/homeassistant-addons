@@ -71,6 +71,55 @@ def connection():
         return jsonify(configured=True, connected=False, status="connection_failed"), 502
 
 
+
+@app.get("/api/remote/inspect")
+def inspect_remote():
+    """Limited read-only structure probe / Inspección limitada de solo lectura."""
+    o = options()
+    uri = (o.get("couchdb_url") or "").strip().rstrip("/")
+    database = (o.get("couchdb_database") or "").strip()
+    if not uri:
+        return jsonify(configured=False, status="not_configured")
+    try:
+        parsed = urlsplit(uri)
+        parsed.port
+    except ValueError:
+        return jsonify(status="invalid_url"), 400
+    if (parsed.scheme not in ("http", "https") or not parsed.hostname
+            or parsed.username is not None or parsed.password is not None
+            or parsed.query or parsed.fragment or parsed.path not in ("", "/")
+            or not re.fullmatch(r"[A-Za-z0-9_.-]+", database)):
+        return jsonify(status="invalid_configuration"), 400
+    username = o.get("couchdb_username") or ""
+    password = o.get("couchdb_password") or ""
+    if (username or password) and parsed.scheme != "https":
+        return jsonify(status="https_required"), 400
+    headers = {"Accept": "application/json"}
+    if username:
+        import base64
+        headers["Authorization"] = "Basic " + base64.b64encode(
+            (username + ":" + password).encode()).decode()
+    target = uri + "/" + quote(database, safe="") + "/_all_docs?include_docs=true&limit=20"
+    class NoRedirect(HTTPRedirectHandler):
+        def redirect_request(self, req, fp, code, msg, headers, newurl):
+            return None
+    try:
+        req = Request(target, headers=headers, method="GET")
+        with build_opener(NoRedirect()).open(req, timeout=5) as response:
+            result = json.load(response)
+        rows = result.get("rows", [])
+        if not isinstance(rows, list):
+            raise ValueError("Invalid CouchDB response")
+        kinds = {}
+        for row in rows:
+            doc = row.get("doc") or {}
+            kind = str(doc.get("type", "unknown"))[:40]
+            kinds[kind] = kinds.get(kind, 0) + 1
+        return jsonify(status="ok", sample_count=len(rows), types=kinds,
+                       note="Metadata only / Solo metadatos; no document contents returned")
+    except Exception:
+        return jsonify(status="connection_failed"), 502
+
 @app.get("/api/notes")
 def list_notes():
     """Read-only local Markdown index / Índice local de solo lectura."""
