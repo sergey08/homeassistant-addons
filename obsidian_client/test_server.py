@@ -150,5 +150,23 @@ class ClientTests(unittest.TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.json["status"], "https_required")
 
+
+    def test_inspect_returns_types_without_note_content(self):
+        from unittest.mock import MagicMock
+        opts = {"couchdb_url": "https://example.org", "couchdb_database": "sandbox"}
+        reply = MagicMock()
+        reply.__enter__.return_value = reply
+        reply.read.return_value = b'{"rows":[{"doc":{"type":"plain","data":"SECRET_NOTE"}}]}'
+        with patch.object(server, "options", return_value=opts):
+            with patch.object(server, "build_opener") as opener:
+                opener.return_value.open.return_value = reply
+                response = self.client.get("/api/remote/inspect")
+                outbound = opener.return_value.open.call_args.args[0]
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json["types"], {"plain": 1})
+        self.assertNotIn("SECRET_NOTE", response.get_data(as_text=True))
+        self.assertEqual(outbound.get_method(), "GET")
+        self.assertIn("limit=20", outbound.full_url)
+
 if __name__ == "__main__":
     unittest.main()
