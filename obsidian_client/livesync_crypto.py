@@ -1,6 +1,6 @@
-"""Read-only LiveSync HKDF (%=) string decoder.
+"""Read-only LiveSync HKDF (%= and %$) string decoder.
 
-Derived from the published LiveSync recovery format; supports %= only.
+Based on the published octagonal-wheels HKDF layout; supports %= and %$.
 No IO, logging, persistent key storage, or fallback to unverified plaintext.
 """
 import base64
