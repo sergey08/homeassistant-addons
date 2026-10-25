@@ -112,5 +112,29 @@ class ClientTests(unittest.TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.json["status"], "invalid_url")
 
+
+    def test_notes_index_filters_and_excludes_hidden_files(self):
+        from pathlib import Path
+        from tempfile import TemporaryDirectory
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "Travel").mkdir()
+            (root / "Travel" / "Trip.md").write_text("sample", encoding="utf-8")
+            (root / ".hidden.md").write_text("hidden", encoding="utf-8")
+            (root / "Other.md").write_text("other", encoding="utf-8")
+            with patch.object(server, "vault_dir", return_value=root):
+                result = self.client.get("/api/notes?q=trip")
+            self.assertEqual(result.status_code, 200)
+            self.assertEqual(result.json["notes"], ["Travel/Trip.md"])
+            self.assertEqual(result.json["count"], 1)
+
+    def test_notes_index_rejects_overlong_query(self):
+        from pathlib import Path
+        from tempfile import TemporaryDirectory
+        with TemporaryDirectory() as tmp:
+            with patch.object(server, "vault_dir", return_value=Path(tmp)):
+                result = self.client.get("/api/notes?q=" + "x" * 201)
+            self.assertEqual(result.status_code, 400)
+
 if __name__ == "__main__":
     unittest.main()
