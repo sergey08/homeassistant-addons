@@ -739,6 +739,76 @@ def chunk_preflight():
         return jsonify(status="chunk_probe_failed",read_only=True),502
 
 
+def read_encrypted_note(requested):
+    """One LiveSync note, complete authenticated chunks, strictly read-only."""
+    from livesync_crypto import decrypt_hkdf_string, UnsupportedEncryption
+    import base64
+    cfg = options()
+    if not isinstance(requested,str) or len(requested)>1024 or not requested.endswith(".md") or requested.startswith("/") or "\\" in requested or any(x in ("",".","..") for x in requested.split("/")):
+        return None,"invalid_path"
+    if not cfg.get("livesync_encryption_enabled") or not cfg.get("livesync_e2ee_passphrase"):
+        return None,"encryption_not_configured"
+    url=(cfg.get("couchdb_url") or "").rstrip("/")
+    db=cfg.get("couchdb_database") or ""
+    if url!="http://db21ed7f-obsidian-syncserver-ssl:5984" or not re.fullmatch(r"[A-Za-z0-9_.-]+",db):
+        return None,"unsupported_connection"
+    headers={"Accept":"application/json"}
+    user=cfg.get("couchdb_username") or ""
+    if user:
+        headers["Authorization"]="Basic "+base64.b64encode((user+":"+(cfg.get("couchdb_password") or "")).encode()).decode()
+    class NoRedirect(HTTPRedirectHandler):
+        def redirect_request(self, req, fp, code, msg, headers, newurl):
+            return None
+    opener=build_opener(NoRedirect())
+    base=url+"/"+quote(db,safe="")
+    def fetch(suffix,limit):
+        with opener.open(Request(base+suffix,headers=headers),timeout=12) as resp:
+            raw=resp.read(limit+1)
+        if len(raw)>limit: raise ValueError("oversized")
+        return json.loads(raw)
+    try:
+        salt=fetch("/_local/obsidian_livesync_sync_parameters",100000).get("pbkdf2salt")
+        if not isinstance(salt,str) or not salt: return None,"salt_missing"
+        rows=fetch("/_all_docs?include_docs=true&limit=1200",5000000).get("rows",[])
+        candidate=None
+        for row in rows:
+            doc=row.get("doc") if isinstance(row,dict) else None
+            if not isinstance(doc,dict) or doc.get("type") not in ("plain","newnote") or doc.get("deleted") or doc.get("_deleted") or doc.get("_conflicts"): continue
+            ciphertext=doc.get("path")
+            if not isinstance(ciphertext,str) or not ciphertext.startswith("/\\:%="): continue
+            try: meta=json.loads(decrypt_hkdf_string(ciphertext[3:],cfg["livesync_e2ee_passphrase"],salt))
+            except (UnsupportedEncryption,ValueError): continue
+            if isinstance(meta,dict) and meta.get("path")==requested:
+                candidate=meta
+                break
+        if candidate is None: return None,"not_found"
+        children=candidate.get("children")
+        if not isinstance(children,list) or not children or len(children)>512 or len(children)!=len(set(children)) or not all(isinstance(x,str) and 0<len(x)<256 for x in children): return None,"unsupported_children"
+        parts=[]
+        for child in children:
+            leaf=fetch("/"+quote(child,safe=""),150000)
+            if leaf.get("type")!="leaf" or not isinstance(leaf.get("data"),str) or not leaf["data"].startswith("%=") or leaf.get("_deleted") or leaf.get("_conflicts"): return None,"unsupported_chunk"
+            parts.append(decrypt_hkdf_string(leaf["data"],cfg["livesync_e2ee_passphrase"],salt))
+        content="".join(parts)
+        if len(content.encode("utf-8"))>2000000: return None,"too_large"
+        expected=candidate.get("size")
+        if type(expected) is int and len(content.encode("utf-8"))!=expected: return None,"size_mismatch"
+        return content,None
+    except (HTTPError,URLError,OSError,ValueError,TypeError,UnsupportedEncryption):
+        return None,"read_failed"
+
+
+@app.get("/remote/note")
+def remote_note_view():
+    requested=request.args.get("path","")
+    content,error=read_encrypted_note(requested)
+    if error:
+        return page("<p><a href='./'>← Volver / Back</a></p><h2>No se pudo abrir la nota</h2><p>"+html.escape(error)+"</p>"),404
+    # Escape all HTML in Obsidian markdown. External images/scripts are not loaded.
+    rendered=markdown.markdown(html.escape(content),extensions=["tables","fenced_code"])
+    return page("<p><a href='./'>← Volver / Back</a></p><h2>"+html.escape(requested)+"</h2><article>"+rendered+"</article><p class='muted'>Solo lectura / Read only</p>")
+
+
 @app.get("/api/remote/encrypted-notes")
 def encrypted_notes():
     data, error = encrypted_note_paths()
@@ -805,7 +875,7 @@ def home():
                             "</p>" + status)
             term = request.args.get("q", "").strip().casefold()[:200]
             visible = [p for p in index["notes"] if term in p.casefold()][:500]
-            rows = "".join("<li>" + html.escape(p) + "</li>" for p in visible)
+            rows = "".join("<li><a href=\"remote/note?path=" + quote(p,safe="") + "\">" + html.escape(p) + "</a></li>" for p in visible)
             return page("<h1>Obsidian Client</h1><h2>LiveSync · Notas / Notes</h2>" +
                         "<p>Solo lectura · " + str(len(index["notes"])) +
                         " notas Markdown descifradas</p>" +
