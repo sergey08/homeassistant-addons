@@ -805,8 +805,33 @@ def remote_note_view():
     if error:
         return page("<p><a href='../'>← Volver al listado / Back to notes</a></p><h2>No se pudo abrir la nota</h2><p>"+html.escape(error)+"</p>"),404
     # Escape all HTML in Obsidian markdown. External images/scripts are not loaded.
-    rendered=markdown.markdown(html.escape(content),extensions=["tables","fenced_code"])
-    return page("<p><a href='./'>← Volver / Back</a></p><h2>"+html.escape(requested)+"</h2><article>"+rendered+"</article><p class='muted'>Solo lectura / Read only</p>")
+    index, index_error = encrypted_note_paths()
+    available = index["notes"] if not index_error and index else []
+    by_name = {}
+    for candidate in available:
+        by_name.setdefault(candidate.rsplit("/", 1)[-1].removesuffix(".md").casefold(), []).append(candidate)
+    source_dir = requested.rpartition("/")[0]
+    links = []
+    def wiki_replace(match):
+        raw = match.group(1)
+        target = raw.split("|", 1)[0].split("#", 1)[0].strip()
+        label = raw.split("|", 1)[1].strip() if "|" in raw else target
+        normalized = target.removesuffix(".md")
+        same_folder = (source_dir + "/" if source_dir else "") + normalized + ".md"
+        exact = normalized + ".md"
+        hits = by_name.get(normalized.rsplit("/", 1)[-1].casefold(), [])
+        resolved = same_folder if same_folder in available else exact if exact in available else hits[0] if len(hits) == 1 else None
+        token = "OBSIDIANWIKILINKTOKEN" + str(len(links)) + "END"
+        if resolved:
+            links.append('<a href="?path=' + quote(resolved, safe="") + '">' + html.escape(label) + '</a>')
+        else:
+            links.append('<span title="Nota no encontrada / Note not found">' + html.escape(label) + '</span>')
+        return token
+    prepared = re.sub(r"(?<!!)\[\[([^\]\n]{1,300})\]\]", wiki_replace, content)
+    rendered = markdown.markdown(html.escape(prepared), extensions=["tables", "fenced_code"])
+    for i, link in enumerate(links):
+        rendered = rendered.replace("OBSIDIANWIKILINKTOKEN" + str(i) + "END", link)
+    return page("<p><a href='../'>← Volver al listado / Back to notes</a></p><h2>"+html.escape(requested)+"</h2><article>"+rendered+"</article><p class='muted'>Solo lectura / Read only</p>")
 
 
 @app.get("/api/remote/encrypted-notes")
