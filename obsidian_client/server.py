@@ -885,7 +885,7 @@ def home():
             def render_tree(node):
                 items = []
                 for folder in sorted((k for k in node if k != "__notes__"), key=str.casefold):
-                    items.append("<li><details open><summary>📁 " + html.escape(folder) +
+                    items.append("<li><details" + (" open" if term else "") + "><summary>📁 " + html.escape(folder) +
                                  "</summary><ul>" + render_tree(node[folder]) + "</ul></details></li>")
                 for name, full in sorted(node.get("__notes__", []), key=lambda n: n[0].casefold()):
                     items.append('<li>📄 <a href="remote/note?path=' + quote(full,safe="") +
