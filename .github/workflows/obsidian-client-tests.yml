@@ -1,5 +1,6 @@
 name: Tests / Pruebas
 on:
+  workflow_dispatch:
   push:
     paths:
       - 'obsidian_client/**'
