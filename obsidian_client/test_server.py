@@ -168,5 +168,20 @@ class ClientTests(unittest.TestCase):
         self.assertEqual(outbound.get_method(), "GET")
         self.assertIn("limit=20", outbound.full_url)
 
+
+    def test_inspection_sanitizes_unexpected_document_types(self):
+        from unittest.mock import MagicMock
+        opts = {"couchdb_url": "https://example.org", "couchdb_database": "sandbox"}
+        reply = MagicMock()
+        reply.__enter__.return_value = reply
+        reply.read.return_value = b'{"rows":[{"doc":{"type":"sensitive-personal-label"}}]}'
+        with patch.object(server, "options", return_value=opts):
+            with patch.object(server, "build_opener") as opener:
+                opener.return_value.open.return_value = reply
+                response = self.client.get("/api/remote/inspect")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json["types"], {"other": 1})
+        self.assertNotIn("sensitive-personal-label", response.get_data(as_text=True))
+
 if __name__ == "__main__":
     unittest.main()
