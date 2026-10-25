@@ -15,9 +15,7 @@ panel_icon: mdi:notebook-outline
 panel_title: Obsidian
 map:
   - share:ro
-  - type: all_app_configs
-    read_only: true
 options:
-  vault_path: /app_configs/obsidian_bridge/vault
+  vault_path: /share/obsidian-client/vault
 schema:
   vault_path: str
