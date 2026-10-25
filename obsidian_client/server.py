@@ -798,6 +798,37 @@ def read_encrypted_note(requested):
         return None,"read_failed"
 
 
+def render_wikilinks(content, current_path, known_notes):
+    """Render only resolvable wiki-links. Never trust or inject target HTML."""
+    known=set(known_notes)
+    by_basename={}
+    for note in known:
+        by_basename.setdefault(note.rsplit("/",1)[-1].casefold(),[]).append(note)
+    token_pattern=re.compile(r"\\[\\[([^\\[\\]\\n]{1,300})\\]\\]")
+    replacements={}
+    def replace(match):
+        raw=match.group(1)
+        link,_,alias=raw.partition("|")
+        target=link.split("#",1)[0].strip()
+        if not target: return match.group(0)
+        if not target.lower().endswith(".md"): target+=".md"
+        candidates=[target,(current_path.rsplit("/",1)[0]+"/"+target) if "/" in current_path else target]
+        resolved=next((p for p in candidates if p in known),None)
+        if not resolved:
+            alternatives=by_basename.get(target.rsplit("/",1)[-1].casefold(),[])
+            if len(alternatives)==1: resolved=alternatives[0]
+        if not resolved: return match.group(0)
+        label=(alias.strip() or link.strip())[:300]
+        token="OBSIDIANWIKILINKTOKEN"+str(len(replacements))+"END"
+        replacements[token]='<a href="?path='+quote(resolved,safe="")+'">'+html.escape(label)+'</a>'
+        return token
+    processed=token_pattern.sub(replace,content)
+    safe=html.escape(processed)
+    for token,link in replacements.items():
+        safe=safe.replace(token,link)
+    return safe
+
+
 @app.get("/remote/note")
 def remote_note_view():
     requested=request.args.get("path","")
