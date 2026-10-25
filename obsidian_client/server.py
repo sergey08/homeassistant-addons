@@ -165,7 +165,8 @@ def list_notes():
 @app.get("/")
 def home():
     root = vault_dir()
-    status = '<p><a href="api/connection">CouchDB connection diagnostics / Diagnóstico de conexión CouchDB (JSON)</a></p>'
+    status = ('<p><a href="api/demo">Offline example / Ejemplo aislado (JSON)</a> · '
+              '<a href="api/connection">CouchDB diagnostics / Diagnóstico CouchDB (JSON)</a></p>')
     if not root.is_dir():
         return page("<h1>Obsidian Client</h1><p>Local vault not found / Bóveda local no encontrada.</p>" + status +
                     '<p class="muted">LiveSync document decoding and editing are not implemented yet / El descifrado y la edición todavía no están implementados.</p>')
