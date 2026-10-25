@@ -522,6 +522,80 @@ def remote_format():
     return jsonify(status="ok", inspected=len(rows), shapes=shapes, read_only=True)
 
 
+def encrypted_note_paths():
+    """Read-only, bounded LiveSync index; no decrypted note content fetched."""
+    from livesync_crypto import decrypt_hkdf_string, UnsupportedEncryption
+    import base64
+    o = options()
+    if not (o.get("livesync_encryption_enabled") and o.get("livesync_e2ee_passphrase")):
+        return None, "encryption_not_configured"
+    url = (o.get("couchdb_url") or "").rstrip("/")
+    db = o.get("couchdb_database") or ""
+    if url != "http://db21ed7f-obsidian-syncserver-ssl:5984" or not re.fullmatch(r"[A-Za-z0-9_.-]+", db):
+        return None, "unsupported_connection"
+    headers = {"Accept": "application/json"}
+    user = o.get("couchdb_username") or ""
+    if user:
+        headers["Authorization"] = "Basic " + base64.b64encode(
+            (user + ":" + (o.get("couchdb_password") or "")).encode()).decode()
+    base = url + "/" + quote(db, safe="")
+    class NoRedirect(HTTPRedirectHandler):
+        def redirect_request(self, req, fp, code, msg, headers, newurl):
+            return None
+    opener = build_opener(NoRedirect())
+    def fetch(suffix, limit=5_000_000):
+        with opener.open(Request(base + suffix, headers=headers), timeout=12) as resp:
+            raw = resp.read(limit + 1)
+        if len(raw) > limit:
+            raise ValueError("too_large")
+        return json.loads(raw)
+    try:
+        params = fetch("/_local/obsidian_livesync_sync_parameters", 100_000)
+        salt = params.get("pbkdf2salt")
+        if not isinstance(salt, str) or not salt:
+            return None, "sync_salt_unavailable"
+        docs = fetch("/_all_docs?include_docs=true&limit=1200")
+    except (OSError, ValueError, HTTPError, URLError):
+        return None, "connection_failed"
+    paths = set()
+    unsupported = 0
+    for row in docs.get("rows", []):
+        doc = row.get("doc") if isinstance(row, dict) else None
+        if not isinstance(doc, dict) or doc.get("type") not in ("plain", "newnote"):
+            continue
+        if doc.get("deleted") or doc.get("_deleted") or doc.get("_conflicts"):
+            continue
+        encrypted = doc.get("path")
+        if not isinstance(encrypted, str) or not encrypted.startswith("/\\:%="):
+            unsupported += 1
+            continue
+        try:
+            path = decrypt_hkdf_string(encrypted[3:], o["livesync_e2ee_passphrase"], salt)
+        except UnsupportedEncryption:
+            unsupported += 1
+            continue
+        if (path.endswith(".md") and len(path) <= 1024 and
+            not path.startswith("/") and "\\" not in path and
+            all(part not in ("", ".", "..") for part in path.split("/"))):
+            paths.add(path)
+    return {"notes": sorted(paths, key=str.casefold),
+            "unsupported": unsupported,
+            "truncated": len(docs.get("rows", [])) >= 1200}, None
+
+
+@app.get("/api/remote/encrypted-notes")
+def encrypted_notes():
+    data, error = encrypted_note_paths()
+    if error:
+        return jsonify(status=error, read_only=True), 502
+    term = request.args.get("q", "").casefold().strip()
+    if len(term) > 200:
+        return jsonify(status="query_too_long"), 400
+    notes = [p for p in data["notes"] if term in p.casefold()]
+    return jsonify(status="ok", read_only=True, notes=notes, count=len(notes),
+                   unsupported=data["unsupported"], truncated=data["truncated"])
+
+
 @app.get("/api/remote/notes")
 def remote_notes():
     notes, error = remote_note_index()
