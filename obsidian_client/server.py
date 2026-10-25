@@ -43,6 +43,13 @@ def demo_note():
     result = decode_plain_note(parent, chunks)
     return jsonify({**result, "source": "synthetic", "read_only": True})
 
+@app.get("/api/e2ee/status")
+def e2ee_status():
+    """Only boolean configuration status; never exposes the E2EE passphrase."""
+    configured = bool(options().get("livesync_e2ee_passphrase"))
+    return jsonify(configured=configured, decryption_implemented=False,
+                   status="awaiting_compatible_decoder", read_only=True)
+
 @app.get("/api/discovery")
 def discovery():
     """Detect known HA CouchDB add-on via DNS only. No port scanning or credentials."""
