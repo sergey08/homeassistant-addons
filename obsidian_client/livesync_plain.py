@@ -33,6 +33,8 @@ def decode_plain_note(parent, chunks):
     if ids:
         parts = []
         for child_id in ids:
+            if child_id.startswith("h:+"):
+                raise UnsupportedNote("encrypted_chunk_id")
             if not isinstance(child_id, str) or child_id not in chunks:
                 raise UnsupportedNote("missing_chunk")
             doc = chunks[child_id]
