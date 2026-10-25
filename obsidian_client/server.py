@@ -112,8 +112,10 @@ def inspect_remote():
             raise ValueError("Invalid CouchDB response")
         kinds = {}
         for row in rows:
-            doc = row.get("doc") or {}
-            kind = str(doc.get("type", "unknown"))[:40]
+            doc = row.get("doc") if isinstance(row, dict) else None
+            doc = doc if isinstance(doc, dict) else {}
+            raw_type = doc.get("type")
+            kind = raw_type if raw_type in ("plain", "newnote", "notes", "leaf", "chunk", "milestone") else "other"
             kinds[kind] = kinds.get(kind, 0) + 1
         return jsonify(status="ok", sample_count=len(rows), types=kinds,
                        note="Metadata only / Solo metadatos; no document contents returned")
