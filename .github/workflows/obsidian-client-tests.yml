@@ -1,0 +1,26 @@
+name: Tests / Pruebas
+on:
+  push:
+    paths:
+      - 'obsidian_client/**'
+      - '.github/workflows/obsidian-client-tests.yml'
+  pull_request:
+    paths:
+      - 'obsidian_client/**'
+      - '.github/workflows/obsidian-client-tests.yml'
+permissions:
+  contents: read
+jobs:
+  tests:
+    name: Python tests / Pruebas Python
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Install dependencies / Instalar dependencias
+        run: pip install flask==3.1.1 Markdown==3.8.2
+      - name: Run tests / Ejecutar pruebas
+        working-directory: obsidian_client
+        run: python -m unittest discover -v -p 'test_*.py'
