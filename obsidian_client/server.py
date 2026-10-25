@@ -36,8 +36,12 @@ def connection():
     database = (o.get("couchdb_database") or "").strip()
     if not uri:
         return jsonify(configured=False, connected=False, status="not_configured")
-    parsed = urlsplit(uri)
-    if parsed.scheme not in ("https", "http") or not parsed.hostname or parsed.username or parsed.password or parsed.query or parsed.fragment:
+    try:
+        parsed = urlsplit(uri)
+        port = parsed.port
+    except ValueError:
+        return jsonify(configured=True, connected=False, status="invalid_url"), 400
+    if parsed.scheme not in ("https", "http") or not parsed.hostname or parsed.username is not None or parsed.password is not None or parsed.query or parsed.fragment:
         return jsonify(configured=True, connected=False, status="invalid_url"), 400
     if (o.get("couchdb_username") or o.get("couchdb_password")) and parsed.scheme != "https":
         return jsonify(configured=True, connected=False, status="https_required"), 400
