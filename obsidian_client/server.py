@@ -845,7 +845,9 @@ def remote_note_view():
     links = []
     def wiki_replace(match):
         raw = match.group(1)
-        target = raw.split("|", 1)[0].split("#", 1)[0].strip()
+        link_target = raw.split("|", 1)[0].strip()
+        target, separator, heading = link_target.partition("#")
+        target = target.strip()
         label = raw.split("|", 1)[1].strip() if "|" in raw else target
         normalized = target.removesuffix(".md")
         same_folder = (source_dir + "/" if source_dir else "") + normalized + ".md"
@@ -854,12 +856,13 @@ def remote_note_view():
         resolved = same_folder if same_folder in available else exact if exact in available else hits[0] if len(hits) == 1 else None
         token = "OBSIDIANWIKILINKTOKEN" + str(len(links)) + "END"
         if resolved:
-            links.append('<a href="?path=' + quote(resolved, safe="") + '">' + html.escape(label) + '</a>')
+            fragment = ("#" + quote(heading.strip().lower().replace(" ", "-"), safe="-")) if separator and heading.strip() else ""
+            links.append('<a href="?path=' + quote(resolved, safe="") + fragment + '">' + html.escape(label) + '</a>')
         else:
             links.append('<span title="Nota no encontrada / Note not found">' + html.escape(label) + '</span>')
         return token
     prepared = re.sub(r"(?<!!)\[\[([^\]\n]{1,300})\]\]", wiki_replace, content)
-    rendered = markdown.markdown(html.escape(prepared), extensions=["tables", "fenced_code"])
+    rendered = markdown.markdown(html.escape(prepared), extensions=["tables", "fenced_code", "toc"])
     for i, link in enumerate(links):
         rendered = rendered.replace("OBSIDIANWIKILINKTOKEN" + str(i) + "END", link)
     return page("<p><a href='../'>← Volver al listado / Back to notes</a></p><h2>"+html.escape(requested)+"</h2><article>"+rendered+"</article><p class='muted'>Solo lectura / Read only</p>")
