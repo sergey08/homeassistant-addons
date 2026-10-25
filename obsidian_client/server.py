@@ -241,6 +241,73 @@ def inspect_remote():
     except Exception:
         return jsonify(status="connection_failed"), 502
 
+def remote_note_index():
+    """Read-only bounded index of non-deleted plaintext Markdown paths."""
+    o = options()
+    uri = (o.get("couchdb_url") or "").strip().rstrip("/")
+    database = (o.get("couchdb_database") or "").strip()
+    try:
+        parsed = urlsplit(uri)
+        parsed.port
+    except ValueError:
+        return None, "invalid_url"
+    if (parsed.scheme not in ("https", "http") or not parsed.hostname
+            or parsed.path not in ("", "/") or parsed.username or parsed.password
+            or parsed.query or parsed.fragment
+            or not re.fullmatch(r"[A-Za-z0-9_.-]+", database)):
+        return None, "invalid_configuration"
+    local_allowed = (parsed.scheme == "http" and parsed.hostname ==
+                     "db21ed7f-obsidian-syncserver-ssl" and parsed.port == 5984)
+    if parsed.scheme != "https" and not local_allowed:
+        return None, "https_required"
+    import base64
+    headers = {"Accept": "application/json"}
+    username = o.get("couchdb_username") or ""
+    if username:
+        headers["Authorization"] = "Basic " + base64.b64encode(
+            (username + ":" + (o.get("couchdb_password") or "")).encode()).decode()
+    class NoRedirect(HTTPRedirectHandler):
+        def redirect_request(self, req, fp, code, msg, headers, newurl):
+            return None
+    target = uri + "/" + quote(database, safe="") + "/_all_docs?include_docs=true&limit=1000"
+    try:
+        with build_opener(NoRedirect()).open(Request(target, headers=headers), timeout=8) as resp:
+            raw = resp.read(5_000_001)
+        if len(raw) > 5_000_000:
+            return None, "response_too_large"
+        records = json.loads(raw)
+    except (OSError, ValueError, HTTPError, URLError):
+        return None, "connection_failed"
+    notes = []
+    rows = records.get("rows", [])
+    for item in rows:
+        doc = item.get("doc") if isinstance(item, dict) else None
+        if not isinstance(doc, dict) or doc.get("type") != "plain":
+            continue
+        if doc.get("deleted") or doc.get("_deleted") or doc.get("_conflicts"):
+            continue
+        path = doc.get("path")
+        if (isinstance(path, str) and path.endswith(".md") and
+                not path.startswith("/") and "\\\\" not in path and
+                all(part not in ("", ".", "..") for part in path.split("/"))):
+            notes.append(path)
+    return sorted(set(notes), key=str.casefold), None
+
+
+@app.get("/api/remote/notes")
+def remote_notes():
+    notes, error = remote_note_index()
+    if error:
+        return jsonify(status=error, notes=[]), 502
+    term = request.args.get("q", "").strip().casefold()
+    if len(term) > 200:
+        return jsonify(status="query_too_long"), 400
+    filtered = [note for note in notes if term in note.casefold()]
+    return jsonify(status="ok", read_only=True, count=len(filtered),
+                   notes=filtered, content_available=False,
+                   note="Paths only; chunk decoding not yet validated against real data")
+
+
 @app.get("/api/notes")
 def list_notes():
     """Read-only local Markdown index / Índice local de solo lectura."""
@@ -272,8 +339,18 @@ def home():
     status = ('<p><a href="api/demo">Offline example / Ejemplo aislado (JSON)</a> · '
               '<a href="api/connection">CouchDB diagnostics / Diagnóstico CouchDB (JSON)</a></p>')
     if not root.is_dir():
-        return page("<h1>Obsidian Client</h1><p>Local vault not found / Bóveda local no encontrada.</p>" + status +
-                    '<p class="muted">LiveSync document decoding and editing are not implemented yet / El descifrado y la edición todavía no están implementados.</p>')
+        notes, error = remote_note_index()
+        if error:
+            return page("<h1>Obsidian Client</h1><p>Remote vault unavailable / Bóveda remota no disponible: " +
+                        html.escape(error) + "</p>" + status)
+        term = request.args.get("q", "").strip().casefold()
+        visible = [p for p in notes if term in p.casefold()][:500]
+        rows = "".join("<li>" + html.escape(p) + "</li>" for p in visible)
+        return page("<h1>Obsidian Client</h1><p>LiveSync · Solo lectura: " +
+                    str(len(notes)) + " rutas Markdown detectadas</p>" + status +
+                    '<form><input name="q" placeholder="Buscar notas" value="' +
+                    html.escape(request.args.get("q", ""), quote=True) +
+                    '"></form><ul>' + rows + "</ul><p class='muted'>Índice de rutas únicamente; lectura del contenido aún no validada.</p>")
     relative = request.args.get("path")
     if relative is not None:
         if "\x00" in relative or "\\" in relative:
