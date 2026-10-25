@@ -4,7 +4,7 @@
 
 This is an **independent** Home Assistant application. It does not use, require or read Obsidian MCP files.
 
-Version **0.1.0-dev5** has a local Markdown preview and an experimental read-only CouchDB connectivity check. It **does not** decode or edit LiveSync notes.
+Version **0.1.0-dev8** has a local Markdown preview and experimental read-only CouchDB connectivity and a bounded document-type inspection (maximum 20 records). It **does not** decode or edit LiveSync notes.
 
 ### Configuration
 - `vault_path`: optional local Markdown directory inside `/share`.
@@ -13,6 +13,8 @@ Version **0.1.0-dev5** has a local Markdown preview and an experimental read-onl
 - `couchdb_username`, `couchdb_password`: CouchDB credentials; set **only** in Home Assistant app settings.
 
 For security, the client rejects redirects on credentialed CouchDB requests, and the configured CouchDB URL must point to the server root. The **CouchDB status / Estado CouchDB** link checks database metadata, without fetching or modifying documents. It returns only connection status and the document count. Credentials never belong in GitHub.
+
+The `/api/notes` endpoint lists filenames from an optional local Markdown folder. `/api/remote/inspect` returns only aggregate document types, not document bodies. Neither endpoint decodes LiveSync notes.
 
 ### Limitations
 - No LiveSync document decoding, decryption, merging, attachments or editing.
@@ -23,7 +25,7 @@ For security, the client rejects redirects on credentialed CouchDB requests, and
 
 Esta aplicación de Home Assistant es **independiente**. No utiliza ni necesita el MCP de Obsidian ni accede a sus archivos.
 
-La versión **0.1.0-dev5** ofrece una vista previa Markdown local y una comprobación experimental de conexión con CouchDB de solo lectura. **No descifra ni edita las notas de LiveSync**.
+La versión **0.1.0-dev8** ofrece una vista previa Markdown local y comprobación experimental de conexión CouchDB e inspección limitada de tipos de documentos (máximo 20 registros). **No descifra ni edita las notas de LiveSync**.
 
 ### Configuración
 - `vault_path`: carpeta Markdown local opcional dentro de `/share`.
@@ -32,6 +34,8 @@ La versión **0.1.0-dev5** ofrece una vista previa Markdown local y una comproba
 - `couchdb_username`, `couchdb_password`: credenciales CouchDB; introdúcelas **solo** en la configuración de la aplicación en HA.
 
 Por seguridad, el cliente bloquea las redirecciones en solicitudes con credenciales y exige que la URL configurada sea la raíz del servidor. El enlace **CouchDB status / Estado CouchDB** comprueba los metadatos de la base de datos sin descargar ni modificar documentos. Devuelve únicamente el estado de conexión y el número de documentos. Nunca publiques credenciales en GitHub.
+
+El endpoint `/api/notes` enumera nombres de archivos Markdown locales opcionales. `/api/remote/inspect` devuelve únicamente recuentos de tipos de documentos, sin incluir el contenido. Ninguno interpreta las notas LiveSync.
 
 ### Limitaciones
 - Sin descifrado, interpretación, fusión, adjuntos o edición de documentos LiveSync.
