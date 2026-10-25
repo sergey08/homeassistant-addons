@@ -23,6 +23,8 @@ def decode_plain_note(parent, chunks):
         raise UnsupportedNote("deleted_or_conflicted")
     if parent.get("e_") or path.startswith(("f:", "/\\:")):
         raise UnsupportedNote("encrypted_or_obfuscated")
+    if parent.get("eden") or parent.get("compressed") or parent.get("encrypted"):
+        raise UnsupportedNote("unsupported_encoding")
     ids = parent.get("children", [])
     if not isinstance(ids, list) or len(ids) > MAX_CHUNKS or not all(isinstance(v, str) and v for v in ids) or len(ids) != len(set(ids)):
         raise UnsupportedNote("invalid_children")
@@ -34,7 +36,7 @@ def decode_plain_note(parent, chunks):
             if not isinstance(child_id, str) or child_id not in chunks:
                 raise UnsupportedNote("missing_chunk")
             doc = chunks[child_id]
-            if not isinstance(doc, dict) or doc.get("type") != "leaf" or doc.get("e_") or doc.get("_deleted") or doc.get("_conflicts"):
+            if not isinstance(doc, dict) or doc.get("type") != "leaf" or doc.get("e_") or doc.get("_deleted") or doc.get("_conflicts") or doc.get("compressed") or doc.get("encrypted"):
                 raise UnsupportedNote("unsupported_chunk")
             part = doc.get("data")
             if not isinstance(part, str) or part.startswith("e_"):
