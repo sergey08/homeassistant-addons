@@ -22,6 +22,19 @@ class TestHKDF(unittest.TestCase):
         with self.assertRaises(UnsupportedEncryption):
             decrypt_hkdf_string(value, "wrong passphrase", encoded_salt)
 
+    def test_ephemeral_salt_format(self):
+        phrase = "synthetic passphrase"
+        salt = bytes(range(32))
+        iv = bytes(range(12))
+        hkdf_salt = bytes(range(32, 64))
+        master = hashlib.pbkdf2_hmac("sha256", phrase.encode(), salt, 310000, 32)
+        key = HKDF(algorithm=hashes.SHA256(), length=32, salt=hkdf_salt, info=b"").derive(master)
+        encrypted = AESGCM(key).encrypt(iv, b"Demo/Encrypted.md", None)
+        value = "%$" + base64.b64encode(salt + iv + hkdf_salt + encrypted).decode()
+        self.assertEqual(decrypt_hkdf_string(value, phrase, ""), "Demo/Encrypted.md")
+        with self.assertRaises(UnsupportedEncryption):
+            decrypt_hkdf_string(value, "wrong", "")
+
     def test_invalid_ciphertext(self):
         with self.assertRaises(UnsupportedEncryption):
             decrypt_hkdf_string("%=not*base64", "pass", "c2FsdA==")
