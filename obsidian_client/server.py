@@ -127,6 +127,24 @@ def internal_diagnostics():
             results["6984"]["public_sni_tls"] = "connection_failed"
     return jsonify(host=host, ports=results, authenticated="not_checked")
 
+@app.get("/api/encryption/status")
+def encryption_status():
+    """Configuration readiness only. Never expose passphrases or derived keys."""
+    o = options()
+    enabled = o.get("livesync_encryption_enabled") is True
+    phrase = o.get("livesync_e2ee_passphrase")
+    has_phrase = isinstance(phrase, str) and bool(phrase)
+    return jsonify(
+        status="configured_waiting_for_decoder" if enabled and has_phrase else
+               "passphrase_required" if enabled else "disabled",
+        encryption_enabled=enabled,
+        passphrase_configured=has_phrase,
+        decryption_implemented=False,
+        read_only=True,
+        note="A configured passphrase does not prove it matches this vault"
+    )
+
+
 @app.get("/api/connection")
 def connection():
     """Read-only CouchDB connectivity check. Never return secrets."""
