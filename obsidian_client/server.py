@@ -423,6 +423,21 @@ def home():
     status = ('<p><a href="api/demo">Offline example / Ejemplo aislado (JSON)</a> · '
               '<a href="api/connection">CouchDB diagnostics / Diagnóstico CouchDB (JSON)</a></p>')
     if not root.is_dir():
+        cfg = options()
+        if cfg.get("livesync_encryption_enabled"):
+            ready = bool(cfg.get("livesync_e2ee_passphrase"))
+            return page(
+                "<h1>Obsidian Client</h1><h2>LiveSync · Bóveda cifrada / Encrypted vault</h2>" +
+                "<p>Servidor configurado / Server configured: " +
+                ("Sí / Yes" if cfg.get("couchdb_url") else "No") + "</p>" +
+                "<p>Frase E2EE configurada / E2EE passphrase configured: " +
+                ("Sí / Yes" if ready else "No") + "</p>" +
+                "<p>Lectura de metadatos / Metadata diagnostics: " +
+                '<a href="api/connection">Conexión</a> · <a href="api/remote/format">Formato</a></p>' +
+                "<p><strong>Descifrado pendiente / Decryption not implemented yet.</strong> "
+                "No se muestran rutas cifradas como si fueran notas válidas. / "
+                "Encrypted paths are not presented as readable notes.</p>" + status
+            )
         notes, error = remote_note_index()
         if error:
             return page("<h1>Obsidian Client</h1><p>Remote vault unavailable / Bóveda remota no disponible: " +
