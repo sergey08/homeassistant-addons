@@ -713,7 +713,28 @@ def chunk_preflight():
                 counters["encrypted_other"]+=1
             else:
                 counters["plaintext"]+=1
-        return jsonify(status="ok",read_only=True,checked=min(12,len(children)),counts=counters)
+        complete = True
+        parts = []
+        for child in children:
+            try:
+                d = fetch("/" + quote(child, safe=""), 150000)
+                if d.get("type") != "leaf" or not isinstance(d.get("data"), str) or not d["data"].startswith("%="):
+                    complete = False
+                    break
+                parts.append(decrypt_hkdf_string(d["data"], cfg["livesync_e2ee_passphrase"], salt))
+            except (HTTPError, URLError, OSError, ValueError, UnsupportedEncryption):
+                complete = False
+                break
+        if not complete:
+            return jsonify(status="reconstruction_incomplete",read_only=True,referenced=len(children),decrypted=len(parts))
+        combined = "".join(parts)
+        byte_length = len(combined.encode("utf-8"))
+        expected = candidate.get("size")
+        return jsonify(status="reconstructed",read_only=True,referenced=len(children),
+                       decrypted=len(parts),utf8_bytes=byte_length,
+                       expected_size=expected if isinstance(expected,int) and expected>=0 else None,
+                       size_matches=(byte_length==expected) if isinstance(expected,int) and expected>=0 else None,
+                       contents_returned=False)
     except (HTTPError, URLError, OSError, ValueError, TypeError):
         return jsonify(status="chunk_probe_failed",read_only=True),502
 
