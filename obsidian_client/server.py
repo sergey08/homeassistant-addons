@@ -106,7 +106,10 @@ def inspect_remote():
     try:
         req = Request(target, headers=headers, method="GET")
         with build_opener(NoRedirect()).open(req, timeout=5) as response:
-            result = json.load(response)
+            raw = response.read(1_000_001)
+            if len(raw) > 1_000_000:
+                return jsonify(status="response_too_large"), 413
+            result = json.loads(raw)
         rows = result.get("rows", [])
         if not isinstance(rows, list):
             raise ValueError("Invalid CouchDB response")
