@@ -600,6 +600,15 @@ def encrypted_note_paths():
                    'md_followed_by_slash' if next_char == '/' else
                    'md_followed_by_other')
             detail[key] += 1
+        try:
+            wrapped = json.loads(path)
+            if isinstance(wrapped, dict):
+                candidate_path = wrapped.get("path")
+                path = candidate_path if isinstance(candidate_path, str) else ""
+            else:
+                path = ""
+        except (ValueError, TypeError):
+            path = ""
         if (path.endswith(".md") and len(path) <= 1024 and
             not path.startswith("/") and "\\" not in path and
             all(part not in ("", ".", "..") for part in path.split("/"))):
