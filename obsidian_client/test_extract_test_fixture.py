@@ -42,5 +42,14 @@ class ExtractorTests(unittest.TestCase):
             make_fixture(export, "Demo/Hello.md", "Hello world")
 
 
+
+    def test_extracts_inline_plaintext_without_children(self):
+        exported = {"rows": [{"doc": {"_id": "f:inline", "type": "plain",
+                       "path": "Demo/Inline.md", "children": [],
+                       "data": "Hola mundo", "size": len("Hola mundo".encode("utf-8"))}}]}
+        fixture = make_fixture(exported, "Demo/Inline.md", "Hola mundo")
+        self.assertEqual(fixture["parent"]["data"], "Hola mundo")
+        self.assertEqual(fixture["chunks"], {})
+
 if __name__ == "__main__":
     unittest.main()
