@@ -197,5 +197,14 @@ class ClientTests(unittest.TestCase):
         self.assertEqual(response.status_code, 413)
         self.assertEqual(response.json["status"], "response_too_large")
 
+
+    def test_offline_demo_renders_synthetic_note(self):
+        response = self.client.get("/api/demo")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json["source"], "synthetic")
+        self.assertTrue(response.json["read_only"])
+        self.assertEqual(response.json["path"], "Demo/Hello.md")
+        self.assertEqual(response.json["content"], "Hello world")
+
 if __name__ == "__main__":
     unittest.main()
