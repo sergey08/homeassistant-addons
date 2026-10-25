@@ -387,7 +387,13 @@ def remote_format():
         if ":" in path: f["contains_colon"] += 1
         f.setdefault("metadata_encrypted_prefix", 0)
         f.setdefault("prefix_obfuscated", 0)
-        if path.startswith("/\\:"): f["metadata_encrypted_prefix"] += 1
+        if path.startswith("/\\:"):
+            f["metadata_encrypted_prefix"] += 1
+            f.setdefault("encrypted_payload_shapes", {"percent_equal": 0, "percent_dollar": 0, "other": 0})
+            # Classify prefixes only: do not return actual paths, suffixes or lengths.
+            suffix = path[3:]
+            typ = "percent_equal" if suffix.startswith("%=") else ("percent_dollar" if suffix.startswith("%$") else "other")
+            f["encrypted_payload_shapes"][typ] += 1
         if path.startswith("f:"): f["prefix_obfuscated"] += 1
         if re.fullmatch(r"[0-9a-fA-F]+", path): f["hex_only"] += 1
         if re.fullmatch(r"[A-Za-z0-9+/=_:-]+", path): f["base64_chars_only"] += 1
