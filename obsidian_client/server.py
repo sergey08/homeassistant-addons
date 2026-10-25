@@ -91,6 +91,18 @@ def internal_diagnostics():
         except OSError:
             state["tcp"] = "connection_failed"
         results[str(port)] = state
+    # Probe response protocol without credentials or document access.
+    for port in (5984, 6984):
+        if results[str(port)]["tcp"] != "reachable":
+            continue
+        try:
+            with socket.create_connection((host, port), timeout=3) as raw:
+                raw.settimeout(3)
+                raw.sendall(b"GET / HTTP/1.0\\r\\nHost: internal\\r\\nConnection: close\\r\\n\\r\\n")
+                prefix = raw.recv(32)
+                results[str(port)]["protocol"] = "http" if prefix.startswith(b"HTTP/") else "unknown"
+        except (OSError, TimeoutError):
+            results[str(port)]["protocol"] = "unknown"
     return jsonify(host=host, ports=results, authenticated="not_checked")
 
 @app.get("/api/connection")
