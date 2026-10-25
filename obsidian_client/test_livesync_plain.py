@@ -55,5 +55,15 @@ class PlainNoteTests(unittest.TestCase):
             decode_plain_note({"type": "plain", "path": "A.md", "children": ["x"]},
                               {"x": {"type": "leaf", "data": "text", "_conflicts": ["2-abc"]}})
 
+
+    def test_rejects_compressed_parent(self):
+        with self.assertRaises(UnsupportedNote):
+            decode_plain_note({"type": "plain", "path": "A.md", "compressed": True, "data": "x"}, {})
+
+    def test_rejects_encrypted_chunk_flag(self):
+        with self.assertRaises(UnsupportedNote):
+            decode_plain_note({"type": "plain", "path": "A.md", "children": ["c"]},
+                              {"c": {"type": "leaf", "data": "x", "encrypted": True}})
+
 if __name__ == "__main__":
     unittest.main()
