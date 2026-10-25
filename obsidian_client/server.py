@@ -558,6 +558,7 @@ def encrypted_note_paths():
     except (OSError, ValueError, HTTPError, URLError):
         return None, "connection_failed"
     paths = set()
+    content_shape = {"inline_string": 0, "inline_list": 0, "no_inline": 0, "children_present": 0, "children_nonempty": 0, "children_other": 0}
     unsupported = 0
     stats = {"candidate": 0, "decrypted": 0, "markdown": 0, "other_extension": 0, "invalid_path": 0, "deleted": 0}
     for row in docs.get("rows", []):
@@ -577,6 +578,15 @@ def encrypted_note_paths():
         except UnsupportedEncryption:
             unsupported += 1
             continue
+        data = doc.get("data")
+        if isinstance(data, str): content_shape["inline_string"] += 1
+        elif isinstance(data, list): content_shape["inline_list"] += 1
+        else: content_shape["no_inline"] += 1
+        children = doc.get("children")
+        if isinstance(children, list):
+            content_shape["children_present"] += 1
+            if children: content_shape["children_nonempty"] += 1
+        else: content_shape["children_other"] += 1
         stats["decrypted"] += 1
         shape = stats.setdefault("decrypted_shape", {"prefix_f": 0, "prefix_i": 0, "prefix_slash": 0, "contains_md": 0, "contains_dot": 0, "contains_colon": 0, "length_over_128": 0})
         if path.startswith("f:"): shape["prefix_f"] += 1
@@ -620,6 +630,7 @@ def encrypted_note_paths():
             stats["invalid_path"] += 1
     return {"notes": sorted(paths, key=str.casefold),
             "stats": stats,
+            "content_shape": content_shape,
             "unsupported": unsupported,
             "truncated": len(docs.get("rows", [])) >= 1200}, None
 
@@ -634,7 +645,7 @@ def encrypted_notes():
         return jsonify(status="query_too_long"), 400
     notes = [p for p in data["notes"] if term in p.casefold()]
     return jsonify(status="ok", read_only=True, notes=notes, count=len(notes),
-                   unsupported=data["unsupported"], stats=data["stats"], truncated=data["truncated"])
+                   unsupported=data["unsupported"], stats=data["stats"], content_shape=data["content_shape"], truncated=data["truncated"])
 
 
 @app.get("/api/remote/notes")
