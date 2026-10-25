@@ -45,3 +45,16 @@ Sources: [LiveSync configuration](https://github.com/vrtmrz/obsidian-livesync/bl
 **English:** The upstream file [`test/e2e-obsidian/scripts/couchdb-upload.ts`](https://github.com/vrtmrz/obsidian-livesync/blob/main/test/e2e-obsidian/scripts/couchdb-upload.ts) already creates `E2E/couchdb-upload.md` through **real Obsidian**, uploads it with **Self-hosted LiveSync**, checks that the CouchDB record and *every referenced chunk* exist, and deletes its temporary database during cleanup. This is our canonical source for a genuine compatibility fixture. The next missing operation is to capture only that generated parent and its children **before upstream cleanup**, sanitize them, and verify the reconstructed bytes. This repository currently does **not** automate that capture, and no production compatibility is claimed.
 
 **Español:** El archivo oficial [`test/e2e-obsidian/scripts/couchdb-upload.ts`](https://github.com/vrtmrz/obsidian-livesync/blob/main/test/e2e-obsidian/scripts/couchdb-upload.ts) ya crea `E2E/couchdb-upload.md` desde **Obsidian real**, lo sincroniza mediante **Self-hosted LiveSync**, verifica que CouchDB contiene el documento padre y *todos sus fragmentos*, y elimina la base temporal al finalizar. Es la fuente de referencia para una muestra auténtica. Falta capturar únicamente ese documento y sus fragmentos **antes de la limpieza**, depurarlos y comparar los bytes reconstruidos. Nuestro repositorio aún **no** automatiza esa captura ni afirma compatibilidad con bases de producción.
+
+
+## Offline extraction / Extracción sin conexión
+
+**English:** A new `extract_test_fixture.py` tool takes an offline `_all_docs?include_docs=true` JSON export from the **disposable test database**, the exact note path, and a plaintext file with the expected original note contents. It writes a minimal JSON fixture containing only the requested parent, referenced chunks, and expected bytes (UTF-8 text). It rejects incomplete references and mismatches. It **does not contact CouchDB**, and the resulting fixture must be reviewed before publishing.
+
+```bash
+cd obsidian_client
+python extract_test_fixture.py isolated-export.json Demo/Hello.md original-note.txt isolated-fixture.json
+python verify_fixture.py isolated-fixture.json
+```
+
+**Español:** La nueva herramienta `extract_test_fixture.py` procesa una exportación JSON `_all_docs?include_docs=true` de la **base temporal de pruebas**, la ruta exacta y un archivo con el texto original de la nota. Genera un JSON mínimo solo con el documento padre, sus fragmentos y el texto esperado. Rechaza referencias incompletas y contenido distinto. **No conecta con CouchDB**. Revisa siempre el resultado antes de publicarlo. Los comandos de arriba sirven también para español.
