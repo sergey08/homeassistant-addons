@@ -120,7 +120,8 @@ class PlainNoteTests(unittest.TestCase):
         note = {"_id": "daily/note.md", "type": "plain", "datatype": "plain",
                 "path": "daily/note.md", "data": ["First line\\n", "Second line\\n"],
                 "mtime": 1740000000000, "ctime": 1740000000000,
-                "size": 23, "children": [], "eden": {}}
+                "children": [], "eden": {}}
+        note["size"] = len("".join(note["data"]).encode("utf-8"))
         self.assertEqual(decode_plain_note(note, {})["content"], "First line\\nSecond line\\n")
 
 
