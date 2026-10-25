@@ -43,6 +43,28 @@ def demo_note():
     result = decode_plain_note(parent, chunks)
     return jsonify({**result, "source": "synthetic", "read_only": True})
 
+@app.get("/api/discovery")
+def discovery():
+    """Detect known HA CouchDB add-on via DNS only. No port scanning or credentials."""
+    # Explicit known integration, not a network-wide scan.
+    host = "db21ed7f-obsidian-syncserver-ssl"
+    try:
+        socket.getaddrinfo(host, 6984, type=socket.SOCK_STREAM)
+        detected = True
+    except (socket.gaierror, OSError):
+        detected = False
+    configured = options()
+    return jsonify(
+        source="known_ha_addon",
+        found=detected,
+        suggested_host=host if detected else None,
+        suggested_https_port=6984 if detected else None,
+        configured_database=bool(configured.get("couchdb_database")),
+        credentials_configured=bool(configured.get("couchdb_username") and configured.get("couchdb_password")),
+        status="candidate_detected" if detected else "not_detected",
+        note="DNS only; HTTPS certificate and authenticated access not verified"
+    )
+
 @app.get("/api/connection")
 def connection():
     """Read-only CouchDB connectivity check. Never return secrets."""
