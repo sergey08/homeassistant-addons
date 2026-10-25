@@ -19,13 +19,13 @@ https://github.com/sergey08/homeassistant-addons
 
 ### Available apps
 
-**Obsidian Client — 0.1.0-dev1 (experimental)**
+**Obsidian Client — 0.1.0-dev2 (experimental)**
 
 - Browse local Markdown notes under `/share` using Home Assistant Ingress.
 - Search note paths/names and render Markdown, tables and code blocks.
 - Read-only operation; no Obsidian MCP required.
 
-**Not yet supported:** LiveSync/CouchDB connection and decryption, automatic sync, embedded attachments and wiki links. The app has not yet been installation-tested on Home Assistant; do not treat it as a stable release.
+**Not yet supported:** LiveSync/CouchDB connection and decryption, automatic sync, embedded attachments and wiki links. The app has been installed and tested on Home Assistant OS (HTTP 200, Gunicorn). Markdown rendering with real notes and LiveSync are not yet validated; this is not a stable release.
 
 [App source](./obsidian_client/) · [Documentation (EN/ES)](./obsidian_client/DOCS.md)
 
@@ -51,13 +51,13 @@ https://github.com/sergey08/homeassistant-addons
 
 ### Aplicaciones disponibles
 
-**Obsidian Client — 0.1.0-dev1 (experimental)**
+**Obsidian Client — 0.1.0-dev2 (experimental)**
 
 - Navega por notas Markdown locales dentro de `/share` mediante Ingress.
 - Busca por ruta o nombre y muestra Markdown, tablas y bloques de código.
 - Funciona en modo solo lectura; no necesita Obsidian MCP.
 
-**Todavía no disponible:** conexión y descifrado LiveSync/CouchDB, sincronización automática, adjuntos y enlaces wiki. La instalación real en Home Assistant aún no se ha validado; no debe considerarse una versión estable.
+**Todavía no disponible:** conexión y descifrado LiveSync/CouchDB, sincronización automática, adjuntos y enlaces wiki. La aplicación ya se ha instalado y probado en Home Assistant OS (HTTP 200 y Gunicorn). Falta validar la lectura de notas reales y LiveSync; no es una versión estable.
 
 [Código de la aplicación](./obsidian_client/) · [Documentación (EN/ES)](./obsidian_client/DOCS.md)
 
