@@ -65,5 +65,10 @@ class PlainNoteTests(unittest.TestCase):
             decode_plain_note({"type": "plain", "path": "A.md", "children": ["c"]},
                               {"c": {"type": "leaf", "data": "x", "encrypted": True}})
 
+
+    def test_rejects_nonempty_note_with_missing_chunk_references(self):
+        with self.assertRaises(UnsupportedNote):
+            decode_plain_note({"type": "plain", "path": "Lost.md", "size": 50, "children": [], "data": ""}, {})
+
 if __name__ == "__main__":
     unittest.main()
