@@ -136,5 +136,19 @@ class ClientTests(unittest.TestCase):
                 result = self.client.get("/api/notes?q=" + "x" * 201)
             self.assertEqual(result.status_code, 400)
 
+
+    def test_remote_inspect_unconfigured(self):
+        with patch.object(server, "options", return_value={}):
+            response = self.client.get("/api/remote/inspect")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json["status"], "not_configured")
+
+    def test_remote_inspect_rejects_http_credentials(self):
+        opts = {"couchdb_url": "http://localhost:5984", "couchdb_database": "sandbox", "couchdb_username": "user"}
+        with patch.object(server, "options", return_value=opts):
+            response = self.client.get("/api/remote/inspect")
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json["status"], "https_required")
+
 if __name__ == "__main__":
     unittest.main()
