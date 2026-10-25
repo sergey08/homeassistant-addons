@@ -24,7 +24,7 @@ def decode_plain_note(parent, chunks):
     if parent.get("e_") or path.startswith(("f:", "/\\:")):
         raise UnsupportedNote("encrypted_or_obfuscated")
     ids = parent.get("children", [])
-    if not isinstance(ids, list) or len(ids) > MAX_CHUNKS or len(ids) != len(set(map(str, ids))):
+    if not isinstance(ids, list) or len(ids) > MAX_CHUNKS or not all(isinstance(v, str) and v for v in ids) or len(ids) != len(set(ids)):
         raise UnsupportedNote("invalid_children")
     if not isinstance(chunks, dict):
         raise UnsupportedNote("invalid_chunks")
@@ -34,14 +34,16 @@ def decode_plain_note(parent, chunks):
             if not isinstance(child_id, str) or child_id not in chunks:
                 raise UnsupportedNote("missing_chunk")
             doc = chunks[child_id]
-            if not isinstance(doc, dict) or doc.get("type") != "leaf" or doc.get("e_"):
+            if not isinstance(doc, dict) or doc.get("type") != "leaf" or doc.get("e_") or doc.get("_deleted") or doc.get("_conflicts"):
                 raise UnsupportedNote("unsupported_chunk")
             part = doc.get("data")
             if not isinstance(part, str) or part.startswith("e_"):
                 raise UnsupportedNote("unsupported_chunk_data")
             parts.append(part)
     else:
-        data = parent.get("data", "")
+        if "data" not in parent:
+            raise UnsupportedNote("missing_inline_data")
+        data = parent["data"]
         if isinstance(data, str):
             parts = [data]
         elif isinstance(data, list) and all(isinstance(v, str) for v in data):
