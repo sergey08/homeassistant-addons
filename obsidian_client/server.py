@@ -1,5 +1,8 @@
 """Independent Obsidian Client (experimental)."""
 import html
+import socket
+import ssl
+from urllib.error import HTTPError, URLError
 import json
 import re
 from pathlib import Path
@@ -79,6 +82,30 @@ def connection():
             info = json.load(response)
         return jsonify(configured=True, connected=True, status="connected",
                        database=database, document_count=info.get("doc_count"))
+    except HTTPError as exc:
+        reason = {401: "authentication_failed", 403: "access_denied",
+                  404: "database_not_found"}.get(exc.code, "http_error")
+        return jsonify(configured=True, connected=False, status=reason,
+                       http_status=exc.code), 502
+    except ssl.SSLCertVerificationError:
+        return jsonify(configured=True, connected=False, status="tls_certificate_error"), 502
+    except (socket.gaierror,):
+        return jsonify(configured=True, connected=False, status="dns_error"), 502
+    except (TimeoutError, socket.timeout):
+        return jsonify(configured=True, connected=False, status="timeout"), 502
+    except (ConnectionRefusedError, ConnectionResetError):
+        return jsonify(configured=True, connected=False, status="network_error"), 502
+    except URLError as exc:
+        cause = exc.reason
+        if isinstance(cause, ssl.SSLCertVerificationError):
+            status = "tls_certificate_error"
+        elif isinstance(cause, socket.gaierror):
+            status = "dns_error"
+        elif isinstance(cause, (TimeoutError, socket.timeout)):
+            status = "timeout"
+        else:
+            status = "network_error"
+        return jsonify(configured=True, connected=False, status=status), 502
     except Exception:
         return jsonify(configured=True, connected=False, status="connection_failed"), 502
 
