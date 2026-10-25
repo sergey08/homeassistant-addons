@@ -14,7 +14,7 @@ from livesync_plain import decode_plain_note
 MAX_DUMP = 8_000_000
 MAX_PARENT_CHUNKS = 512
 ALLOWED_PARENT_KEYS = {"_id", "type", "datatype", "path", "children",
-                       "size", "deleted", "_deleted", "_conflicts",
+                       "size", "data", "deleted", "_deleted", "_conflicts",
                        "e_", "encrypted", "compressed", "eden"}
 ALLOWED_CHUNK_KEYS = {"_id", "type", "data", "deleted", "_deleted",
                       "_conflicts", "e_", "encrypted", "compressed"}
