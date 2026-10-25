@@ -613,6 +613,12 @@ def encrypted_note_paths():
         try:
             wrapped = json.loads(path)
             if isinstance(wrapped, dict):
+                schema = stats.setdefault("decrypted_metadata", {"has_children":0,"children_nonempty":0,"has_data":0,"has_eden":0,"has_path":0,"has_type":0,"has_datatype":0,"has_size":0})
+                for key in ("children","data","eden","path","type","datatype","size"):
+                    if key in wrapped:
+                        schema["has_" + key] += 1
+                if isinstance(wrapped.get("children"), list) and wrapped["children"]:
+                    schema["children_nonempty"] += 1
                 candidate_path = wrapped.get("path")
                 path = candidate_path if isinstance(candidate_path, str) else ""
             else:
