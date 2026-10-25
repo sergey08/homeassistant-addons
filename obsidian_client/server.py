@@ -560,6 +560,7 @@ def encrypted_note_paths():
     paths = set()
     content_shape = {"inline_string": 0, "inline_list": 0, "no_inline": 0, "children_present": 0, "children_nonempty": 0, "children_other": 0}
     unsupported = 0
+    attachments = {"images":0,"pdf":0,"other":0,"chunked":0,"total_chunks":0}
     stats = {"candidate": 0, "decrypted": 0, "markdown": 0, "other_extension": 0, "invalid_path": 0, "deleted": 0}
     for row in docs.get("rows", []):
         doc = row.get("doc") if isinstance(row, dict) else None
@@ -625,6 +626,14 @@ def encrypted_note_paths():
                 path = ""
         except (ValueError, TypeError):
             path = ""
+        if isinstance(path,str) and not path.endswith(".md") and path and len(path)<=1024:
+            extension=path.rsplit(".",1)[-1].lower() if "." in path else ""
+            kind=("images" if extension in ("png","jpg","jpeg","gif","webp","svg","avif") else
+                  "pdf" if extension=="pdf" else "other")
+            attachments[kind]+=1
+            if isinstance(wrapped,dict) and isinstance(wrapped.get("children"),list):
+                attachments["chunked"]+=1
+                attachments["total_chunks"]+=len(wrapped["children"])
         if (path.endswith(".md") and len(path) <= 1024 and
             not path.startswith("/") and "\\" not in path and
             all(part not in ("", ".", "..") for part in path.split("/"))):
@@ -637,6 +646,7 @@ def encrypted_note_paths():
     return {"notes": sorted(paths, key=str.casefold),
             "stats": stats,
             "content_shape": content_shape,
+            "attachments": attachments,
             "unsupported": unsupported,
             "truncated": len(docs.get("rows", [])) >= 1200}, None
 
@@ -878,7 +888,7 @@ def encrypted_notes():
         return jsonify(status="query_too_long"), 400
     notes = [p for p in data["notes"] if term in p.casefold()]
     return jsonify(status="ok", read_only=True, notes=notes, count=len(notes),
-                   unsupported=data["unsupported"], stats=data["stats"], content_shape=data["content_shape"], truncated=data["truncated"])
+                   unsupported=data["unsupported"], stats=data["stats"], content_shape=data["content_shape"], attachments=data["attachments"], truncated=data["truncated"])
 
 
 @app.get("/api/remote/notes")
