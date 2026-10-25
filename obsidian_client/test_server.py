@@ -104,5 +104,13 @@ class ClientTests(unittest.TestCase):
                 response = self.client.get("/?path=private.txt")
             self.assertEqual(response.status_code, 404)
 
+
+    def test_malformed_port_returns_clean_error(self):
+        opts = {"couchdb_url": "https://example.org:not-a-port", "couchdb_database": "sandbox"}
+        with patch.object(server, "options", return_value=opts):
+            response = self.client.get("/api/connection")
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json["status"], "invalid_url")
+
 if __name__ == "__main__":
     unittest.main()
