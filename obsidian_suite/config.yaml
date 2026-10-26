@@ -1,0 +1,26 @@
+name: "Obsidian MCP for Home Assistant"
+version: "0.2.2"
+slug: "obsidian_suite"
+description: "One Home Assistant app for Obsidian notes, ChatGPT MCP access and LiveSync synchronization"
+url: "https://github.com/sergey08/obsidian-mcp-homeassistant"
+arch:
+  - amd64
+startup: application
+ingress: true
+ingress_port: 8099
+ingress_entry: /
+boot: manual
+init: false
+map:
+  - type: all_app_configs
+    read_only: false
+options:
+  tunnel_id: ""
+  enable_tunnel: false
+  enable_livesync: false
+  livesync_interval: 60
+schema:
+  tunnel_id: str
+  enable_tunnel: bool
+  enable_livesync: bool
+  livesync_interval: int(30,3600)
