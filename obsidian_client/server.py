@@ -991,7 +991,7 @@ def remote_new_draft():
         'document.getElementById("saveStatus").textContent="Nota local cargada (sin sincronizar)";'
         '}}).catch(()=>{}).finally(()=>{loadingLocal=false});'
         'document.getElementById("saveLocal").onclick=async()=>{'
-        'if(loadingLocal){document.getElementById("saveStatus").textContent="Esperando lectura local";return}'
+        'if(loadingLocal){document.getElementById("saveStatus").textContent="Esperando lectura local";return;}'
         'const status=document.getElementById("saveStatus");status.textContent="Guardando...";'
         'try{const r=await fetch("../api/livesync-cli/local-save",{method:"POST",'
         'headers:{"Content-Type":"application/json"},'
