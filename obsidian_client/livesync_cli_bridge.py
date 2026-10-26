@@ -312,13 +312,16 @@ def probe_official_remote_registration(config, *, timeout=30):
             "/opt/livesync-cli/dist/index.cjs", str(database))
         try:
             result = subprocess.run(
-                ["/usr/local/bin/node", executable, str(database), "remote-ls"],
+                ["/usr/local/bin/node", executable, str(database), "--verbose", "remote-ls"],
                 capture_output=True, timeout=timeout, check=False, shell=False)
         except (OSError, subprocess.TimeoutExpired) as exc:
             raise CLIUnavailable("cli_remote_registration_failed") from exc
         if result.returncode:
             raise CLIUnavailable("cli_remote_registration_failed")
-        # Never return raw output: remote-ls includes redacted but private URIs.
+        # Only expose a fixed boolean; never expose verbose output or URI.
+        stderr = result.stderr.decode("utf-8", errors="replace")
+        settings_loaded = "[Settings] Loaded from" in stderr
+        settings_defaults = "[Settings] File not found, using defaults" in stderr
         rows = result.stdout.decode("utf-8", errors="replace").splitlines()
         active = sum(1 for line in rows if len(line.split("\\t")) == 4
                      and line.split("\\t")[2] == "active")
@@ -327,6 +330,8 @@ def probe_official_remote_registration(config, *, timeout=30):
                 "active_remote_count": active,
                 "settings_registered_remote_count": len(declared_remotes) if isinstance(declared_remotes, dict) else 0,
                 "settings_active_remote_present": bool(declared_active and isinstance(declared_remotes, dict) and declared_active in declared_remotes),
+                "cli_reported_settings_loaded": settings_loaded,
+                "cli_reported_settings_defaults": settings_defaults,
                 "remote_writes_enabled": False}
 
 
