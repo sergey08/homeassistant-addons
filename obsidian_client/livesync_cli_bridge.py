@@ -546,7 +546,7 @@ def sync_configured_remote(binary, database_directory, *, timeout=120):
         output = (result.stderr + result.stdout).decode("utf-8", errors="replace").lower()[-16000:]
         import re
         diagnostic = re.search(
-            r"\\[HA_SYNC_STATUS\\] status=([A-Za-z0-9_-]{1,64}) reason=([A-Za-z0-9_-]{1,64})",
+            r"\[HA_SYNC_STATUS\] status=([A-Za-z0-9_-]{1,64}) reason=([A-Za-z0-9_-]{1,64})",
             output,
         )
         if diagnostic:
