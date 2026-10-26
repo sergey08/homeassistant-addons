@@ -220,6 +220,27 @@ def install_official_cli_settings(config, database_directory):
     return {"installed": True, "remote_synced": False, "remote_writes_enabled": False}
 
 
+def probe_remote_status(config, *, timeout=45):
+    """Read-only CLI remote-status probe using ephemeral settings and database."""
+    import tempfile
+    with tempfile.TemporaryDirectory(prefix="obsidian-remote-status-") as temp:
+        database = Path(temp) / "db"
+        database.mkdir(mode=0o700)
+        install_official_cli_settings(config, str(database))
+        binary = "/opt/livesync-cli/dist/index.cjs"
+        executable, _ = validate_cli_installation(binary, str(database))
+        try:
+            result = subprocess.run(
+                ["/usr/local/bin/node", executable, str(database), "remote-status"],
+                capture_output=True, timeout=timeout, check=False, shell=False,
+            )
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            raise CLIUnavailable("cli_status_probe_execution_failed") from exc
+        # Never return process output, as it can contain vault details.
+        return {"cli_exit_ok": result.returncode == 0,
+                "remote_writes_enabled": False}
+
+
 def fetch_remote_to_disposable_database(config, *, timeout=120):
     """Fetch remote notes into a new temporary CLI database, never into live local data.
 
