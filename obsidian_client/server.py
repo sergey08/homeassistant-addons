@@ -884,6 +884,41 @@ def remote_note_content():
     return response
 
 
+@app.post("/api/livesync-cli/local-save")
+def livesync_cli_local_save():
+    """Explicit LOCAL-only note save; never replicates to CouchDB."""
+    from livesync_cli_bridge import (
+        CLIUnavailable, safe_create_local_note, safe_update_local_note,
+    )
+    from livesync_write_preflight import validate_write_request, UnsafeWrite
+    if options().get("livesync_cli_enabled") is not True:
+        return jsonify(error="cli_disabled"), 403
+    if request.mimetype != "application/json" or request.content_length is None or request.content_length > 2_100_000:
+        return jsonify(error="invalid_request"), 400
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        return jsonify(error="invalid_request"), 400
+    note_path = payload.get("path")
+    content = payload.get("content")
+    mode = payload.get("mode")
+    if mode not in ("create", "update"):
+        return jsonify(error="invalid_mode"), 400
+    try:
+        validate_write_request(note_path, content, None, creating=True)
+        binary = "/opt/livesync-cli/dist/index.cjs"
+        database = "/data/livesync-client"
+        if mode == "create":
+            safe_create_local_note(binary, database, note_path, content)
+        else:
+            safe_update_local_note(binary, database, note_path, payload.get("expected_content"), content)
+    except (UnsafeWrite, ValueError):
+        return jsonify(error="invalid_note"), 400
+    except CLIUnavailable as exc:
+        # Do not disclose credentials, note text or process stderr.
+        return jsonify(error=str(exc)), 409
+    return jsonify(status="saved_locally_only", remote_synced=False, path=note_path)
+
+
 @app.get("/remote/new")
 def remote_new_draft():
     """Create an offline Markdown draft; never write to CouchDB."""
