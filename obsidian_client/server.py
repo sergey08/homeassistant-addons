@@ -163,6 +163,10 @@ def livesync_cli_publish_test_note():
                        "publish_cli_sync_cli_exception",
                        "publish_cli_sync_unknown",
                        "publish_cli_sync_unclassified_replication_failure",
+                       "publish_cli_sync_upstream_failed",
+                       "publish_cli_sync_upstream_cancelled",
+                       "publish_cli_sync_upstream_skipped",
+                       "publish_cli_sync_upstream_interrupted",
                        "publish_cli_sync_failed"}
             return jsonify(error=code if code in allowed else "isolated_sync_failed"), 502
         actual, read_error = read_encrypted_note(note_path)
