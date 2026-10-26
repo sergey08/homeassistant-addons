@@ -19,6 +19,15 @@ https://github.com/sergey08/homeassistant-addons
 
 ### Available apps
 
+**Obsidian MCP for Home Assistant — 0.2.2 (stable)**
+
+- Markdown MCP tools for ChatGPT, private secure tunnel and bidirectional Self-hosted LiveSync.
+- Uses the same persistent vault directory as the original app when configured.
+- For existing installations from the separate repository: do not run both apps simultaneously; the new repository uses a different Supervisor identity, so migrate settings carefully before uninstalling the original.
+
+[App source](./obsidian_suite/) · [Documentation](./obsidian_suite/DOCS.md)
+
+
 **Obsidian Client — 0.1.0-dev2 (experimental)**
 
 - Browse local Markdown notes under `/share` using Home Assistant Ingress.
@@ -50,6 +59,15 @@ https://github.com/sergey08/homeassistant-addons
 ```
 
 ### Aplicaciones disponibles
+
+**Obsidian MCP for Home Assistant — 0.2.2 (estable)**
+
+- Herramientas MCP para ChatGPT, túnel privado y LiveSync bidireccional.
+- Reutiliza la bóveda persistente del complemento original si está configurada.
+- Si ya está instalado desde otro repositorio, no ejecutes las dos aplicaciones a la vez: Home Assistant les asigna identificadores distintos y hay que migrar la configuración antes de desinstalar la original.
+
+[Código](./obsidian_suite/) · [Documentación](./obsidian_suite/DOCS.md)
+
 
 **Obsidian Client — 0.1.0-dev2 (experimental)**
 
