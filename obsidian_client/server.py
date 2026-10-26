@@ -916,7 +916,7 @@ def remote_note_view():
     rendered = markdown.markdown(html.escape(prepared), extensions=["tables", "fenced_code", "toc"])
     for i, link in enumerate(links):
         rendered = rendered.replace("OBSIDIANWIKILINKTOKEN" + str(i) + "END", link)
-    return page("<p><a href='../'>← Volver al listado / Back to notes</a></p><h2>"+html.escape(requested)+"</h2><article>"+rendered+"</article><p class='muted'>Solo lectura / Read only</p>")
+    return page("<p><a href='../'>← Volver al listado / Back to notes</a></p><p><a href='../remote/edit?path="+quote(requested,safe="")+"'>Editar borrador</a></p><h2>"+html.escape(requested)+"</h2><article>"+rendered+"</article><p class='muted'>Solo lectura / Read only</p>")
 
 
 @app.get("/api/remote/encrypted-notes")
