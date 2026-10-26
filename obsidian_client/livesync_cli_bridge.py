@@ -245,7 +245,21 @@ def fetch_remote_to_disposable_database(config, *, timeout=120):
         except (OSError, subprocess.TimeoutExpired) as exc:
             raise CLIUnavailable("cli_preview_fetch_failed") from exc
         if result.returncode:
-            raise CLIUnavailable("cli_preview_fetch_failed")
+            # Only fixed categories: never expose CLI output or credentials.
+            output = (result.stderr + result.stdout).decode("utf-8", errors="replace").lower()[-12000:]
+            if any(term in output for term in ("unauthorized", "forbidden", "authentication failed", "401", "403")):
+                reason = "authentication"
+            elif any(term in output for term in ("econnrefused", "enotfound", "getaddrinfo", "timeout", "network")):
+                reason = "network"
+            elif any(term in output for term in ("decrypt", "passphrase", "encryption", "encrypted")):
+                reason = "encryption"
+            elif any(term in output for term in ("no remote", "remote not", "not configured", "not initialized")):
+                reason = "remote_configuration"
+            elif any(term in output for term in ("404", "not found", "database does not exist")):
+                reason = "database"
+            else:
+                reason = "cli_failure"
+            raise CLIUnavailable("cli_preview_" + reason)
         notes = list_local_note_paths(binary, str(database))
         return {"note_count": len(notes), "paths": sorted(notes),
                 "remote_writes_enabled": False, "persistent_local_modified": False}
