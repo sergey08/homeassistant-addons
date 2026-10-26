@@ -117,3 +117,14 @@ def sync_configured_remote(binary, database_directory, *, timeout=120):
     if result.returncode:
         raise CLIUnavailable("cli_sync_failed")
     return True
+
+def safe_update_local_note(binary, database_directory, note_path, expected_content, new_content):
+    """Optimistic local conflict check; never overwrite a changed local note."""
+    from livesync_write_preflight import validate_write_request
+    validate_write_request(note_path, new_content, None, creating=False)
+    if not isinstance(expected_content, str):
+        raise ValueError("invalid_expected_content")
+    current = read_local_note(binary, database_directory, note_path)
+    if current != expected_content:
+        raise CLIUnavailable("cli_local_conflict")
+    return verify_local_roundtrip(binary, database_directory, note_path, new_content)
