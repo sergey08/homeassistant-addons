@@ -54,6 +54,20 @@ jobs:
           test -s src/apps/cli/dist/index.cjs
           node src/apps/cli/dist/index.cjs --help
 
+      - name: Exercise isolated local note write and read / Probar nota local
+        working-directory: upstream
+        run: |
+          set -euo pipefail
+          DB="$(mktemp -d)"
+          CLI="src/apps/cli/dist/index.cjs"
+          node "$CLI" "$DB" init-settings
+          printf '# Isolated test\\nHello LiveSync\\n' | node "$CLI" "$DB" put "Tests/isolated.md"
+          node "$CLI" "$DB" cat "Tests/isolated.md" > /tmp/livesync-note.md
+          printf '# Isolated test\\nHello LiveSync\\n' | cmp - /tmp/livesync-note.md
+          node "$CLI" "$DB" ls > /tmp/livesync-ls.txt
+          grep -F 'Tests/isolated.md' /tmp/livesync-ls.txt
+          cat /tmp/livesync-ls.txt
+
   addon-image:
     name: Add-on image / Imagen de la aplicación
     runs-on: ubuntu-latest
