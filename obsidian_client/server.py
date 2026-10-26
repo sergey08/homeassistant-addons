@@ -856,34 +856,38 @@ def remote_note_content():
 
 @app.get("/remote/edit")
 def remote_edit_draft():
-    """Editable draft with no CouchDB writes until LiveSync compatibility is proven."""
+    """Edit a temporary browser draft without writing to LiveSync."""
     requested = request.args.get("path", "")
     content, error = read_encrypted_note(requested)
     if error:
         return page("<h2>No se puede abrir la nota</h2><p>" + html.escape(error) + "</p>"), 404
-    safe_content = html.escape(content)
+    # JSON encoding protects JS string boundaries; escape HTML script terminators.
+    script_data = json.dumps({"path": requested, "content": content}, ensure_ascii=True).replace("<", "\\u003c")
     body = (
         '<p><a href="../">← Volver</a></p><h2>Borrador Markdown</h2>'
-        '<p class="muted">El guardado LiveSync está deshabilitado hasta validar compatibilidad.</p>'
+        '<p class="muted">El guardado LiveSync sigue deshabilitado.</p>'
         '<h3>' + html.escape(requested) + '</h3>'
-        '<textarea id="editor" style="width:100%;height:50vh;font:14px monospace">'
-        + safe_content + '</textarea>'
-        '<p><button type="button" onclick="navigator.clipboard.writeText(document.getElementById(\'editor\').value)">'
-        'Copiar Markdown</button> <button type="button" id="discardDraft">Descartar borrador</button>'
-        ' <button disabled>Guardar en LiveSync (pendiente)</button></p>'
+        '<textarea id="editor" style="width:100%;height:50vh;font:14px monospace"></textarea>'
+        '<p><button type="button" id="copyDraft">Copiar Markdown</button> '
+        '<button type="button" id="discardDraft">Descartar borrador</button> '
+        '<button disabled>Guardar en LiveSync (pendiente)</button></p>'
         '<h3>Vista previa de texto</h3><pre id="preview" style="white-space:pre-wrap"></pre>'
-        '<script>const e=document.getElementById("editor");'
-        'const original=e.value;'
-        'const key="obsidian-draft:"+location.pathname+location.search;'
+        '<script>const note=' + script_data + ';'
+        'const e=document.getElementById("editor");e.value=note.content;'
+        'const original=note.content;'
+        'const key="obsidian-draft:"+location.pathname+":"+note.path;'
         'try{const saved=sessionStorage.getItem(key);if(saved!==null&&saved!==original){'
-        'if(confirm("Se encontró un borrador de esta nota. ¿Recuperarlo?"))e.value=saved;}}catch(_){}'
-        'e.addEventListener("input",()=>{try{sessionStorage.setItem(key,e.value)}catch(_){}});'
-        'e.addEventListener("input",()=>document.getElementById("preview").textContent=e.value);'
-        'window.addEventListener("beforeunload",event=>{if(e.value!==original){event.preventDefault();event.returnValue="";}});'
+        'if(confirm("Se encontró un borrador. ¿Recuperarlo?"))e.value=saved;}}catch(_){}'
+        'const update=()=>{document.getElementById("preview").textContent=e.value;'
+        'try{if(e.value===original)sessionStorage.removeItem(key);'
+        'else sessionStorage.setItem(key,e.value)}catch(_){}};'
+        'e.addEventListener("input",update);'
+        'document.getElementById("copyDraft").onclick=()=>navigator.clipboard.writeText(e.value);'
         'document.getElementById("discardDraft").onclick=()=>{if(confirm("¿Descartar cambios?")){'
-        'e.value=original;try{sessionStorage.removeItem(key)}catch(_){}'
-        'document.getElementById("preview").textContent=e.value;}};'
-        'document.getElementById("preview").textContent=e.value;</script>'
+        'e.value=original;update();}};'
+        'window.addEventListener("beforeunload",event=>{if(e.value!==original){'
+        'event.preventDefault();event.returnValue="";}});'
+        'update();</script>'
     )
     return page(body)
 
