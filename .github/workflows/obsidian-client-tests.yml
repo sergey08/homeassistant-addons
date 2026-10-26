@@ -179,7 +179,13 @@ jobs:
                   content="# Encrypted isolated test\\nNever production\\n"
                   subprocess.run(["node",cli,temp,"put",note],input=content,text=True,check=True,timeout=45)
                   subprocess.run(["node",cli,temp,"sync"],check=True,timeout=90)
-                  print("Encrypted CLI sync completed against disposable database")
+                  with tempfile.TemporaryDirectory() as second:
+                      install_official_cli_settings(config,second)
+                      subprocess.run(["node",cli,second,"sync"],check=True,timeout=90)
+                      result=subprocess.run(["node",cli,second,"cat",note],capture_output=True,text=True,timeout=45)
+                      assert result.returncode==0, "Second client could not read encrypted note"
+                      assert result.stdout==content, "Encrypted note roundtrip content mismatch"
+                  print("Encrypted CLI cross-client roundtrip verified in disposable database")
           finally:
               assert call("DELETE")==200
           PY
