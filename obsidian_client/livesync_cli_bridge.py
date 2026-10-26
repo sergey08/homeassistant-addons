@@ -83,3 +83,17 @@ def cli_local_status(binary, database_directory):
         "livesync_directory_present": (root / ".livesync").is_dir(),
         "remote_write_ready": False,
     }
+
+def verify_local_cli_runtime(binary, database_directory, *, timeout=10):
+    """Run CLI help only; never touch a remote database or mutate a note."""
+    executable, _database = validate_cli_installation(binary, database_directory)
+    try:
+        result = subprocess.run(
+            ["/usr/local/bin/node", executable, "--help"],
+            capture_output=True, timeout=timeout, check=False, shell=False
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise CLIUnavailable("cli_runtime_failed") from exc
+    if result.returncode != 0:
+        raise CLIUnavailable("cli_runtime_failed")
+    return True
