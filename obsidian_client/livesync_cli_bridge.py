@@ -20,6 +20,8 @@ def validate_cli_installation(binary, database_directory):
         raise CLIUnavailable("cli_database_missing")
     if database.is_symlink() or executable.is_symlink():
         raise CLIUnavailable("symlink_not_allowed")
+    if not os.access(database, os.R_OK | os.W_OK | os.X_OK):
+        raise CLIUnavailable("cli_database_unwritable")
     if executable.suffix not in (".cjs", ".js"):
         raise CLIUnavailable("unsupported_cli_entrypoint")
     if not os.access(executable, os.R_OK):
