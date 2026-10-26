@@ -71,3 +71,15 @@ def verify_local_roundtrip(binary, database_directory, note_path, content):
     if read_local_note(binary, database_directory, note_path) != content:
         raise CLIUnavailable("cli_roundtrip_mismatch")
     return True
+
+def cli_local_status(binary, database_directory):
+    """Inspect local CLI prerequisites without reading note contents or syncing."""
+    executable, database = validate_cli_installation(binary, database_directory)
+    root = Path(database)
+    return {
+        "entrypoint_present": Path(executable).is_file(),
+        "database_directory_present": root.is_dir(),
+        "settings_present": (root / "settings.json").is_file(),
+        "livesync_directory_present": (root / ".livesync").is_dir(),
+        "remote_write_ready": False,
+    }
