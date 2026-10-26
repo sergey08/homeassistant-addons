@@ -96,6 +96,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.13'
+      - name: Install integration dependencies / Instalar dependencias de integración
+        run: pip install flask==3.1.1 Markdown==3.8.2 cryptography==46.0.3
       - name: Wait for test server / Esperar al servidor de pruebas
         run: |
           python - <<'PY'
