@@ -839,6 +839,21 @@ def render_wikilinks(content, current_path, known_notes):
     return safe
 
 
+@app.get("/api/remote/note-content")
+def remote_note_content():
+    """Read-only plaintext for an editor; no CouchDB writes until LiveSync encoding is validated."""
+    requested = request.args.get("path", "")
+    if not requested or len(requested) > 1024 or not requested.lower().endswith(".md"):
+        return jsonify(error="invalid_path"), 400
+    content, error = read_encrypted_note(requested)
+    if error:
+        return jsonify(error=error), 404 if error == "not_found" else 422
+    response = jsonify(path=requested, content=content, read_only=True,
+                       saving_supported=False, source="livesync_e2ee")
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
 @app.get("/remote/note")
 def remote_note_view():
     requested=request.args.get("path","")
