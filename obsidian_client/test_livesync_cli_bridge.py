@@ -52,7 +52,7 @@ class TestCLIBridge(unittest.TestCase):
                 self.assertEqual(run.call_args.args[0], ["/usr/local/bin/node", str(binary), "--help"])
 
     def test_update_rejects_stale_content_without_writing(self):
-        with patch("livesync_cli_bridge.read_local_note", return_value="remote changed"):
+        with patch("livesync_cli_bridge.list_local_note_paths", return_value={"Notes/Test.md": {"conflict": False}}), patch("livesync_cli_bridge.read_local_note", return_value="remote changed"):
             with patch("livesync_cli_bridge.verify_local_roundtrip") as write:
                 with self.assertRaisesRegex(CLIUnavailable, "cli_local_conflict"):
                     safe_update_local_note("/unused/index.cjs", "/unused/db",
@@ -60,7 +60,7 @@ class TestCLIBridge(unittest.TestCase):
                 write.assert_not_called()
 
     def test_update_accepts_matching_content(self):
-        with patch("livesync_cli_bridge.read_local_note", return_value="old"):
+        with patch("livesync_cli_bridge.list_local_note_paths", return_value={"Notes/Test.md": {"conflict": False}}), patch("livesync_cli_bridge.read_local_note", return_value="old"):
             with patch("livesync_cli_bridge.verify_local_roundtrip", return_value=True) as write:
                 self.assertTrue(safe_update_local_note("/unused/index.cjs", "/unused/db",
                                                        "Notes/Test.md", "old", "new"))
@@ -113,6 +113,20 @@ class TestCLIBridge(unittest.TestCase):
             with patch("livesync_cli_bridge.verify_local_roundtrip") as write:
                 with self.assertRaisesRegex(CLIUnavailable, "cli_note_already_exists"):
                     safe_create_local_note("/unused/index.cjs", "/unused/db", "Notes/Test.md", "text")
+                write.assert_not_called()
+
+    def test_create_rejects_case_only_collision(self):
+        with patch("livesync_cli_bridge.list_local_note_paths", return_value={"notes/test.md": {}}):
+            with patch("livesync_cli_bridge.verify_local_roundtrip") as write:
+                with self.assertRaisesRegex(CLIUnavailable, "cli_note_already_exists"):
+                    safe_create_local_note("/unused/index.cjs", "/unused/db", "Notes/Test.md", "text")
+                write.assert_not_called()
+
+    def test_update_rejects_conflicted_note(self):
+        with patch("livesync_cli_bridge.list_local_note_paths", return_value={"Notes/Test.md": {"conflict": True}}):
+            with patch("livesync_cli_bridge.verify_local_roundtrip") as write:
+                with self.assertRaisesRegex(CLIUnavailable, "cli_local_conflict"):
+                    safe_update_local_note("/unused/index.cjs", "/unused/db", "Notes/Test.md", "old", "new")
                 write.assert_not_called()
 
     def test_create_accepts_verified_absence(self):
