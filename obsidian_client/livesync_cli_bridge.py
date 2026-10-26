@@ -178,6 +178,45 @@ def prepare_official_cli_settings(config):
     }
 
 
+def install_official_cli_settings(config, database_directory):
+    """Install settings only in the isolated CLI directory; never contact remote.
+
+    Existing settings are never overwritten, so changing a vault requires a
+    separate reviewed migration instead of silently repointing the client.
+    """
+    import json
+    import stat
+    settings = prepare_official_cli_settings(config)
+    root = Path(database_directory)
+    if not root.is_absolute() or not root.is_dir() or root.is_symlink():
+        raise CLIUnavailable("cli_database_missing")
+    folder = root / ".livesync"
+    if folder.is_symlink():
+        raise CLIUnavailable("cli_settings_symlink")
+    folder.mkdir(mode=0o700, exist_ok=True)
+    target = folder / "settings.json"
+    if target.exists() or target.is_symlink():
+        raise CLIUnavailable("cli_settings_already_exist")
+    descriptor = None
+    try:
+        descriptor = os.open(str(target), os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0), 0o600)
+        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+            descriptor = None
+            json.dump(settings, handle, ensure_ascii=False)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.chmod(target, stat.S_IRUSR | stat.S_IWUSR)
+    except (OSError, ValueError) as exc:
+        if descriptor is not None:
+            os.close(descriptor)
+        try:
+            target.unlink()
+        except OSError:
+            pass
+        raise CLIUnavailable("cli_settings_install_failed") from exc
+    return {"installed": True, "remote_synced": False, "remote_writes_enabled": False}
+
+
 def sync_configured_remote(binary, database_directory, *, timeout=120):
     """Explicit replication only after local settings exist; never fetch/rebuild.
 
