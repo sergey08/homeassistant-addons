@@ -80,7 +80,7 @@ def cli_local_status(binary, database_directory):
     return {
         "entrypoint_present": Path(executable).is_file(),
         "database_directory_present": root.is_dir(),
-        "settings_present": (root / "settings.json").is_file(),
+        "settings_present": (root / ".livesync" / "settings.json").is_file(),
         "livesync_directory_present": (root / ".livesync").is_dir(),
         "remote_write_ready": False,
     }
