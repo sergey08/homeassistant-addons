@@ -168,7 +168,7 @@ jobs:
               settings_file.write_text(json.dumps(settings))
               result=subprocess.run(["node",cli,database,"remote-add","CI CouchDB",conn],
                                     capture_output=True,text=True,check=True,timeout=45)
-              remote_id=result.stdout.split("\\t")[0].strip()
+              remote_id=result.stdout.split("\t")[0].strip()
               assert remote_id and len(remote_id)<130
               subprocess.run(["node",cli,database,"remote-activate",remote_id],
                              capture_output=True,text=True,check=True,timeout=45)
