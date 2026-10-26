@@ -35,21 +35,23 @@ def page(content):
 @app.get("/api/livesync-cli/status")
 def livesync_cli_status():
     """Report local CLI readiness without exposing credentials or writing data."""
-    from livesync_cli_bridge import validate_cli_installation, CLIUnavailable
+    from livesync_cli_bridge import cli_local_status, CLIUnavailable
     configured = options()
     enabled = configured.get("livesync_cli_enabled") is True
     try:
-        validate_cli_installation(
+        local_status = cli_local_status(
             "/opt/livesync-cli/dist/index.cjs", "/data/livesync-client"
         )
         installed = True
     except CLIUnavailable:
         installed = False
+        local_status = {}
     return jsonify(
         enabled=enabled,
         installed=installed,
         local_database_directory_present=Path("/data/livesync-client").is_dir(),
-        local_database_initialized=(Path("/data/livesync-client") / ".livesync").exists(),
+        local_database_initialized=local_status.get("livesync_directory_present", False),
+        local_settings_present=local_status.get("settings_present", False),
         remote_sync_configured=False,
         remote_writes_enabled=False,
         status="awaiting_remote_configuration" if enabled and installed
