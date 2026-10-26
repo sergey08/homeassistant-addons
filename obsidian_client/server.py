@@ -1217,7 +1217,7 @@ def remote_edit_draft():
         'const submitted=e.value;'
         'const status=document.getElementById("saveStatus");status.textContent="Guardando...";'
         'try{const r=await fetch("../api/livesync-cli/local-save",{method:"POST",'
-        'headers:{"Content-Type":"application/json"},'
+        'headers:{"Content-Type":"application/json","X-Obsidian-Client-Action":"local-save"},'
         'body:JSON.stringify({mode:localReady?"update":"create",path:note.path,'
         'expected_content:localReady?original:null,content:submitted})});'
         'const data=await r.json();if(!r.ok)throw Error(data.error||"save_failed");'
