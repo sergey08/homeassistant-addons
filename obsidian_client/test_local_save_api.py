@@ -110,6 +110,23 @@ class LocalSaveTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertNotIn('id="install"', response.get_data(as_text=True))
 
+    def test_remote_preview_is_explicit_and_isolated(self):
+        config = {"livesync_cli_enabled": True}
+        with patch("server.options", return_value=config):
+            with patch("livesync_cli_bridge.fetch_remote_to_disposable_database",
+                       return_value={"note_count": 1, "paths": ["Test.md"],
+                                     "remote_writes_enabled": False,
+                                     "persistent_local_modified": False}) as preview:
+                denied = self.client.post("/api/livesync-cli/remote-preview")
+                self.assertEqual(denied.status_code, 403)
+                preview.assert_not_called()
+                allowed = self.client.post("/api/livesync-cli/remote-preview",
+                    headers={"X-Obsidian-Client-Action": "remote-preview"})
+        self.assertEqual(allowed.status_code, 200)
+        self.assertEqual(allowed.json["paths"], ["Test.md"])
+        self.assertFalse(allowed.json["persistent_local_modified"])
+        preview.assert_called_once_with(config)
+
     def test_connection_check_never_writes_or_syncs(self):
         config = {
             "livesync_cli_enabled": True,
