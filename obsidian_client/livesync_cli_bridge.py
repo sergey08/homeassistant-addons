@@ -139,6 +139,45 @@ def validate_remote_configuration(options):
     }
 
 
+def prepare_official_cli_settings(config):
+    """Build official CLI settings in memory; never replicate or expose secrets.
+
+    A separate, explicit setup operation must persist these settings. No
+    background sync or automatic activation is permitted.
+    """
+    from urllib.parse import urlsplit
+    if not validate_remote_configuration(config)["configuration_complete"]:
+        raise CLIUnavailable("cli_remote_config_incomplete")
+    uri = config["couchdb_url"].rstrip("/")
+    parsed = urlsplit(uri)
+    if parsed.scheme == "http" and parsed.hostname not in (
+        "localhost", "127.0.0.1", "::1"
+    ) and not (parsed.hostname or "").endswith(".internal"):
+        # Plain HTTP is acceptable only for an explicitly configured private
+        # network endpoint. Never assume arbitrary public HTTP is safe.
+        import ipaddress
+        try:
+            ip = ipaddress.ip_address(parsed.hostname)
+            private = ip.is_private
+        except ValueError:
+            private = False
+        if not private and not (parsed.hostname or "").startswith("db21ed7f-"):
+            raise CLIUnavailable("cli_remote_plain_http_untrusted")
+    return {
+        "couchDB_URI": uri,
+        "couchDB_USER": config["couchdb_username"],
+        "couchDB_PASSWORD": config["couchdb_password"],
+        "couchDB_DBNAME": config["couchdb_database"],
+        "liveSync": False,
+        "syncOnSave": False,
+        "syncOnStart": False,
+        "encrypt": True,
+        "passphrase": config["livesync_e2ee_passphrase"],
+        "usePluginSync": False,
+        "isConfigured": True,
+    }
+
+
 def sync_configured_remote(binary, database_directory, *, timeout=120):
     """Explicit replication only after local settings exist; never fetch/rebuild.
 
