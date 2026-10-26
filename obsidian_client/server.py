@@ -123,6 +123,29 @@ def livesync_cli_configure_local():
         return jsonify(error=str(exc)), 409
 
 
+@app.post("/api/livesync-cli/remote-preview")
+def livesync_cli_remote_preview():
+    """Explicit remote fetch into disposable storage, never persistent local state."""
+    from livesync_cli_bridge import (
+        fetch_remote_to_disposable_database, CLIUnavailable,
+    )
+    cfg = options()
+    if cfg.get("livesync_cli_enabled") is not True:
+        return jsonify(error="cli_disabled"), 403
+    if request.headers.get("X-Obsidian-Client-Action") != "remote-preview":
+        return jsonify(error="missing_action_header"), 403
+    if request.headers.get("Sec-Fetch-Site") not in (None, "same-origin"):
+        return jsonify(error="cross_origin_blocked"), 403
+    if request.headers.get("Origin") and request.headers.get("Sec-Fetch-Site") != "same-origin":
+        return jsonify(error="cross_origin_blocked"), 403
+    try:
+        with _local_save_lock:
+            result = fetch_remote_to_disposable_database(cfg)
+        return jsonify(result)
+    except CLIUnavailable:
+        return jsonify(error="remote_preview_failed"), 502
+
+
 @app.get("/api/livesync-cli/connection-check")
 def livesync_cli_connection_check():
     """Read-only CouchDB database HEAD. No replication, documents or secrets."""
