@@ -32,6 +32,41 @@ def page(content):
     li{margin:9px 0}.muted{opacity:.75}</style></head><body>''' + content + "</body></html>"
 
 
+@app.get("/livesync/setup")
+def livesync_setup_page():
+    """Simple local setup workflow; all credentials remain server-side."""
+    if options().get("livesync_cli_enabled") is not True:
+        return page("<h1>LiveSync</h1><p>Activa el cliente CLI en la configuración de la aplicación.</p>")
+    return page("""<h1>LiveSync · Configuración local</h1>
+<p>Esta pantalla no sincroniza ni escribe en tu bóveda remota.</p>
+<p>Configura la URL, la base de datos, las credenciales y la frase de cifrado en las opciones de Home Assistant.</p>
+<button id="check" type="button">Comprobar conexión (solo lectura)</button>
+<button id="install" type="button">Instalar configuración local</button>
+<pre id="result" role="status" aria-live="polite">Sin comprobar</pre>
+<script>
+const output=document.getElementById("result");
+document.getElementById("check").onclick=async()=>{
+ output.textContent="Comprobando conexión...";
+ try {
+  const r=await fetch("../api/livesync-cli/connection-check",{cache:"no-store"});
+  const j=await r.json();
+  output.textContent=j.status||"Respuesta inesperada";
+ }catch(_){output.textContent="No se pudo comprobar la conexión"}
+};
+document.getElementById("install").onclick=async()=>{
+ if(!confirm("¿Instalar la configuración cifrada SOLO en la base local? No sincroniza notas."))return;
+ output.textContent="Instalando...";
+ try {
+  const r=await fetch("../api/livesync-cli/configure-local",{
+   method:"POST",headers:{"X-Obsidian-Client-Action":"configure-local"}
+  });
+  const j=await r.json();
+  output.textContent=r.ok?"Configuración local instalada. Sin sincronización.":(j.error||"Error");
+ }catch(_){output.textContent="No se pudo instalar la configuración"}
+};
+</script>""")
+
+
 @app.get("/api/livesync-cli/status")
 def livesync_cli_status():
     """Report local CLI readiness without exposing credentials or writing data."""
@@ -1247,7 +1282,8 @@ def list_notes():
 def home():
     root = vault_dir()
     status = ('<p><a href="api/demo">Offline example / Ejemplo aislado (JSON)</a> · '
-              '<a href="api/connection">CouchDB diagnostics / Diagnóstico CouchDB (JSON)</a></p>')
+              '<a href="api/connection">CouchDB diagnostics / Diagnóstico CouchDB (JSON)</a> · '
+              '<a href="livesync/setup">Configuración LiveSync</a></p>')
     if not root.is_dir():
         cfg = options()
         if cfg.get("livesync_encryption_enabled"):
