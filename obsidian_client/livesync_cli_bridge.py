@@ -335,6 +335,53 @@ def probe_official_remote_registration(config, *, timeout=30):
                 "remote_writes_enabled": False}
 
 
+def probe_official_remote_add(config, *, timeout=45):
+    """Register a remote using official CLI in disposable storage only.
+
+    No sync, fetch, publish, unlock, or mutation of persistent editor settings.
+    Never return a URI, subprocess output or credentials.
+    """
+    import tempfile
+    import json
+    with tempfile.TemporaryDirectory(prefix="obsidian-remote-add-test-") as temp:
+        database = Path(temp) / "db"
+        database.mkdir(mode=0o700)
+        install_official_cli_settings(config, str(database))
+        settings_file = database / ".livesync" / "settings.json"
+        data = json.loads(settings_file.read_text(encoding="utf-8"))
+        configs = data.get("remoteConfigurations", {})
+        active_id = data.get("activeConfigurationId")
+        if not isinstance(configs, dict) or active_id not in configs:
+            raise CLIUnavailable("cli_remote_registration_missing")
+        connection = configs[active_id]["uri"]
+        # Start without a registered remote so official remote-add owns creation.
+        data["remoteConfigurations"] = {}
+        data["activeConfigurationId"] = ""
+        settings_file.write_text(json.dumps(data), encoding="utf-8")
+        os.chmod(settings_file, 0o600)
+        executable, _ = validate_cli_installation(
+            "/opt/livesync-cli/dist/index.cjs", str(database))
+        prefix = ["/usr/local/bin/node", executable, str(database)]
+        try:
+            added = subprocess.run(
+                prefix + ["remote-add", "Home Assistant CouchDB", connection],
+                capture_output=True, timeout=timeout, check=False, shell=False)
+            listed = subprocess.run(
+                prefix + ["remote-ls"],
+                capture_output=True, timeout=timeout, check=False, shell=False)
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            raise CLIUnavailable("cli_remote_add_probe_failed") from exc
+        rows = listed.stdout.decode("utf-8", errors="replace").splitlines()
+        remote_rows = [line.split("\\t") for line in rows]
+        remote_rows = [row for row in remote_rows if len(row) == 4]
+        return {"remote_add_succeeded": added.returncode == 0,
+                "remote_list_succeeded": listed.returncode == 0,
+                "registered_remote_count": len(remote_rows),
+                "active_remote_count": sum(row[2] == "active" for row in remote_rows),
+                "persistent_editor_modified": False,
+                "remote_notes_modified": False}
+
+
 def publish_isolated_test_note(config, note_path, content, *, timeout=120):
     """Publish one explicitly chosen test note from a disposable CLI database.
 
