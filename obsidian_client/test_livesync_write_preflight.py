@@ -18,7 +18,7 @@ class TestWritePreflight(unittest.TestCase):
         for path in ("../secreto.md", "/absoluta.md", "A//nota.md",
                      "A/./nota.md", "A/../nota.md", ".oculta.md",
                      "A/.oculta/nota.md", "A\\nota.md", "A\x00nota.md",
-                     "nota.txt", ""):
+                     "nota.txt", "", "a\n.md", "a\t.md", "A /nota.md", "A./nota.md"):
             with self.subTest(path=repr(path)), self.assertRaises(UnsafeWrite):
                 validate_write_request(path, "texto", None, creating=True)
 
