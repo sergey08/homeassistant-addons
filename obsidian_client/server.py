@@ -854,6 +854,40 @@ def remote_note_content():
     return response
 
 
+@app.get("/remote/new")
+def remote_new_draft():
+    """Create an offline Markdown draft; never write to CouchDB."""
+    from livesync_write_preflight import validate_write_request, UnsafeWrite
+    requested = request.args.get("path", "")
+    try:
+        validate_write_request(requested, "", None, creating=True)
+    except UnsafeWrite:
+        return page("<h2>Ruta de nota no válida</h2>"), 400
+    path_json = json.dumps(requested, ensure_ascii=True).replace("<", "\\u003c")
+    return page(
+        '<p><a href="../">← Volver</a></p><h2>Nueva nota (borrador)</h2>'
+        '<p class="muted">No se guarda en LiveSync. Exporta el archivo .md para conservarlo.</p>'
+        '<h3>' + html.escape(requested) + '</h3>'
+        '<textarea id="editor" style="width:100%;height:50vh;font:14px monospace"></textarea>'
+        '<p><button id="export" type="button">Exportar .md</button></p>'
+        '<pre id="preview" style="white-space:pre-wrap"></pre>'
+        '<script>const path=' + path_json + ';'
+        'const editor=document.getElementById("editor");'
+        'const key="obsidian-new-draft:"+path;'
+        'try{editor.value=sessionStorage.getItem(key)||""}catch(_){}'
+        'editor.addEventListener("input",()=>{'
+        'document.getElementById("preview").textContent=editor.value;'
+        'try{sessionStorage.setItem(key,editor.value)}catch(_){}});'
+        'document.getElementById("export").onclick=()=>{'
+        'const url=URL.createObjectURL(new Blob([editor.value],{type:"text/markdown;charset=utf-8"}));'
+        'const a=document.createElement("a");a.href=url;a.download=path.split("/").pop();'
+        'a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};'
+        'window.addEventListener("beforeunload",event=>{if(editor.value){'
+        'event.preventDefault();event.returnValue="";}});'
+        'document.getElementById("preview").textContent=editor.value;</script>'
+    )
+
+
 @app.get("/remote/edit")
 def remote_edit_draft():
     """Edit a temporary browser draft without writing to LiveSync."""
