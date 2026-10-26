@@ -987,6 +987,7 @@ def remote_new_draft():
         'savedContent=data.content;'
         'const draft=editor.value;editor.value=data.content;'
         'if((dirty||draft)&&draft!==data.content&&confirm("Recuperar borrador anterior?"))editor.value=draft;'
+        'else try{sessionStorage.removeItem(key)}catch(_){}'
         'document.getElementById("preview").textContent=editor.value;'
         'document.getElementById("saveStatus").textContent="Nota local cargada (sin sincronizar)";'
         '}}).catch(()=>{}).finally(()=>{loadingLocal=false});'
