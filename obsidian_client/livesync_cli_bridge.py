@@ -18,7 +18,9 @@ def validate_cli_installation(binary, database_directory):
         raise CLIUnavailable("cli_database_missing")
     if database.is_symlink() or executable.is_symlink():
         raise CLIUnavailable("symlink_not_allowed")
-    if executable.suffix not in (".cjs", ".js"):\n        raise CLIUnavailable("unsupported_cli_entrypoint")\n    return str(executable), str(database)
+    if executable.suffix not in (".cjs", ".js"):
+        raise CLIUnavailable("unsupported_cli_entrypoint")
+    return str(executable), str(database)
 
 def prepare_put_command(binary, database_directory, note_path):
     from livesync_write_preflight import validate_write_request
