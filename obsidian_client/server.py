@@ -148,9 +148,18 @@ def livesync_cli_publish_test_note():
             result = publish_isolated_test_note(options(), note_path, content)
         except CLIUnavailable as exc:
             code = str(exc)
-            allowed = {"cli_sync_remote_locked", "cli_sync_version_incompatible",
-                       "cli_sync_authentication", "cli_sync_encryption",
-                       "cli_sync_network", "cli_sync_cli_exception", "cli_sync_unknown"}
+            allowed = {"publish_local_roundtrip_failed",
+                       "publish_registration_cli_remote_add_failed",
+                       "publish_registration_cli_remote_add_not_active",
+                       "publish_registration_cli_remote_registration_missing",
+                       "publish_cli_sync_remote_locked",
+                       "publish_cli_sync_version_incompatible",
+                       "publish_cli_sync_authentication",
+                       "publish_cli_sync_encryption",
+                       "publish_cli_sync_network",
+                       "publish_cli_sync_cli_exception",
+                       "publish_cli_sync_unknown",
+                       "publish_cli_sync_failed"}
             return jsonify(error=code if code in allowed else "isolated_sync_failed"), 502
         actual, read_error = read_encrypted_note(note_path)
         result["verified_remotely"] = read_error is None and actual == content
