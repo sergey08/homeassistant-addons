@@ -1,0 +1,13 @@
+configuration:
+  tunnel_id:
+    name: OpenAI tunnel ID
+    description: "Identifier from OpenAI Platform > Organization settings > Tunnels (starts with tunnel_). This is not an API key."
+  enable_tunnel:
+    name: Enable ChatGPT tunnel
+    description: "Start the locally provisioned OpenAI tunnel client so ChatGPT can access the private MCP server. Requires a tunnel ID, executable and runtime API key file."
+  enable_livesync:
+    name: Enable LiveSync
+    description: "Synchronize the local Markdown vault with the configured CouchDB database using the existing LiveSync settings file. Do not run another writer for this vault."
+  livesync_interval:
+    name: LiveSync interval (seconds)
+    description: "Time between LiveSync polling cycles, from 30 to 3600 seconds. Default is 60 seconds."
