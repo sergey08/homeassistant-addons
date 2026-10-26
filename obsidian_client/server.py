@@ -62,6 +62,31 @@ def livesync_cli_status():
     )
 
 
+@app.post("/api/livesync-cli/configure-local")
+def livesync_cli_configure_local():
+    """Explicitly persist E2EE settings locally. Does not connect or sync."""
+    from livesync_cli_bridge import (
+        CLIUnavailable, install_official_cli_settings, validate_remote_configuration,
+    )
+    config = options()
+    if config.get("livesync_cli_enabled") is not True:
+        return jsonify(error="cli_disabled"), 403
+    if request.headers.get("X-Obsidian-Client-Action") != "configure-local":
+        return jsonify(error="missing_action_header"), 403
+    if request.headers.get("Sec-Fetch-Site") not in (None, "same-origin"):
+        return jsonify(error="cross_origin_blocked"), 403
+    if request.headers.get("Origin") and request.headers.get("Sec-Fetch-Site") != "same-origin":
+        return jsonify(error="cross_origin_blocked"), 403
+    if not validate_remote_configuration(config)["configuration_complete"]:
+        return jsonify(error="remote_configuration_incomplete"), 409
+    try:
+        with _local_save_lock:
+            result = install_official_cli_settings(config, "/data/livesync-client")
+        return jsonify(result), 201
+    except CLIUnavailable as exc:
+        return jsonify(error=str(exc)), 409
+
+
 @app.get("/api/demo")
 def demo_note():
     """Offline example only / Ejemplo aislado, sin acceso a CouchDB."""
