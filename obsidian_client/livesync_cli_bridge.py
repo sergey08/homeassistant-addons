@@ -559,9 +559,21 @@ def sync_configured_remote(binary, database_directory, *, timeout=120):
                 "authentication": "authentication",
                 "network": "network",
             }
-            reason = hints.get(hint.lower(), "upstream_" + status if status in
-                               ("failed", "cancelled", "skipped", "interrupted")
-                               else "unclassified_replication_failure")
+            reason = hints.get(hint.lower())
+            if reason is None:
+                # The upstream engine may provide additional reason codes.
+                # Only fixed, harmless categories are exposed to the API.
+                safe_hints = {
+                    "remote_locked", "node_rejected", "remote_not_configured",
+                    "replication_not_permitted", "connection_failed",
+                    "couchdb_error", "missing_remote", "invalid_remote",
+                    "database_locked", "remote_version_mismatch",
+                    "remote_not_found", "remote_unavailable",
+                }
+                reason = ("hint_" + hint.lower()) if hint.lower() in safe_hints else (
+                    "upstream_" + status if status in
+                    ("failed", "cancelled", "skipped", "interrupted")
+                    else "unclassified_replication_failure")
             raise CLIUnavailable("cli_sync_" + reason)
         # Match specific replication diagnostics, not generic startup words
         # such as "incompatible" appearing in unrelated CLI notices.
