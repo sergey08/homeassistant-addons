@@ -77,6 +77,16 @@ class TestCLIBridge(unittest.TestCase):
                 self.assertEqual(result["Notes/Test.md"]["size"], 4)
                 self.assertEqual(result["Notes/Test.md"]["revision"], "2-" + "a" * 32)
 
+    def test_ls_accepts_literal_escaped_tabs_from_official_cli(self):
+        with tempfile.TemporaryDirectory() as temp:
+            binary = Path(temp) / "index.cjs"
+            binary.write_text("test")
+            with patch("livesync_cli_bridge.subprocess.run") as run:
+                run.return_value.returncode = 0
+                run.return_value.stdout = b"Notes/Test.md\\\\t4\\\\t1720000000000\\\\t2-" + b"a" * 32 + b"\\n"
+                result = list_local_note_paths(str(binary), temp)
+                self.assertEqual(result["Notes/Test.md"]["size"], 4)
+
     def test_ls_rejects_non_tabular_output(self):
         with tempfile.TemporaryDirectory() as temp:
             binary = Path(temp) / "index.cjs"
