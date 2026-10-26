@@ -920,6 +920,8 @@ def livesync_cli_local_save():
     from livesync_write_preflight import validate_write_request, UnsafeWrite
     if options().get("livesync_cli_enabled") is not True:
         return jsonify(error="cli_disabled"), 403
+    if request.headers.get("X-Obsidian-Client-Action") != "local-save":
+        return jsonify(error="missing_action_header"), 403
     if request.headers.get("Sec-Fetch-Site") not in (None, "same-origin"):
         return jsonify(error="cross_origin_blocked"), 403
     # HA ingress may rewrite the internal Host. Trust browser fetch metadata
@@ -997,7 +999,7 @@ def remote_new_draft():
         'const submitted=editor.value;'
         'const status=document.getElementById("saveStatus");status.textContent="Guardando...";'
         'try{const r=await fetch("../api/livesync-cli/local-save",{method:"POST",'
-        'headers:{"Content-Type":"application/json"},'
+        'headers:{"Content-Type":"application/json","X-Obsidian-Client-Action":"local-save"},'
         'body:JSON.stringify({mode:savedContent===null?"create":"update",path:path,'
         'expected_content:savedContent,content:submitted})});'
         'const data=await r.json();if(!r.ok)throw Error(data.error||"save_failed");'
