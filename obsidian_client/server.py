@@ -156,6 +156,7 @@ def livesync_cli_publish_test_note():
                        "publish_registration_cli_remote_registration_missing",
                        "publish_cli_sync_remote_locked",
                        "publish_cli_sync_version_incompatible",
+                       "publish_cli_sync_device_not_accepted",
                        "publish_cli_sync_authentication",
                        "publish_cli_sync_encryption",
                        "publish_cli_sync_network",
