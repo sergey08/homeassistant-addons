@@ -43,3 +43,16 @@ class TestHKDF(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestHKDFEncoder(unittest.TestCase):
+    def test_round_trip_unicode_and_randomization(self):
+        from livesync_crypto import encrypt_hkdf_string
+        salt = base64.b64encode(b"dev48-encoder-test-salt").decode("ascii")
+        for value in ("", "# Título\\nEspañol 🌍", "a" * 10000):
+            first = encrypt_hkdf_string(value, "test-passphrase", salt)
+            second = encrypt_hkdf_string(value, "test-passphrase", salt)
+            self.assertNotEqual(first, second)
+            self.assertEqual(decrypt_hkdf_string(first, "test-passphrase", salt), value)
+            with self.assertRaises(UnsupportedEncryption):
+                decrypt_hkdf_string(first, "wrong-passphrase", salt)
