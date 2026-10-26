@@ -164,14 +164,14 @@ def list_local_note_paths(binary, database_directory, *, timeout=30):
     # Reject non-data output rather than treating it as an empty database.
     notes = {}
     for line in lines:
-        fields = line.split("\\t")
+        fields = line.split("\t")
         if len(fields) != 4:
             raise CLIUnavailable("cli_list_invalid_format")
         path, size, mtime, revision = fields
         if (not path.endswith(".md") or path.startswith("/") or
                 any(segment in ("", ".", "..") for segment in path.split("/")) or
                 not size.isdigit() or not mtime.isdigit() or
-                not re.fullmatch(r"[1-9][0-9]*-[0-9a-fA-F]{32}\\*?", revision) or
+                not re.fullmatch(r"[1-9][0-9]*-[0-9a-fA-F]{32}\*?", revision) or
                 path in notes):
             raise CLIUnavailable("cli_list_invalid_format")
         notes[path] = {"size": int(size), "mtime": int(mtime),
