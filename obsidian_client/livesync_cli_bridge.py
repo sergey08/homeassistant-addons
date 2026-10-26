@@ -161,7 +161,7 @@ def prepare_official_cli_settings(config):
             private = ip.is_private
         except ValueError:
             private = False
-        if not private and not (parsed.hostname or "").startswith("db21ed7f-"):
+        if not private and not re.fullmatch(r"[0-9a-f]{8}-[a-z0-9_-]+", parsed.hostname or ""):
             raise CLIUnavailable("cli_remote_plain_http_untrusted")
     return {
         "couchDB_URI": uri,
