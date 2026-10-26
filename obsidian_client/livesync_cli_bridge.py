@@ -174,9 +174,12 @@ def list_local_note_paths(binary, database_directory, *, timeout=30):
         if len(fields) != 4:
             raise CLIUnavailable("cli_list_invalid_format")
         path, size, mtime, revision = fields
-        if (not path.endswith(".md") or path.startswith("/") or
-                any(segment in ("", ".", "..") for segment in path.split("/")) or
-                not size.isdigit() or not mtime.isdigit() or
+        from livesync_write_preflight import validate_write_request, UnsafeWrite
+        try:
+            validate_write_request(path, "", None, creating=True)
+        except UnsafeWrite as exc:
+            raise CLIUnavailable("cli_list_invalid_format") from exc
+        if (not size.isdigit() or not mtime.isdigit() or
                 not re.fullmatch(r"[1-9][0-9]*-[0-9a-fA-F]{32}\*?", revision) or
                 path in notes):
             raise CLIUnavailable("cli_list_invalid_format")
