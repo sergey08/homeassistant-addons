@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
-from livesync_cli_bridge import prepare_put_command, put_local_only, read_local_note, verify_local_roundtrip, verify_local_cli_runtime, safe_update_local_note, list_local_note_paths, safe_create_local_note, validate_remote_configuration, prepare_official_cli_settings, CLIUnavailable
+from livesync_cli_bridge import prepare_put_command, put_local_only, read_local_note, verify_local_roundtrip, verify_local_cli_runtime, safe_update_local_note, list_local_note_paths, safe_create_local_note, validate_remote_configuration, prepare_official_cli_settings, install_official_cli_settings, CLIUnavailable
 
 class TestCLIBridge(unittest.TestCase):
     def test_encrypted_remote_configuration_readiness_is_secret_free(self):
@@ -43,6 +43,27 @@ class TestCLIBridge(unittest.TestCase):
         config["couchdb_url"] = "http://public.example:5984"
         with self.assertRaisesRegex(CLIUnavailable, "plain_http_untrusted"):
             prepare_official_cli_settings(config)
+
+    def test_settings_install_is_private_and_does_not_overwrite(self):
+        import json
+        config = {
+            "couchdb_url": "https://localhost:6984",
+            "couchdb_database": "notes",
+            "couchdb_username": "user",
+            "couchdb_password": "secret",
+            "livesync_encryption_enabled": True,
+            "livesync_e2ee_passphrase": "phrase",
+        }
+        with tempfile.TemporaryDirectory() as temp:
+            result = install_official_cli_settings(config, temp)
+            target = Path(temp) / ".livesync" / "settings.json"
+            self.assertTrue(result["installed"])
+            self.assertFalse(result["remote_synced"])
+            self.assertEqual(target.stat().st_mode & 0o777, 0o600)
+            self.assertEqual(target.parent.stat().st_mode & 0o777, 0o700)
+            self.assertTrue(json.loads(target.read_text())["encrypt"])
+            with self.assertRaisesRegex(CLIUnavailable, "already_exist"):
+                install_official_cli_settings(config, temp)
 
     def test_local_put_never_syncs(self):
         with tempfile.TemporaryDirectory() as temp:
