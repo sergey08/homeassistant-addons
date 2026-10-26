@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
-from livesync_cli_bridge import prepare_put_command, put_local_only, read_local_note, verify_local_roundtrip, CLIUnavailable
+from livesync_cli_bridge import prepare_put_command, put_local_only, read_local_note, verify_local_roundtrip, verify_local_cli_runtime, CLIUnavailable
 
 class TestCLIBridge(unittest.TestCase):
     def test_local_put_never_syncs(self):
@@ -41,6 +41,15 @@ class TestCLIBridge(unittest.TestCase):
                 run.return_value.stdout = b"incorrecto"
                 with self.assertRaises(CLIUnavailable):
                     verify_local_roundtrip(str(binary), temp, "Nota.md", "correcto")
+
+    def test_cli_runtime_help_never_syncs(self):
+        with tempfile.TemporaryDirectory() as temp:
+            binary = Path(temp) / "index.cjs"
+            binary.write_text("test")
+            with patch("livesync_cli_bridge.subprocess.run") as run:
+                run.return_value.returncode = 0
+                self.assertTrue(verify_local_cli_runtime(str(binary), temp))
+                self.assertEqual(run.call_args.args[0], ["/usr/local/bin/node", str(binary), "--help"])
 
     def test_missing_binary_fails_closed(self):
         with tempfile.TemporaryDirectory() as temp:
