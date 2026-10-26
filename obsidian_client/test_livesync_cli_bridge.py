@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
-from livesync_cli_bridge import prepare_put_command, put_local_only, read_local_note, verify_local_roundtrip, verify_local_cli_runtime, safe_update_local_note, CLIUnavailable
+from livesync_cli_bridge import prepare_put_command, put_local_only, read_local_note, verify_local_roundtrip, verify_local_cli_runtime, safe_update_local_note, list_local_note_paths, CLIUnavailable
 
 class TestCLIBridge(unittest.TestCase):
     def test_local_put_never_syncs(self):
@@ -65,6 +65,27 @@ class TestCLIBridge(unittest.TestCase):
                 self.assertTrue(safe_update_local_note("/unused/index.cjs", "/unused/db",
                                                        "Notes/Test.md", "old", "new"))
                 write.assert_called_once()
+
+    def test_ls_parses_documented_tabular_metadata(self):
+        with tempfile.TemporaryDirectory() as temp:
+            binary = Path(temp) / "index.cjs"
+            binary.write_text("test")
+            with patch("livesync_cli_bridge.subprocess.run") as run:
+                run.return_value.returncode = 0
+                run.return_value.stdout = b"Notes/Test.md\\t4\\t1720000000000\\t2-" + b"a" * 32 + b"\\n"
+                result = list_local_note_paths(str(binary), temp)
+                self.assertEqual(result["Notes/Test.md"]["size"], 4)
+                self.assertEqual(result["Notes/Test.md"]["revision"], "2-" + "a" * 32)
+
+    def test_ls_rejects_non_tabular_output(self):
+        with tempfile.TemporaryDirectory() as temp:
+            binary = Path(temp) / "index.cjs"
+            binary.write_text("test")
+            with patch("livesync_cli_bridge.subprocess.run") as run:
+                run.return_value.returncode = 0
+                run.return_value.stdout = b"error: database not initialized\\n"
+                with self.assertRaises(CLIUnavailable):
+                    list_local_note_paths(str(binary), temp)
 
     def test_missing_binary_fails_closed(self):
         with tempfile.TemporaryDirectory() as temp:
