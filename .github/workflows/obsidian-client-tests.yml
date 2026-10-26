@@ -157,6 +157,22 @@ jobs:
           from sys import path as syspath
           syspath.insert(0, "obsidian_client")
           from livesync_cli_bridge import install_official_cli_settings
+          from urllib.parse import quote
+          def register_remote(cli, database, config):
+              settings_file=pathlib.Path(database)/".livesync"/"settings.json"
+              settings=json.loads(settings_file.read_text())
+              remote_id=settings["activeConfigurationId"]
+              conn=settings["remoteConfigurations"][remote_id]["uri"]
+              settings["remoteConfigurations"]={}
+              settings["activeConfigurationId"]=""
+              settings_file.write_text(json.dumps(settings))
+              result=subprocess.run(["node",cli,database,"remote-add","CI CouchDB",conn],
+                                    capture_output=True,text=True,check=True,timeout=45)
+              remote_id=result.stdout.split("\\t")[0].strip()
+              assert remote_id and len(remote_id)<130
+              subprocess.run(["node",cli,database,"remote-activate",remote_id],
+                             capture_output=True,text=True,check=True,timeout=45)
+              return remote_id
           root="http://127.0.0.1:5984"
           name="obsidian_encrypted_ci_"+uuid.uuid4().hex
           auth="Basic "+base64.b64encode((os.environ["TEST_COUCHDB_USER"]+":"+os.environ["TEST_COUCHDB_PASSWORD"]).encode()).decode()
@@ -175,12 +191,14 @@ jobs:
                           "livesync_encryption_enabled":True,
                           "livesync_e2ee_passphrase":"isolated-ci-encryption-only"}
                   install_official_cli_settings(config,temp)
+                  register_remote(cli,temp,config)
                   note="Tests/encrypted-roundtrip.md"
                   content="# Encrypted isolated test\\nNever production\\n"
                   subprocess.run(["node",cli,temp,"put",note],input=content,text=True,check=True,timeout=45)
                   subprocess.run(["node",cli,temp,"sync"],check=True,timeout=90)
                   with tempfile.TemporaryDirectory() as second:
                       install_official_cli_settings(config,second)
+                      register_remote(cli,second,config)
                       subprocess.run(["node",cli,second,"sync"],check=True,timeout=90)
                       result=subprocess.run(["node",cli,second,"cat",note],capture_output=True,text=True,timeout=45)
                       assert result.returncode==0, "Second client could not read encrypted note"
