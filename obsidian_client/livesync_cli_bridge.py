@@ -278,6 +278,12 @@ def fetch_remote_to_disposable_database(config, *, timeout=120):
                 reason = "remote_configuration"
             elif any(term in output for term in ("404", "not found", "database does not exist")):
                 reason = "database"
+            elif any(term in output for term in ("fetch failed", "failed to fetch", "failed to retrieve")):
+                reason = "fetch_operation"
+            elif any(term in output for term in ("database is locked", "database locked", "database closed")):
+                reason = "local_database"
+            elif any(term in output for term in ("typeerror", "referenceerror", "syntaxerror", "uncaught", "exception")):
+                reason = "cli_exception"
             else:
                 reason = "cli_failure"
             raise CLIUnavailable("cli_preview_" + reason)
