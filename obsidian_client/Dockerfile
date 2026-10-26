@@ -1,4 +1,5 @@
 # Build the upstream protocol implementation from a pinned revision.
+ARG BUILD_FROM=python:3.13-slim
 FROM node:22-bookworm-slim AS livesync-build
 RUN apt-get update && apt-get install -y --no-install-recommends git python3 make g++ ca-certificates \
     && rm -rf /var/lib/apt/lists/*
@@ -8,7 +9,6 @@ RUN git clone https://github.com/vrtmrz/obsidian-livesync.git . \
 RUN npm ci && npm run build -w self-hosted-livesync-cli \
     && test -s src/apps/cli/dist/index.cjs
 
-ARG BUILD_FROM=python:3.13-slim
 FROM $BUILD_FROM
 WORKDIR /app
 # Node 22 is required by the official CLI. The local CLI database is isolated.
