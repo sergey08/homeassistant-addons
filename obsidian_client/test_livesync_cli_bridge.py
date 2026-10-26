@@ -22,6 +22,26 @@ class TestCLIBridge(unittest.TestCase):
                 self.assertEqual(kwargs["input"], "Texto")
                 self.assertFalse(kwargs["shell"])
 
+    def test_readback(self):
+        with tempfile.TemporaryDirectory() as temp:
+            binary = Path(temp) / "cli"
+            binary.write_text("test")
+            with patch("livesync_cli_bridge.subprocess.run") as run:
+                run.return_value.returncode = 0
+                run.return_value.stdout = b"Hola"
+                self.assertEqual(read_local_note(str(binary), temp, "Nota.md"), "Hola")
+                self.assertEqual(run.call_args.args[0][2], "cat")
+
+    def test_roundtrip_mismatch_rejected(self):
+        with tempfile.TemporaryDirectory() as temp:
+            binary = Path(temp) / "cli"
+            binary.write_text("test")
+            with patch("livesync_cli_bridge.subprocess.run") as run:
+                run.return_value.returncode = 0
+                run.return_value.stdout = b"incorrecto"
+                with self.assertRaises(CLIUnavailable):
+                    verify_local_roundtrip(str(binary), temp, "Nota.md", "correcto")
+
     def test_missing_binary_fails_closed(self):
         with tempfile.TemporaryDirectory() as temp:
             with self.assertRaises(CLIUnavailable):
