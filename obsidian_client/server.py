@@ -792,8 +792,11 @@ def read_encrypted_note(requested):
                 candidate=meta
                 break
         if candidate is None: return None,"not_found"
-        children=candidate.get("children")
-        if not isinstance(children,list) or not children or len(children)>512 or len(children)!=len(set(children)) or not all(isinstance(x,str) and 0<len(x)<256 for x in children): return None,"unsupported_children"
+        from livesync_metadata import validate_encrypted_parent, UnsupportedMetadata
+        try:
+            children = validate_encrypted_parent(candidate, requested)
+        except UnsupportedMetadata:
+            return None, "unsupported_metadata"
         parts=[]
         for child in children:
             leaf=fetch("/"+quote(child,safe=""),150000)
