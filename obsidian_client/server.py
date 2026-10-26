@@ -88,6 +88,42 @@ def livesync_cli_configure_local():
         return jsonify(error=str(exc)), 409
 
 
+@app.get("/api/livesync-cli/connection-check")
+def livesync_cli_connection_check():
+    """Read-only CouchDB database HEAD. No replication, documents or secrets."""
+    import base64
+    from livesync_cli_bridge import validate_remote_configuration, prepare_official_cli_settings, CLIUnavailable
+    cfg = options()
+    if cfg.get("livesync_cli_enabled") is not True:
+        return jsonify(status="cli_disabled", remote_writes_enabled=False), 403
+    if not validate_remote_configuration(cfg)["configuration_complete"]:
+        return jsonify(status="configuration_incomplete", remote_writes_enabled=False), 409
+    try:
+        settings = prepare_official_cli_settings(cfg)
+    except CLIUnavailable:
+        return jsonify(status="untrusted_endpoint", remote_writes_enabled=False), 400
+    target = settings["couchDB_URI"] + "/" + quote(settings["couchDB_DBNAME"], safe="")
+    credential = base64.b64encode(
+        (settings["couchDB_USER"] + ":" + settings["couchDB_PASSWORD"]).encode()
+    ).decode()
+    class NoRedirect(HTTPRedirectHandler):
+        def redirect_request(self, req, fp, code, msg, headers, newurl):
+            return None
+    try:
+        req = Request(target, headers={"Authorization": "Basic " + credential}, method="HEAD")
+        with build_opener(NoRedirect()).open(req, timeout=8) as resp:
+            status = resp.status
+        if status != 200:
+            return jsonify(status="unexpected_response", remote_writes_enabled=False), 502
+    except HTTPError as exc:
+        result = "authentication_failed" if exc.code in (401, 403) else "database_missing" if exc.code == 404 else "connection_failed"
+        return jsonify(status=result, remote_writes_enabled=False), 502
+    except (OSError, ValueError, URLError):
+        return jsonify(status="connection_failed", remote_writes_enabled=False), 502
+    return jsonify(status="database_reachable", encrypted_settings_present=True,
+                   encryption_verified=False, remote_writes_enabled=False)
+
+
 @app.get("/api/demo")
 def demo_note():
     """Offline example only / Ejemplo aislado, sin acceso a CouchDB."""
