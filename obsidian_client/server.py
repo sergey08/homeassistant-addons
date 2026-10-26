@@ -48,7 +48,8 @@ def livesync_cli_status():
     return jsonify(
         enabled=enabled,
         installed=installed,
-        local_database_ready=installed,
+        local_database_directory_present=Path("/data/livesync-client").is_dir(),
+        local_database_initialized=(Path("/data/livesync-client") / ".livesync").exists(),
         remote_sync_configured=False,
         remote_writes_enabled=False,
         status="awaiting_remote_configuration" if enabled and installed
