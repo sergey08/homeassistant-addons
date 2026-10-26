@@ -335,7 +335,23 @@ def sync_configured_remote(binary, database_directory, *, timeout=120):
     except (OSError, subprocess.TimeoutExpired) as exc:
         raise CLIUnavailable("cli_sync_failed") from exc
     if result.returncode:
-        raise CLIUnavailable("cli_sync_failed")
+        # Do not expose stderr, stdout, remote URLs, passwords or note content.
+        output = (result.stderr + result.stdout).decode("utf-8", errors="replace").lower()[-16000:]
+        if any(x in output for x in ("node_locked", "node_cleaned", "remote database is locked", "please unlock")):
+            reason = "remote_locked"
+        elif any(x in output for x in ("version mismatch", "incompatible", "compatibility rejection")):
+            reason = "version_incompatible"
+        elif any(x in output for x in ("unauthorized", "forbidden", "authentication failed", "401", "403")):
+            reason = "authentication"
+        elif any(x in output for x in ("decrypt", "passphrase", "encryption failed")):
+            reason = "encryption"
+        elif any(x in output for x in ("econnrefused", "enotfound", "getaddrinfo", "network error")):
+            reason = "network"
+        elif any(x in output for x in ("typeerror", "referenceerror", "uncaught", "exception")):
+            reason = "cli_exception"
+        else:
+            reason = "unknown"
+        raise CLIUnavailable("cli_sync_" + reason)
     return True
 
 def safe_update_local_note(binary, database_directory, note_path, expected_content, new_content):
