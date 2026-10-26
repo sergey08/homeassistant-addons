@@ -101,6 +101,44 @@ def verify_local_cli_runtime(binary, database_directory, *, timeout=10):
         raise CLIUnavailable("cli_runtime_failed")
     return True
 
+def validate_remote_configuration(options):
+    """Validate configured CouchDB/E2EE options without network or side effects.
+
+    Returns non-secret readiness flags. This does not authorize replication.
+    """
+    from urllib.parse import urlsplit
+    configured = options if isinstance(options, dict) else {}
+    uri = configured.get("couchdb_url")
+    dbname = configured.get("couchdb_database")
+    username = configured.get("couchdb_username")
+    password = configured.get("couchdb_password")
+    encrypted = configured.get("livesync_encryption_enabled") is True
+    passphrase = configured.get("livesync_e2ee_passphrase")
+    valid_url = False
+    if isinstance(uri, str):
+        try:
+            parsed = urlsplit(uri)
+            valid_url = (
+                parsed.scheme in ("http", "https")
+                and bool(parsed.hostname)
+                and parsed.username is None and parsed.password is None
+                and not parsed.path.strip("/") and not parsed.query and not parsed.fragment
+            )
+        except ValueError:
+            valid_url = False
+    valid_db = isinstance(dbname, str) and bool(re.fullmatch(r"[a-z][a-z0-9_$()+/-]*", dbname))
+    valid_auth = isinstance(username, str) and bool(username.strip()) and isinstance(password, str) and bool(password)
+    valid_crypto = encrypted and isinstance(passphrase, str) and bool(passphrase)
+    return {
+        "endpoint_valid": valid_url,
+        "database_valid": valid_db,
+        "credentials_present": valid_auth,
+        "encryption_ready": valid_crypto,
+        "configuration_complete": bool(valid_url and valid_db and valid_auth and valid_crypto),
+        "remote_writes_enabled": False,
+    }
+
+
 def sync_configured_remote(binary, database_directory, *, timeout=120):
     """Explicit replication only after local settings exist; never fetch/rebuild.
 
