@@ -21,12 +21,16 @@ class NoRedirect(HTTPRedirectHandler):
         return None
 
 def put_revision_checked(base_url, database, username, password, document,
-                         *, expected_revision=None, creating=False, opener=None):
+                         *, expected_revision=None, creating=False, opener=None, wire_validator=None):
     """Single-document conditional PUT; caller must separately validate LiveSync wire format.
 
     Requires a validated, trusted document from a compatible encoder.
     Create uses If-None-Match: *; updates require both _rev and If-Match.
     """
+    # Fail closed: the caller must provide a proven LiveSync wire-format validator.
+    # A CouchDB conditional PUT alone does not guarantee Obsidian compatibility.
+    if not callable(wire_validator):
+        raise UnsafeDocument("livesync_wire_validator_required")
     if not isinstance(base_url, str) or base_url.rstrip("/") != "http://db21ed7f-obsidian-syncserver-ssl:5984":
         raise UnsafeDocument("unsupported_connection")
     if not isinstance(database, str) or not re.fullmatch(r"[A-Za-z0-9_.-]+", database):
@@ -44,6 +48,13 @@ def put_revision_checked(base_url, database, username, password, document,
             raise UnsafeDocument("revision_required")
         if document.get("_rev") != expected_revision:
             raise UnsafeDocument("revision_mismatch")
+    try:
+        if wire_validator(document) is not True:
+            raise UnsafeDocument("livesync_wire_validation_failed")
+    except UnsafeDocument:
+        raise
+    except Exception:
+        raise UnsafeDocument("livesync_wire_validation_failed") from None
     raw = json.dumps(document, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
     if len(raw) > 2_500_000:
         raise UnsafeDocument("document_too_large")
