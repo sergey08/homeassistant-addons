@@ -898,12 +898,13 @@ def livesync_cli_local_note():
     try:
         validate_write_request(path, "", None, creating=True)
         binary, database = "/opt/livesync-cli/dist/index.cjs", "/data/livesync-client"
-        metadata = list_local_note_paths(binary, database)
-        if path not in metadata:
-            return jsonify(error="local_note_not_found"), 404
-        if metadata[path]["conflict"]:
-            return jsonify(error="cli_local_conflict"), 409
-        content = read_local_note(binary, database, path)
+        with _local_save_lock:
+            metadata = list_local_note_paths(binary, database)
+            if path not in metadata:
+                return jsonify(error="local_note_not_found"), 404
+            if metadata[path]["conflict"]:
+                return jsonify(error="cli_local_conflict"), 409
+            content = read_local_note(binary, database, path)
         return jsonify(path=path, content=content, remote_synced=False)
     except (UnsafeWrite, ValueError):
         return jsonify(error="invalid_note"), 400
