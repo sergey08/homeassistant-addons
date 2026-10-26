@@ -22,6 +22,8 @@ class TestDraftEditor(unittest.TestCase):
         self.assertEqual(valid.status_code, 200)
         self.assertIn('id="editor"', valid.get_data(as_text=True))
         self.assertIn('savedContent===null?"create":"update"', valid.get_data(as_text=True))
+        self.assertIn('saving=false', valid.get_data(as_text=True))
+        self.assertIn('content:submitted', valid.get_data(as_text=True))
         for path in ("../secreto.md", "/absolute.md", "note.txt", ".hidden.md"):
             with self.subTest(path=path):
                 result = self.client.get("/remote/new", query_string={"path": path})
@@ -41,7 +43,8 @@ class TestDraftEditor(unittest.TestCase):
         body = response.get_data(as_text=True)
         self.assertIn('id="exportDraft"', body)
         self.assertIn('id="discardDraft"', body)
-        self.assertIn('original=e.value', body)
+        self.assertIn('original=submitted', body)
+        self.assertIn('content:submitted', body)
         self.assertIn('Guardar localmente (sin sincronizar)', body)
         self.assertNotIn('method="post"', body.lower())
 
