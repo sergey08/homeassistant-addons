@@ -142,8 +142,12 @@ def livesync_cli_remote_preview():
         with _local_save_lock:
             result = fetch_remote_to_disposable_database(cfg)
         return jsonify(result)
-    except CLIUnavailable:
-        return jsonify(error="remote_preview_failed"), 502
+    except CLIUnavailable as exc:
+        code = str(exc)
+        allowed = {"cli_preview_authentication", "cli_preview_network",
+                   "cli_preview_encryption", "cli_preview_remote_configuration",
+                   "cli_preview_database", "cli_preview_cli_failure"}
+        return jsonify(error=code if code in allowed else "remote_preview_failed"), 502
 
 
 @app.get("/api/livesync-cli/connection-check")
