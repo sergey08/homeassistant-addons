@@ -220,6 +220,37 @@ def install_official_cli_settings(config, database_directory):
     return {"installed": True, "remote_synced": False, "remote_writes_enabled": False}
 
 
+def fetch_remote_to_disposable_database(config, *, timeout=120):
+    """Fetch remote notes into a new temporary CLI database, never into live local data.
+
+    The official CLI 'fetch --force' replaces only the disposable local database.
+    It must not be used to overwrite the persistent editor database.
+    """
+    import tempfile
+    settings = prepare_official_cli_settings(config)
+    with tempfile.TemporaryDirectory(prefix="obsidian-remote-preview-") as temp:
+        database = Path(temp) / "db"
+        vault = Path(temp) / "vault"
+        database.mkdir(mode=0o700)
+        vault.mkdir(mode=0o700)
+        install_official_cli_settings(config, str(database))
+        binary = "/opt/livesync-cli/dist/index.cjs"
+        executable, _ = validate_cli_installation(binary, str(database))
+        try:
+            result = subprocess.run(
+                ["/usr/local/bin/node", executable, str(database), "fetch",
+                 "--force", "--vault", str(vault)],
+                capture_output=True, timeout=timeout, check=False, shell=False,
+            )
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            raise CLIUnavailable("cli_preview_fetch_failed") from exc
+        if result.returncode:
+            raise CLIUnavailable("cli_preview_fetch_failed")
+        notes = list_local_note_paths(binary, str(database))
+        return {"note_count": len(notes), "paths": sorted(notes),
+                "remote_writes_enabled": False, "persistent_local_modified": False}
+
+
 def sync_configured_remote(binary, database_directory, *, timeout=120):
     """Explicit replication only after local settings exist; never fetch/rebuild.
 
