@@ -65,6 +65,19 @@ class LocalSaveTests(unittest.TestCase):
         self.assertEqual(response.status_code, 403)
         create.assert_not_called()
 
+    def test_update_rejects_missing_expected_content(self):
+        payload = {**self.payload, "mode": "update"}
+        with patch("server.options", return_value={"livesync_cli_enabled": True}):
+            with patch("livesync_cli_bridge.safe_update_local_note", side_effect=ValueError("invalid_expected_content")) as update:
+                response = self.post(payload)
+        self.assertEqual(response.status_code, 400)
+        update.assert_called_once()
+
+    def test_local_saves_share_one_process_lock(self):
+        from server import _local_save_lock
+        self.assertTrue(hasattr(_local_save_lock, "acquire"))
+        self.assertTrue(hasattr(_local_save_lock, "release"))
+
     def test_invalid_path_blocked(self):
         with patch("server.options", return_value={"livesync_cli_enabled": True}):
             with patch("livesync_cli_bridge.safe_create_local_note") as create:
