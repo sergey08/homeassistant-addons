@@ -248,18 +248,28 @@ def probe_remote_status(config, *, timeout=45):
                 end = raw.rfind("}")
                 status = json.loads(raw[start:end + 1]) if start >= 0 and end > start else {}
                 if isinstance(status, dict):
-                    safe["status_fields"] = sorted(
-                        k for k in status if k in (
-                            "version", "schemaVersion", "remoteVersion",
-                            "acceptedNodeCount", "locked", "isLocked",
-                            "nodeCount", "compatibility", "minimumVersion"))
-                    for key in ("version", "schemaVersion", "remoteVersion",
-                                "minimumVersion", "locked", "isLocked"):
-                        value = status.get(key)
-                        if type(value) in (bool, int) or (
-                            isinstance(value, str) and len(value) <= 32
-                            and re.fullmatch(r"[A-Za-z0-9._-]+", value)):
-                            safe[key] = value
+                    # Traverse only bounded, known metadata names, never content.
+                    allowed = {"version", "schemaVersion", "remoteVersion",
+                               "acceptedNodeCount", "locked", "isLocked",
+                               "nodeCount", "compatibility", "minimumVersion",
+                               "status", "info", "database", "replication",
+                               "node", "remote", "sync", "compatibilityStatus"}
+                    found = {}
+                    def inspect(obj, prefix="", depth=0):
+                        if depth > 3 or not isinstance(obj, dict):
+                            return
+                        for key, value in list(obj.items())[:60]:
+                            if key not in allowed:
+                                continue
+                            name = prefix + key
+                            if isinstance(value, dict):
+                                inspect(value, name + ".", depth + 1)
+                            elif type(value) in (bool, int) or (
+                                isinstance(value, str) and len(value) <= 32
+                                and re.fullmatch(r"[A-Za-z0-9._-]+", value)):
+                                found[name] = value
+                    inspect(status)
+                    safe["compatibility_metadata"] = found
             except (ValueError, UnicodeError):
                 pass
         return safe
