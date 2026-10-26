@@ -413,12 +413,28 @@ def configure_disposable_remote_with_cli(config, database, *, timeout=45):
         raise CLIUnavailable("cli_remote_add_failed") from exc
     if added.returncode:
         raise CLIUnavailable("cli_remote_add_failed")
+    # remote-add may leave a pre-existing default profile active.
+    # Activate the exact ID returned by the official command.
+    import re
+    stdout = added.stdout.decode("utf-8", errors="replace")
+    ids = re.findall(r"(?m)^([A-Za-z0-9_-]{8,128})\\tHome Assistant CouchDB\\t", stdout)
+    if len(ids) != 1:
+        raise CLIUnavailable("cli_remote_add_id_missing")
+    remote_id = ids[0]
+    try:
+        activated = subprocess.run(
+            prefix + ["remote-activate", remote_id],
+            capture_output=True, timeout=timeout, check=False, shell=False)
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise CLIUnavailable("cli_remote_activate_failed") from exc
+    if activated.returncode:
+        raise CLIUnavailable("cli_remote_activate_failed")
     registered = json.loads(settings_file.read_text(encoding="utf-8"))
     remotes = registered.get("remoteConfigurations", {})
     active = registered.get("activeConfigurationId")
-    if not isinstance(remotes, dict) or active not in remotes:
+    if not isinstance(remotes, dict) or active != remote_id or remote_id not in remotes:
         raise CLIUnavailable("cli_remote_add_not_active")
-    if remotes[active].get("name") != "Home Assistant CouchDB":
+    if remotes[remote_id].get("name") != "Home Assistant CouchDB":
         raise CLIUnavailable("cli_remote_add_not_active")
 
 
