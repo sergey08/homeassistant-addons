@@ -123,6 +123,38 @@ def livesync_cli_configure_local():
         return jsonify(error=str(exc)), 409
 
 
+@app.post("/api/livesync-cli/publish-test-note")
+def livesync_cli_publish_test_note():
+    """One server-defined disposable test note, never the persistent editor DB."""
+    from livesync_cli_bridge import publish_isolated_test_note, CLIUnavailable
+    if options().get("livesync_cli_enabled") is not True:
+        return jsonify(error="cli_disabled"), 403
+    if request.headers.get("X-Obsidian-Client-Action") != "publish-test-note":
+        return jsonify(error="missing_action_header"), 403
+    if request.headers.get("Sec-Fetch-Site") not in (None, "same-origin"):
+        return jsonify(error="cross_origin_blocked"), 403
+    if request.headers.get("Origin") and request.headers.get("Sec-Fetch-Site") != "same-origin":
+        return jsonify(error="cross_origin_blocked"), 403
+    # Fixed server-generated content and path: no arbitrary client-supplied writes.
+    note_path = "Pruebas ChatGPT/Prueba sincronizacion cliente 2026-10-26.md"
+    content = "# Prueba LiveSync\\n\\nPublicada desde el cliente de Home Assistant.\\n"
+    with _local_save_lock:
+        paths, error = encrypted_note_paths()
+        if error or not paths or paths.get("truncated"):
+            return jsonify(error="remote_index_unavailable"), 503
+        if any(p.casefold() == note_path.casefold() for p in paths["notes"]):
+            return jsonify(error="test_note_already_exists"), 409
+        try:
+            result = publish_isolated_test_note(options(), note_path, content)
+        except CLIUnavailable:
+            return jsonify(error="isolated_sync_failed"), 502
+        actual, read_error = read_encrypted_note(note_path)
+        result["verified_remotely"] = read_error is None and actual == content
+        if not result["verified_remotely"]:
+            return jsonify(error="remote_verification_failed", cli_sync_completed=True), 502
+    return jsonify(result)
+
+
 @app.post("/api/livesync-cli/remote-status-probe")
 def livesync_cli_remote_status_probe():
     from livesync_cli_bridge import probe_remote_status, CLIUnavailable
