@@ -67,3 +67,33 @@ La versión dev47 es de solo lectura. La rama dev48 prepara la creación y edici
 3. Rechazar escrituras con revisión obsoleta, rutas inválidas o permisos insuficientes.
 4. Comprobar el flujo con y sin E2EE; si una modalidad no está soportada, mantenerla en solo lectura.
 5. Conservar el funcionamiento de dev47 hasta superar estas pruebas.
+
+
+## Contrato de escritura LiveSync — referencia upstream (2026-10)
+
+Referencia técnica: https://github.com/vrtmrz/obsidian-livesync/blob/main/docs/datastructure.md
+
+La documentación upstream declara expresamente que el formato de documentos CouchDB
+**no es una API estable para construir registros manualmente**. El contrato ejecutable
+reside en la versión exacta de `@vrtmrz/livesync-commonlib` fijada por el proyecto.
+
+Consecuencias para este cliente:
+
+1. El cifrador HKDF Python implementado hasta ahora sirve para comprobar el
+   cifrado de cadenas, **no demuestra compatibilidad de escritura LiveSync**.
+2. La escritura requiere el servicio de rutas/IDs, hash de chunks, fragmentación,
+   compresión, E2EE y codificación remota de la versión correspondiente de Commonlib.
+3. Los chunks deben persistirse antes que los metadatos que los referencian;
+   las operaciones no son atómicas y hay que gestionar fallos parciales.
+4. `ctime` y `mtime` se expresan en milisegundos Unix y `size` es el tamaño
+   en bytes del contenido descodificado, no la longitud de caracteres.
+5. Los IDs de chunks son derivados del contenido, con variantes como `h:+`
+   para ciertos modos cifrados. No generar IDs aleatorios como sustituto.
+6. Las revisiones y los borrados lógicos deben respetar las convenciones del
+   protocolo, sin sobreescribir revisiones obsoletas.
+
+**Bloqueo de publicación de escritura:** no activar el botón Guardar ni llamar
+a `put_revision_checked` desde rutas HTTP hasta integrar Commonlib (o validar
+formalmente un codificador contra el mismo paquete/version y una bóveda aislada).
+Las pruebas sintéticas de CouchDB verifican condiciones HTTP, no compatibilidad
+con Obsidian móvil. Mantener dev47 operativa durante esta integración.
