@@ -544,22 +544,29 @@ def sync_configured_remote(binary, database_directory, *, timeout=120):
     if result.returncode:
         # Do not expose stderr, stdout, remote URLs, passwords or note content.
         output = (result.stderr + result.stdout).decode("utf-8", errors="replace").lower()[-16000:]
-        if any(x in output for x in ("node_locked", "node_cleaned", "remote database is locked", "please unlock")):
-            reason = "remote_locked"
-        elif any(x in output for x in ("node_locked", "node_cleaned", "not yet accepted", "please unlock")):
+        # Match specific replication diagnostics, not generic startup words
+        # such as "incompatible" appearing in unrelated CLI notices.
+        if any(x in output for x in (
+            "remote database is locked and this device is not yet accepted",
+            "node_locked", "node_cleaned", "please unlock the database")):
             reason = "device_not_accepted"
-        elif any(x in output for x in ("version mismatch", "incompatible", "compatibility rejection")):
+        elif any(x in output for x in (
+            "replication rejected: version mismatch",
+            "remote protocol version mismatch",
+            "central compatibility rejection: version")):
             reason = "version_incompatible"
-        elif any(x in output for x in ("unauthorized", "forbidden", "authentication failed", "401", "403")):
+        elif any(x in output for x in ("unauthorized", "authentication failed", "http 401", "http 403")):
             reason = "authentication"
-        elif any(x in output for x in ("decrypt", "passphrase", "encryption failed")):
+        elif any(x in output for x in ("decryption failed", "invalid passphrase", "encryption failed")):
             reason = "encryption"
         elif any(x in output for x in ("econnrefused", "enotfound", "getaddrinfo", "network error")):
             reason = "network"
-        elif any(x in output for x in ("typeerror", "referenceerror", "uncaught", "exception")):
+        elif any(x in output for x in ("typeerror:", "referenceerror:", "uncaught exception")):
             reason = "cli_exception"
         else:
-            reason = "unknown"
+            # The upstream CLI currently returns only a boolean for several
+            # replication failures. Do not invent a compatibility diagnosis.
+            reason = "unclassified_replication_failure"
         raise CLIUnavailable("cli_sync_" + reason)
     return True
 
