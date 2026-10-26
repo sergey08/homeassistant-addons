@@ -194,6 +194,9 @@ def install_official_cli_settings(config, database_directory):
     if folder.is_symlink():
         raise CLIUnavailable("cli_settings_symlink")
     folder.mkdir(mode=0o700, exist_ok=True)
+    if not folder.is_dir() or folder.is_symlink():
+        raise CLIUnavailable("cli_settings_directory_invalid")
+    os.chmod(folder, 0o700)
     target = folder / "settings.json"
     if target.exists() or target.is_symlink():
         raise CLIUnavailable("cli_settings_already_exist")
