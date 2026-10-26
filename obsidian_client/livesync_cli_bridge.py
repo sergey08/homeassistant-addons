@@ -275,6 +275,32 @@ def probe_remote_status(config, *, timeout=45):
         return safe
 
 
+def probe_official_remote_registration(config, *, timeout=30):
+    """Inspect remote registration without revealing remote URI or credentials."""
+    import tempfile
+    with tempfile.TemporaryDirectory(prefix="obsidian-remote-registration-") as temp:
+        database = Path(temp) / "db"
+        database.mkdir(mode=0o700)
+        install_official_cli_settings(config, str(database))
+        executable, _ = validate_cli_installation(
+            "/opt/livesync-cli/dist/index.cjs", str(database))
+        try:
+            result = subprocess.run(
+                ["/usr/local/bin/node", executable, str(database), "remote-ls"],
+                capture_output=True, timeout=timeout, check=False, shell=False)
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            raise CLIUnavailable("cli_remote_registration_failed") from exc
+        if result.returncode:
+            raise CLIUnavailable("cli_remote_registration_failed")
+        # Never return raw output: remote-ls includes redacted but private URIs.
+        rows = result.stdout.decode("utf-8", errors="replace").splitlines()
+        active = sum(1 for line in rows if len(line.split("\\t")) == 4
+                     and line.split("\\t")[2] == "active")
+        return {"registered_remote_count": sum(
+                    1 for line in rows if len(line.split("\\t")) == 4),
+                "active_remote_count": active, "remote_writes_enabled": False}
+
+
 def publish_isolated_test_note(config, note_path, content, *, timeout=120):
     """Publish one explicitly chosen test note from a disposable CLI database.
 
