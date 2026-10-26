@@ -18,13 +18,13 @@ def validate_cli_installation(binary, database_directory):
         raise CLIUnavailable("cli_database_missing")
     if database.is_symlink() or executable.is_symlink():
         raise CLIUnavailable("symlink_not_allowed")
-    return str(executable), str(database)
+    if executable.suffix not in (".cjs", ".js"):\n        raise CLIUnavailable("unsupported_cli_entrypoint")\n    return str(executable), str(database)
 
 def prepare_put_command(binary, database_directory, note_path):
     from livesync_write_preflight import validate_write_request
     validate_write_request(note_path, "", None, creating=True)
     executable, database = validate_cli_installation(binary, database_directory)
-    return [executable, database, "put", note_path]
+    return ["node", executable, database, "put", note_path]
 
 def put_local_only(binary, database_directory, note_path, content, *, timeout=30):
     """Write to the CLI's LOCAL database only; never invokes 'sync'.
@@ -46,7 +46,7 @@ def put_local_only(binary, database_directory, note_path, content, *, timeout=30
 def read_local_note(binary, database_directory, note_path, *, timeout=15):
     """Read a note from the isolated CLI database, without contacting remote."""
     argv = prepare_put_command(binary, database_directory, note_path)
-    argv[2] = "cat"
+    argv[3] = "cat"
     try:
         result = subprocess.run(argv, capture_output=True, timeout=timeout,
                                 check=False, shell=False)
