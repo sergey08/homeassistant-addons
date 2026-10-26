@@ -4,6 +4,7 @@ No shell, no remote CouchDB writes, no subprocess invocation unless an explicit
 integration layer calls this module. The CLI owns protocol encoding.
 """
 from pathlib import Path
+import os
 import subprocess
 
 class CLIUnavailable(RuntimeError):
@@ -20,13 +21,15 @@ def validate_cli_installation(binary, database_directory):
         raise CLIUnavailable("symlink_not_allowed")
     if executable.suffix not in (".cjs", ".js"):
         raise CLIUnavailable("unsupported_cli_entrypoint")
+    if not os.access(executable, os.R_OK):
+        raise CLIUnavailable("cli_entrypoint_unreadable")
     return str(executable), str(database)
 
 def prepare_put_command(binary, database_directory, note_path):
     from livesync_write_preflight import validate_write_request
     validate_write_request(note_path, "", None, creating=True)
     executable, database = validate_cli_installation(binary, database_directory)
-    return ["node", executable, database, "put", note_path]
+    return ["/usr/local/bin/node", executable, database, "put", note_path]
 
 def put_local_only(binary, database_directory, note_path, content, *, timeout=30):
     """Write to the CLI's LOCAL database only; never invokes 'sync'.
