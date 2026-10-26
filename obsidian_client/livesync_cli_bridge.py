@@ -366,6 +366,7 @@ def probe_official_remote_add(config, *, timeout=45):
             added = subprocess.run(
                 prefix + ["remote-add", "Home Assistant CouchDB", connection],
                 capture_output=True, timeout=timeout, check=False, shell=False)
+            after_add = json.loads(settings_file.read_text(encoding="utf-8"))
             listed = subprocess.run(
                 prefix + ["remote-ls"],
                 capture_output=True, timeout=timeout, check=False, shell=False)
@@ -374,7 +375,11 @@ def probe_official_remote_add(config, *, timeout=45):
         rows = listed.stdout.decode("utf-8", errors="replace").splitlines()
         remote_rows = [line.split("\\t") for line in rows]
         remote_rows = [row for row in remote_rows if len(row) == 4]
-        return {"remote_add_succeeded": added.returncode == 0,
+        after_configs = after_add.get("remoteConfigurations", {})
+        after_active = after_add.get("activeConfigurationId", "")
+        return {"settings_after_add_count": len(after_configs) if isinstance(after_configs, dict) else 0,
+                "settings_after_add_active": bool(isinstance(after_configs, dict) and after_active in after_configs),
+                "remote_add_succeeded": added.returncode == 0,
                 "remote_list_succeeded": listed.returncode == 0,
                 "registered_remote_count": len(remote_rows),
                 "active_remote_count": sum(row[2] == "active" for row in remote_rows),
