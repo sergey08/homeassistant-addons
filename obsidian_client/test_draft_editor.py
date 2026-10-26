@@ -44,6 +44,8 @@ class TestDraftEditor(unittest.TestCase):
         self.assertIn('id="exportDraft"', body)
         self.assertIn('id="discardDraft"', body)
         self.assertIn('original=submitted', body)
+        self.assertIn('mode:localReady?"update":"create"', body)
+        self.assertIn('localLoading=true', body)
         self.assertIn('content:submitted', body)
         self.assertIn('Guardar localmente (sin sincronizar)', body)
         self.assertNotIn('method="post"', body.lower())
