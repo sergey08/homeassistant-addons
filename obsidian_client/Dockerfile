@@ -6,7 +6,27 @@ RUN apt-get update && apt-get install -y --no-install-recommends git python3 mak
 WORKDIR /upstream
 RUN git clone https://github.com/vrtmrz/obsidian-livesync.git . \
     && git checkout e4d47f4f1d73d7c5b0635ff7068ff7da994eb731
-RUN npm ci && npm run build -w self-hosted-livesync-cli \
+# The pinned upstream CLI currently returns only success/failure for most
+# replication errors. Emit bounded status/reason tokens, never exception text.
+RUN python3 - <<'PY'
+from pathlib import Path
+p = Path("src/apps/cli/commands/runCommand.ts")
+s = p.read_text()
+needle = '            const recoveryHint = result.status === "failed" ? result.recoveryHint : undefined;'
+assert s.count(needle) == 1, "upstream sync implementation changed"
+patch = needle + """
+            // HA diagnostics: fixed-format tokens, no URLs or document content.
+            const safeToken = (value: unknown): string =>
+                typeof value === "string" && /^[A-Za-z0-9_-]{1,64}$/.test(value)
+                    ? value : "unspecified";
+            writeStderrLine(
+                standardIo,
+                `[HA_SYNC_STATUS] status=${safeToken(result.status)} reason=${safeToken(recoveryHint?.reason)}`
+            );
+"""
+p.write_text(s.replace(needle, patch))
+PY
+RUN npm ci && npm run build -w self-hosted-livesync-cli \\
     && test -s src/apps/cli/dist/index.cjs
 
 FROM $BUILD_FROM
