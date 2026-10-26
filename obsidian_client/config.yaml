@@ -1,6 +1,6 @@
 name: Obsidian Client (Development)
 slug: obsidian_client
-version: "0.1.0-dev70"
+version: "0.1.0-dev71"
 description: "Independent Obsidian client / Cliente Obsidian independiente (experimental)"
 url: https://github.com/sergey08/homeassistant-addons/tree/main/obsidian_client
 arch:
