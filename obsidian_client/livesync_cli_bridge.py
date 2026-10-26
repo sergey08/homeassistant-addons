@@ -139,15 +139,10 @@ def safe_create_local_note(binary, database_directory, note_path, content):
     """
     from livesync_write_preflight import validate_write_request
     validate_write_request(note_path, content, None, creating=True)
-    try:
-        read_local_note(binary, database_directory, note_path)
-    except CLIUnavailable as exc:
-        if str(exc) != "cli_read_failed":
-            raise
-        # The CLI currently does not distinguish a missing note from a read
-        # failure. Fail closed rather than risking an accidental overwrite.
-        raise CLIUnavailable("cli_create_requires_verified_absence") from exc
-    raise CLIUnavailable("cli_note_already_exists")
+    notes = list_local_note_paths(binary, database_directory)
+    if note_path in notes:
+        raise CLIUnavailable("cli_note_already_exists")
+    return verify_local_roundtrip(binary, database_directory, note_path, content)
 
 def list_local_note_paths(binary, database_directory, *, timeout=30):
     """Query official CLI ls, rejecting ambiguous or malformed output."""
