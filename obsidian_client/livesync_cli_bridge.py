@@ -303,6 +303,11 @@ def probe_official_remote_registration(config, *, timeout=30):
         database = Path(temp) / "db"
         database.mkdir(mode=0o700)
         install_official_cli_settings(config, str(database))
+        import json
+        settings_path = database / ".livesync" / "settings.json"
+        settings_data = json.loads(settings_path.read_text(encoding="utf-8"))
+        declared_remotes = settings_data.get("remoteConfigurations", {})
+        declared_active = settings_data.get("activeConfigurationId", "")
         executable, _ = validate_cli_installation(
             "/opt/livesync-cli/dist/index.cjs", str(database))
         try:
@@ -319,7 +324,10 @@ def probe_official_remote_registration(config, *, timeout=30):
                      and line.split("\\t")[2] == "active")
         return {"registered_remote_count": sum(
                     1 for line in rows if len(line.split("\\t")) == 4),
-                "active_remote_count": active, "remote_writes_enabled": False}
+                "active_remote_count": active,
+                "settings_registered_remote_count": len(declared_remotes) if isinstance(declared_remotes, dict) else 0,
+                "settings_active_remote_present": bool(declared_active and isinstance(declared_remotes, dict) and declared_active in declared_remotes),
+                "remote_writes_enabled": False}
 
 
 def publish_isolated_test_note(config, note_path, content, *, timeout=120):
