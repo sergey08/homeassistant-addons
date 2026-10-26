@@ -458,6 +458,17 @@ def publish_isolated_test_note(config, note_path, content, *, timeout=120):
         except CLIUnavailable as exc:
             raise CLIUnavailable("publish_registration_" + str(exc)) from None
         binary = "/opt/livesync-cli/dist/index.cjs"
+        executable, db_path = validate_cli_installation(binary, str(database))
+        try:
+            remote_probe = subprocess.run(
+                ["/usr/local/bin/node", executable, db_path, "remote-status"],
+                capture_output=True, timeout=min(timeout, 45), check=False,
+                shell=False,
+            )
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            raise CLIUnavailable("publish_remote_preflight_execution_failed") from exc
+        if remote_probe.returncode:
+            raise CLIUnavailable("publish_remote_preflight_rejected")
         try:
             verify_local_roundtrip(binary, str(database), note_path, content)
         except CLIUnavailable:
