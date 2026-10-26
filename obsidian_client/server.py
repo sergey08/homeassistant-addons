@@ -884,6 +884,9 @@ def remote_note_content():
     return response
 
 
+from threading import Lock
+_local_save_lock = Lock()
+
 @app.post("/api/livesync-cli/local-save")
 def livesync_cli_local_save():
     """Explicit LOCAL-only note save; never replicates to CouchDB."""
@@ -913,10 +916,11 @@ def livesync_cli_local_save():
         validate_write_request(note_path, content, None, creating=True)
         binary = "/opt/livesync-cli/dist/index.cjs"
         database = "/data/livesync-client"
-        if mode == "create":
-            safe_create_local_note(binary, database, note_path, content)
-        else:
-            safe_update_local_note(binary, database, note_path, payload.get("expected_content"), content)
+        with _local_save_lock:
+            if mode == "create":
+                safe_create_local_note(binary, database, note_path, content)
+            else:
+                safe_update_local_note(binary, database, note_path, payload.get("expected_content"), content)
     except (UnsafeWrite, ValueError):
         return jsonify(error="invalid_note"), 400
     except CLIUnavailable as exc:
