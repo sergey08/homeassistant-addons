@@ -127,7 +127,7 @@ def safe_update_local_note(binary, database_directory, note_path, expected_conte
     if not isinstance(expected_content, str):
         raise ValueError("invalid_expected_content")
     notes = list_local_note_paths(binary, database_directory)
-    if note_path not in notes or notes[note_path]["conflict"]:
+    if note_path not in notes or notes[note_path].get("conflict", True):
         raise CLIUnavailable("cli_local_conflict")
     current = read_local_note(binary, database_directory, note_path)
     if current != expected_content:
