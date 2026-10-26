@@ -28,6 +28,32 @@ jobs:
         working-directory: obsidian_client
         run: python -m unittest discover -v -p 'test_*.py'
 
+  official-livesync-cli:
+    name: Official LiveSync CLI / Cliente oficial
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch pinned upstream source / Obtener versión fijada
+        uses: actions/checkout@v4
+        with:
+          repository: vrtmrz/obsidian-livesync
+          ref: e4d47f4f1d73d7c5b0635ff7068ff7da994eb731
+          path: upstream
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install exact upstream dependencies / Instalar dependencias
+        working-directory: upstream
+        run: npm ci
+      - name: Build official CLI / Compilar cliente oficial
+        working-directory: upstream
+        run: npm run build -w self-hosted-livesync-cli
+      - name: Verify CLI bundle / Verificar ejecutable
+        working-directory: upstream
+        run: |
+          test -s src/apps/cli/dist/index.cjs
+          node src/apps/cli/dist/index.cjs --help
+
   addon-image:
     name: Add-on image / Imagen de la aplicación
     runs-on: ubuntu-latest
