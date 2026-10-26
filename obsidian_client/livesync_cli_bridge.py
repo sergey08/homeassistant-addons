@@ -169,6 +169,7 @@ def list_local_note_paths(binary, database_directory, *, timeout=30):
     # Pinned upstream CLI documents: path<TAB>size<TAB>mtime<TAB>revision[*].
     # Reject non-data output rather than treating it as an empty database.
     notes = {}
+    folded_paths = set()
     for line in lines:
         fields = line.split("\\t") if "\\t" in line else line.split("\t")
         if len(fields) != 4:
@@ -181,8 +182,9 @@ def list_local_note_paths(binary, database_directory, *, timeout=30):
             raise CLIUnavailable("cli_list_invalid_format") from exc
         if (not size.isdigit() or not mtime.isdigit() or
                 not re.fullmatch(r"[1-9][0-9]*-[0-9a-fA-F]{32}\*?", revision) or
-                path in notes):
+                path in notes or path.casefold() in folded_paths):
             raise CLIUnavailable("cli_list_invalid_format")
+        folded_paths.add(path.casefold())
         notes[path] = {"size": int(size), "mtime": int(mtime),
                        "revision": revision.rstrip("*"), "conflict": revision.endswith("*")}
     return notes
