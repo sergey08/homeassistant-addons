@@ -49,6 +49,22 @@ class LocalSaveTests(unittest.TestCase):
         self.assertEqual(response.status_code, 403)
         create.assert_not_called()
 
+    def test_ingress_proxy_origin_allowed_with_same_origin_fetch_metadata(self):
+        with patch("server.options", return_value={"livesync_cli_enabled": True}):
+            with patch("livesync_cli_bridge.safe_create_local_note", return_value=True):
+                response = self.post(headers={
+                    "Origin": "https://casamedia.duckdns.org:8123",
+                    "Sec-Fetch-Site": "same-origin",
+                })
+        self.assertEqual(response.status_code, 200)
+
+    def test_cross_site_fetch_metadata_blocked(self):
+        with patch("server.options", return_value={"livesync_cli_enabled": True}):
+            with patch("livesync_cli_bridge.safe_create_local_note") as create:
+                response = self.post(headers={"Sec-Fetch-Site": "cross-site"})
+        self.assertEqual(response.status_code, 403)
+        create.assert_not_called()
+
     def test_invalid_path_blocked(self):
         with patch("server.options", return_value={"livesync_cli_enabled": True}):
             with patch("livesync_cli_bridge.safe_create_local_note") as create:
