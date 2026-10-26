@@ -32,6 +32,30 @@ def page(content):
     li{margin:9px 0}.muted{opacity:.75}</style></head><body>''' + content + "</body></html>"
 
 
+@app.get("/api/livesync-cli/status")
+def livesync_cli_status():
+    """Report local CLI readiness without exposing credentials or writing data."""
+    from livesync_cli_bridge import validate_cli_installation, CLIUnavailable
+    configured = options()
+    enabled = configured.get("livesync_cli_enabled") is True
+    try:
+        validate_cli_installation(
+            "/opt/livesync-cli/dist/index.cjs", "/data/livesync-client"
+        )
+        installed = True
+    except CLIUnavailable:
+        installed = False
+    return jsonify(
+        enabled=enabled,
+        installed=installed,
+        local_database_ready=installed,
+        remote_sync_configured=False,
+        remote_writes_enabled=False,
+        status="awaiting_remote_configuration" if enabled and installed
+               else "disabled" if not enabled else "cli_unavailable",
+    )
+
+
 @app.get("/api/demo")
 def demo_note():
     """Offline example only / Ejemplo aislado, sin acceso a CouchDB."""
