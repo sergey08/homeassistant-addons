@@ -28,6 +28,18 @@ jobs:
         working-directory: obsidian_client
         run: python -m unittest discover -v -p 'test_*.py'
 
+  addon-image:
+    name: Add-on image / Imagen de la aplicación
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build add-on container / Construir contenedor
+        run: docker build -t obsidian-client-ci obsidian_client
+      - name: Verify packaged imports / Verificar módulos empaquetados
+        run: |
+          docker run --rm --entrypoint python obsidian-client-ci -c \
+            "import server, livesync_metadata, livesync_write_preflight, couchdb_cas, livesync_cli_bridge; print('imports ok')"
+
   couchdb-integration:
     name: Isolated CouchDB / CouchDB aislado
     runs-on: ubuntu-latest
