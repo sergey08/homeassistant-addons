@@ -17,7 +17,7 @@ class TestCLIBridge(unittest.TestCase):
                 self.assertTrue(put_local_only(str(binary), str(database),
                                                "Notas/Prueba.md", "Texto"))
                 args, kwargs = run.call_args
-                self.assertEqual(args[0], ["node", str(binary), str(database),
+                self.assertEqual(args[0], ["/usr/local/bin/node", str(binary), str(database),
                                             "put", "Notas/Prueba.md"])
                 self.assertEqual(kwargs["input"], "Texto")
                 self.assertFalse(kwargs["shell"])
