@@ -167,6 +167,18 @@ def livesync_cli_publish_test_note():
                        "publish_cli_sync_upstream_cancelled",
                        "publish_cli_sync_upstream_skipped",
                        "publish_cli_sync_upstream_interrupted",
+                       "publish_cli_sync_hint_remote_locked",
+                       "publish_cli_sync_hint_node_rejected",
+                       "publish_cli_sync_hint_remote_not_configured",
+                       "publish_cli_sync_hint_replication_not_permitted",
+                       "publish_cli_sync_hint_connection_failed",
+                       "publish_cli_sync_hint_couchdb_error",
+                       "publish_cli_sync_hint_missing_remote",
+                       "publish_cli_sync_hint_invalid_remote",
+                       "publish_cli_sync_hint_database_locked",
+                       "publish_cli_sync_hint_remote_version_mismatch",
+                       "publish_cli_sync_hint_remote_not_found",
+                       "publish_cli_sync_hint_remote_unavailable",
                        "publish_cli_sync_failed"}
             return jsonify(error=code if code in allowed else "isolated_sync_failed"), 502
         actual, read_error = read_encrypted_note(note_path)
