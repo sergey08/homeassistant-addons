@@ -387,6 +387,39 @@ def probe_official_remote_add(config, *, timeout=45):
                 "remote_notes_modified": False}
 
 
+def configure_disposable_remote_with_cli(config, database, *, timeout=45):
+    """Let the official CLI register its own remote in disposable storage."""
+    import json
+    database = Path(database)
+    settings_file = database / ".livesync" / "settings.json"
+    data = json.loads(settings_file.read_text(encoding="utf-8"))
+    configs = data.get("remoteConfigurations", {})
+    active_id = data.get("activeConfigurationId")
+    if not isinstance(configs, dict) or active_id not in configs:
+        raise CLIUnavailable("cli_remote_registration_missing")
+    connection = configs[active_id]["uri"]
+    data["remoteConfigurations"] = {}
+    data["activeConfigurationId"] = ""
+    settings_file.write_text(json.dumps(data), encoding="utf-8")
+    os.chmod(settings_file, 0o600)
+    executable, _ = validate_cli_installation(
+        "/opt/livesync-cli/dist/index.cjs", str(database))
+    prefix = ["/usr/local/bin/node", executable, str(database)]
+    try:
+        added = subprocess.run(
+            prefix + ["remote-add", "Home Assistant CouchDB", connection],
+            capture_output=True, timeout=timeout, check=False, shell=False)
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise CLIUnavailable("cli_remote_add_failed") from exc
+    if added.returncode:
+        raise CLIUnavailable("cli_remote_add_failed")
+    registered = json.loads(settings_file.read_text(encoding="utf-8"))
+    remotes = registered.get("remoteConfigurations", {})
+    active = registered.get("activeConfigurationId")
+    if not isinstance(remotes, dict) or len(remotes) != 1 or active not in remotes:
+        raise CLIUnavailable("cli_remote_add_not_active")
+
+
 def publish_isolated_test_note(config, note_path, content, *, timeout=120):
     """Publish one explicitly chosen test note from a disposable CLI database.
 
@@ -402,6 +435,7 @@ def publish_isolated_test_note(config, note_path, content, *, timeout=120):
         database = Path(temp) / "db"
         database.mkdir(mode=0o700)
         install_official_cli_settings(config, str(database))
+        configure_disposable_remote_with_cli(config, database)
         binary = "/opt/livesync-cli/dist/index.cjs"
         verify_local_roundtrip(binary, str(database), note_path, content)
         sync_configured_remote(binary, str(database), timeout=timeout)
