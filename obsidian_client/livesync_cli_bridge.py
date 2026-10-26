@@ -551,6 +551,19 @@ def sync_configured_remote(binary, database_directory, *, timeout=120):
         )
         if diagnostic:
             status, hint = diagnostic.groups()
+            # Expose only presence of known metadata fields, never their values.
+            fields_match = re.search(
+                r"\\[ha_sync_status\\][^\\r\\n]{0,400} fields=([a-z0-9,]{1,240})",
+                output,
+            )
+            if fields_match and status == "failed" and hint == "unspecified":
+                names = set(fields_match.group(1).split(","))
+                known = {"error", "errors", "cause", "detail", "details",
+                         "message", "recoveryhint", "reason", "phase"}
+                for field in ("error", "errors", "cause", "detail", "details",
+                              "message", "recoveryhint", "reason", "phase"):
+                    if field in names and field in known:
+                        raise CLIUnavailable("cli_sync_result_has_" + field)
             # Fixed allowlist only. No arbitrary upstream strings reach the API.
             hints = {
                 "node_locked": "device_not_accepted",
