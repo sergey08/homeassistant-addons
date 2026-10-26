@@ -165,7 +165,9 @@ def livesync_cli_remote_preview():
         code = str(exc)
         allowed = {"cli_preview_authentication", "cli_preview_network",
                    "cli_preview_encryption", "cli_preview_remote_configuration",
-                   "cli_preview_database", "cli_preview_cli_failure"}
+                   "cli_preview_database", "cli_preview_cli_failure",
+                   "cli_preview_fetch_operation", "cli_preview_local_database",
+                   "cli_preview_cli_exception"}
         return jsonify(error=code if code in allowed else "remote_preview_failed"), 502
 
 
