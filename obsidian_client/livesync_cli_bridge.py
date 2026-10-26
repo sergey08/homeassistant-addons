@@ -236,9 +236,33 @@ def probe_remote_status(config, *, timeout=45):
             )
         except (OSError, subprocess.TimeoutExpired) as exc:
             raise CLIUnavailable("cli_status_probe_execution_failed") from exc
-        # Never return process output, as it can contain vault details.
-        return {"cli_exit_ok": result.returncode == 0,
+        # Parse only a strict allowlist of compatibility fields.
+        # Never return raw CLI output, note paths or credentials.
+        import json
+        safe = {"cli_exit_ok": result.returncode == 0,
                 "remote_writes_enabled": False}
+        if result.returncode == 0:
+            try:
+                raw = result.stdout.decode("utf-8", errors="strict")
+                start = raw.find("{")
+                end = raw.rfind("}")
+                status = json.loads(raw[start:end + 1]) if start >= 0 and end > start else {}
+                if isinstance(status, dict):
+                    safe["status_fields"] = sorted(
+                        k for k in status if k in (
+                            "version", "schemaVersion", "remoteVersion",
+                            "acceptedNodeCount", "locked", "isLocked",
+                            "nodeCount", "compatibility", "minimumVersion"))
+                    for key in ("version", "schemaVersion", "remoteVersion",
+                                "minimumVersion", "locked", "isLocked"):
+                        value = status.get(key)
+                        if type(value) in (bool, int) or (
+                            isinstance(value, str) and len(value) <= 32
+                            and re.fullmatch(r"[A-Za-z0-9._-]+", value)):
+                            safe[key] = value
+            except (ValueError, UnicodeError):
+                pass
+        return safe
 
 
 def publish_isolated_test_note(config, note_path, content, *, timeout=120):
