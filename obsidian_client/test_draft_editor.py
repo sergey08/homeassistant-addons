@@ -24,7 +24,7 @@ class TestDraftEditor(unittest.TestCase):
         self.assertIn('savedContent===null?"create":"update"', valid.get_data(as_text=True))
         self.assertIn('saving=false', valid.get_data(as_text=True))
         self.assertIn('content:submitted', valid.get_data(as_text=True))
-        for path in ("../secreto.md", "/absolute.md", "note.txt", ".hidden.md"):
+        for path in ("../secreto.md", "/absolute.md", "note.txt", ".hidden.md", "Cafe\u0301.md", "Invisible\u200b.md"):
             with self.subTest(path=path):
                 result = self.client.get("/remote/new", query_string={"path": path})
                 self.assertEqual(result.status_code, 400)
