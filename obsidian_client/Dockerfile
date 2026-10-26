@@ -26,7 +26,7 @@ patch = needle + """
 """
 p.write_text(s.replace(needle, patch))
 PY
-RUN npm ci && npm run build -w self-hosted-livesync-cli \\
+RUN npm ci && npm run build -w self-hosted-livesync-cli \
     && test -s src/apps/cli/dist/index.cjs
 
 FROM $BUILD_FROM
