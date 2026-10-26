@@ -893,6 +893,10 @@ def livesync_cli_local_save():
     from livesync_write_preflight import validate_write_request, UnsafeWrite
     if options().get("livesync_cli_enabled") is not True:
         return jsonify(error="cli_disabled"), 403
+    if request.headers.get("Sec-Fetch-Site") not in (None, "same-origin"):
+        return jsonify(error="cross_origin_blocked"), 403
+    if request.headers.get("Origin") and request.headers.get("Origin") != request.host_url.rstrip("/"):
+        return jsonify(error="cross_origin_blocked"), 403
     if request.mimetype != "application/json" or request.content_length is None or request.content_length > 2_100_000:
         return jsonify(error="invalid_request"), 400
     payload = request.get_json(silent=True)
