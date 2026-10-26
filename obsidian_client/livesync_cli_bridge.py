@@ -106,7 +106,7 @@ def sync_configured_remote(binary, database_directory, *, timeout=120):
     This method is intentionally NOT exposed by a web route.
     """
     executable, database = validate_cli_installation(binary, database_directory)
-    if not (Path(database) / "settings.json").is_file():
+    if not (Path(database) / ".livesync" / "settings.json").is_file():
         raise CLIUnavailable("cli_settings_missing")
     try:
         result = subprocess.run(
@@ -168,7 +168,7 @@ def list_local_note_paths(binary, database_directory, *, timeout=30):
     # Reject non-data output rather than treating it as an empty database.
     notes = {}
     for line in lines:
-        fields = line.split("\t")
+        fields = line.split("\\t") if "\\t" in line else line.split("\t")
         if len(fields) != 4:
             raise CLIUnavailable("cli_list_invalid_format")
         path, size, mtime, revision = fields
