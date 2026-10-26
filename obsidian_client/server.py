@@ -895,7 +895,9 @@ def livesync_cli_local_save():
         return jsonify(error="cli_disabled"), 403
     if request.headers.get("Sec-Fetch-Site") not in (None, "same-origin"):
         return jsonify(error="cross_origin_blocked"), 403
-    if request.headers.get("Origin") and request.headers.get("Origin") != request.host_url.rstrip("/"):
+    # HA ingress may rewrite the internal Host. Trust browser fetch metadata
+    # rather than comparing public Origin with the internal proxy hostname.
+    if request.headers.get("Origin") and request.headers.get("Sec-Fetch-Site") != "same-origin":
         return jsonify(error="cross_origin_blocked"), 403
     if request.mimetype != "application/json" or request.content_length is None or request.content_length > 2_100_000:
         return jsonify(error="invalid_request"), 400
