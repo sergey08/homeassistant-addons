@@ -33,14 +33,14 @@ class TestDraftEditor(unittest.TestCase):
         self.assertNotIn('<script>alert(1)</script>', page)
         self.assertIn('u003cscript>', page)
 
-    def test_existing_draft_has_export_and_no_save(self):
+    def test_existing_draft_has_export_and_local_only_save(self):
         with patch("server.read_encrypted_note", return_value=("# Nota", None)):
             response = self.client.get("/remote/edit?path=Notas%2FPrueba.md")
         self.assertEqual(response.status_code, 200)
         body = response.get_data(as_text=True)
         self.assertIn('id="exportDraft"', body)
         self.assertIn('id="discardDraft"', body)
-        self.assertIn('Guardar en LiveSync (pendiente)', body)
+        self.assertIn('Guardar localmente (sin sincronizar)', body)
         self.assertNotIn('method="post"', body.lower())
 
     def test_failed_read_does_not_render_editor(self):
