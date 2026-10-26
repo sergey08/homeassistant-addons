@@ -15,9 +15,9 @@ class UnsafeWrite(ValueError):
 def validate_write_request(path, content, expected_revision, *, creating=False):
     if not isinstance(path, str) or len(path) > MAX_PATH_LENGTH or not path.endswith(".md"):
         raise UnsafeWrite("invalid_path")
-    if path.startswith("/") or "\\" in path or "\x00" in path:
+    if path.startswith("/") or "\\" in path or any(ord(ch) < 32 or ord(ch) == 127 for ch in path):
         raise UnsafeWrite("invalid_path")
-    if any(part in ("", ".", "..") or part.startswith(".") for part in path.split("/")):
+    if any(part in ("", ".", "..") or part.startswith(".") or part.endswith((" ", ".")) for part in path.split("/")):
         raise UnsafeWrite("invalid_path")
     if not isinstance(content, str):
         raise UnsafeWrite("invalid_content")
