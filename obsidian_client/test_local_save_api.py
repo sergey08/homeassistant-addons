@@ -93,6 +93,23 @@ class LocalSaveTests(unittest.TestCase):
         self.assertTrue(hasattr(_local_save_lock, "acquire"))
         self.assertTrue(hasattr(_local_save_lock, "release"))
 
+    def test_setup_page_only_exposes_status_and_explicit_actions(self):
+        with patch("server.options", return_value={"livesync_cli_enabled": True}):
+            response = self.client.get("/livesync/setup")
+        body = response.get_data(as_text=True)
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("connection-check", body)
+        self.assertIn("configure-local", body)
+        self.assertIn("confirm(", body)
+        self.assertNotIn("couchdb_password", body)
+        self.assertNotIn("livesync_e2ee_passphrase", body)
+
+    def test_setup_page_requires_cli_enabled(self):
+        with patch("server.options", return_value={}):
+            response = self.client.get("/livesync/setup")
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn('id="install"', response.get_data(as_text=True))
+
     def test_connection_check_never_writes_or_syncs(self):
         config = {
             "livesync_cli_enabled": True,
