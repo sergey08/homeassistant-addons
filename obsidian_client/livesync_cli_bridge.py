@@ -163,7 +163,28 @@ def prepare_official_cli_settings(config):
             private = False
         if not private and not re.fullmatch(r"[0-9a-f]{8}-[a-z0-9_-]+", parsed.hostname or ""):
             raise CLIUnavailable("cli_remote_plain_http_untrusted")
+    # Official CLI >= pinned build selects a remote via activeConfigurationId.
+    # Legacy couchDB_* fields alone are NOT registered remotes.
+    from urllib.parse import quote, urlencode
+    from uuid import uuid4
+    user = quote(config["couchdb_username"], safe="")
+    password = quote(config["couchdb_password"], safe="")
+    host_path = uri.split("://", 1)[1]
+    connection = (
+        f"sls+{parsed.scheme}://{user}:{password}@{host_path}"
+        f"?{urlencode({'db': config['couchdb_database']})}"
+    )
+    remote_id = "ha-" + uuid4().hex
     return {
+        "remoteConfigurations": {
+            remote_id: {
+                "id": remote_id,
+                "name": "Home Assistant CouchDB",
+                "uri": connection,
+                "isEncrypted": False,
+            }
+        },
+        "activeConfigurationId": remote_id,
         "couchDB_URI": uri,
         "couchDB_USER": config["couchdb_username"],
         "couchDB_PASSWORD": config["couchdb_password"],
