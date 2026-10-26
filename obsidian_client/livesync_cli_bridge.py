@@ -241,6 +241,28 @@ def probe_remote_status(config, *, timeout=45):
                 "remote_writes_enabled": False}
 
 
+def publish_isolated_test_note(config, note_path, content, *, timeout=120):
+    """Publish one explicitly chosen test note from a disposable CLI database.
+
+    Does not sync the editor's persistent database, which may contain drafts.
+    Only intended for a unique new test path after a remote absence check.
+    """
+    import tempfile
+    from livesync_write_preflight import validate_write_request
+    validate_write_request(note_path, content, None, creating=True)
+    if not note_path.startswith("Pruebas ChatGPT/"):
+        raise CLIUnavailable("test_namespace_required")
+    with tempfile.TemporaryDirectory(prefix="obsidian-publish-one-") as temp:
+        database = Path(temp) / "db"
+        database.mkdir(mode=0o700)
+        install_official_cli_settings(config, str(database))
+        binary = "/opt/livesync-cli/dist/index.cjs"
+        verify_local_roundtrip(binary, str(database), note_path, content)
+        sync_configured_remote(binary, str(database), timeout=timeout)
+        return {"cli_sync_completed": True, "path": note_path,
+                "verified_remotely": False}
+
+
 def fetch_remote_to_disposable_database(config, *, timeout=120):
     """Fetch remote notes into a new temporary CLI database, never into live local data.
 
