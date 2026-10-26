@@ -12,12 +12,21 @@ class LocalSaveTests(unittest.TestCase):
         self.payload = {"mode": "create", "path": "Notes/New.md", "content": "# Hello"}
 
     def post(self, payload=None, **kwargs):
-        return self.client.post(self.url, json=self.payload if payload is None else payload, **kwargs)
+        headers = {"X-Obsidian-Client-Action": "local-save", **kwargs.pop("headers", {})}
+        return self.client.post(self.url, json=self.payload if payload is None else payload, headers=headers, **kwargs)
 
     def test_disabled_by_default(self):
         with patch("server.options", return_value={}):
             response = self.post()
         self.assertEqual(response.status_code, 403)
+
+    def test_write_requires_custom_action_header(self):
+        with patch("server.options", return_value={"livesync_cli_enabled": True}):
+            with patch("livesync_cli_bridge.safe_create_local_note") as create:
+                response = self.client.post(self.url, json=self.payload)
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.json["error"], "missing_action_header")
+        create.assert_not_called()
 
     def test_create_writes_only_to_local_adapter(self):
         with patch("server.options", return_value={"livesync_cli_enabled": True}):
