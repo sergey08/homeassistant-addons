@@ -35,8 +35,9 @@ def page(content):
 @app.get("/api/livesync-cli/status")
 def livesync_cli_status():
     """Report local CLI readiness without exposing credentials or writing data."""
-    from livesync_cli_bridge import cli_local_status, CLIUnavailable
+    from livesync_cli_bridge import cli_local_status, validate_remote_configuration, CLIUnavailable
     configured = options()
+    remote_readiness = validate_remote_configuration(configured)
     enabled = configured.get("livesync_cli_enabled") is True
     try:
         local_status = cli_local_status(
@@ -53,6 +54,8 @@ def livesync_cli_status():
         local_database_initialized=local_status.get("livesync_directory_present", False),
         local_settings_present=local_status.get("settings_present", False),
         remote_sync_configured=False,
+        remote_configuration_ready=remote_readiness["configuration_complete"],
+        remote_configuration_checks=remote_readiness,
         remote_writes_enabled=False,
         status="awaiting_remote_configuration" if enabled and installed
                else "disabled" if not enabled else "cli_unavailable",
