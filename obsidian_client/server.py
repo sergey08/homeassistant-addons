@@ -159,6 +159,24 @@ def livesync_cli_publish_test_note():
     return jsonify(result)
 
 
+@app.post("/api/livesync-cli/remote-registration-probe")
+def livesync_cli_remote_registration_probe():
+    from livesync_cli_bridge import probe_official_remote_registration, CLIUnavailable
+    if options().get("livesync_cli_enabled") is not True:
+        return jsonify(error="cli_disabled"), 403
+    if request.headers.get("X-Obsidian-Client-Action") != "remote-registration-probe":
+        return jsonify(error="missing_action_header"), 403
+    if request.headers.get("Sec-Fetch-Site") not in (None, "same-origin"):
+        return jsonify(error="cross_origin_blocked"), 403
+    if request.headers.get("Origin") and request.headers.get("Sec-Fetch-Site") != "same-origin":
+        return jsonify(error="cross_origin_blocked"), 403
+    try:
+        with _local_save_lock:
+            return jsonify(probe_official_remote_registration(options()))
+    except CLIUnavailable:
+        return jsonify(error="remote_registration_probe_failed"), 502
+
+
 @app.post("/api/livesync-cli/remote-status-probe")
 def livesync_cli_remote_status_probe():
     from livesync_cli_bridge import probe_remote_status, CLIUnavailable
