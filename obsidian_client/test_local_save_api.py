@@ -93,6 +93,45 @@ class LocalSaveTests(unittest.TestCase):
         self.assertTrue(hasattr(_local_save_lock, "acquire"))
         self.assertTrue(hasattr(_local_save_lock, "release"))
 
+    def test_configure_local_requires_explicit_action(self):
+        with patch("server.options", return_value={"livesync_cli_enabled": True}):
+            with patch("livesync_cli_bridge.install_official_cli_settings") as install:
+                response = self.client.post("/api/livesync-cli/configure-local")
+        self.assertEqual(response.status_code, 403)
+        install.assert_not_called()
+
+    def test_configure_local_rejects_incomplete_settings(self):
+        with patch("server.options", return_value={"livesync_cli_enabled": True}):
+            with patch("livesync_cli_bridge.install_official_cli_settings") as install:
+                response = self.client.post(
+                    "/api/livesync-cli/configure-local",
+                    headers={"X-Obsidian-Client-Action": "configure-local"},
+                )
+        self.assertEqual(response.status_code, 409)
+        install.assert_not_called()
+
+    def test_configure_local_installs_without_sync(self):
+        config = {
+            "livesync_cli_enabled": True,
+            "couchdb_url": "https://localhost:6984",
+            "couchdb_database": "notes",
+            "couchdb_username": "user",
+            "couchdb_password": "secret",
+            "livesync_encryption_enabled": True,
+            "livesync_e2ee_passphrase": "phrase",
+        }
+        with patch("server.options", return_value=config):
+            with patch("livesync_cli_bridge.install_official_cli_settings",
+                       return_value={"installed": True, "remote_synced": False,
+                                     "remote_writes_enabled": False}) as install:
+                response = self.client.post(
+                    "/api/livesync-cli/configure-local",
+                    headers={"X-Obsidian-Client-Action": "configure-local"},
+                )
+        self.assertEqual(response.status_code, 201)
+        self.assertFalse(response.json["remote_synced"])
+        install.assert_called_once()
+
     def test_local_read_disabled_by_default(self):
         with patch("server.options", return_value={}):
             response = self.client.get("/api/livesync-cli/local-note?path=Notes/New.md")
