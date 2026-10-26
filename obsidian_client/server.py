@@ -32,6 +32,133 @@ def page(content):
     li{margin:9px 0}.muted{opacity:.75}</style></head><body>''' + content + "</body></html>"
 
 
+@app.get("/livesync/setup")
+def livesync_setup_page():
+    """Simple local setup workflow; all credentials remain server-side."""
+    if options().get("livesync_cli_enabled") is not True:
+        return page("<h1>LiveSync</h1><p>Activa el cliente CLI en la configuración de la aplicación.</p>")
+    return page("""<h1>LiveSync · Configuración local</h1>
+<p>Esta pantalla no sincroniza ni escribe en tu bóveda remota.</p>
+<p>Configura la URL, la base de datos, las credenciales y la frase de cifrado en las opciones de Home Assistant.</p>
+<button id="check" type="button">Comprobar conexión (solo lectura)</button>
+<button id="install" type="button">Instalar configuración local</button>
+<pre id="result" role="status" aria-live="polite">Sin comprobar</pre>
+<script>
+const output=document.getElementById("result");
+document.getElementById("check").onclick=async()=>{
+ output.textContent="Comprobando conexión...";
+ try {
+  const r=await fetch("../api/livesync-cli/connection-check",{cache:"no-store"});
+  const j=await r.json();
+  output.textContent=j.status||"Respuesta inesperada";
+ }catch(_){output.textContent="No se pudo comprobar la conexión"}
+};
+document.getElementById("install").onclick=async()=>{
+ if(!confirm("¿Instalar la configuración cifrada SOLO en la base local? No sincroniza notas."))return;
+ output.textContent="Instalando...";
+ try {
+  const r=await fetch("../api/livesync-cli/configure-local",{
+   method:"POST",headers:{"X-Obsidian-Client-Action":"configure-local"}
+  });
+  const j=await r.json();
+  output.textContent=r.ok?"Configuración local instalada. Sin sincronización.":(j.error||"Error");
+ }catch(_){output.textContent="No se pudo instalar la configuración"}
+};
+</script>""")
+
+
+@app.get("/api/livesync-cli/status")
+def livesync_cli_status():
+    """Report local CLI readiness without exposing credentials or writing data."""
+    from livesync_cli_bridge import cli_local_status, validate_remote_configuration, CLIUnavailable
+    configured = options()
+    remote_readiness = validate_remote_configuration(configured)
+    enabled = configured.get("livesync_cli_enabled") is True
+    try:
+        local_status = cli_local_status(
+            "/opt/livesync-cli/dist/index.cjs", "/data/livesync-client"
+        )
+        installed = True
+    except CLIUnavailable:
+        installed = False
+        local_status = {}
+    return jsonify(
+        enabled=enabled,
+        installed=installed,
+        local_database_directory_present=Path("/data/livesync-client").is_dir(),
+        local_database_initialized=local_status.get("livesync_directory_present", False),
+        local_settings_present=local_status.get("settings_present", False),
+        remote_sync_configured=local_status.get("settings_present", False),
+        remote_configuration_ready=remote_readiness["configuration_complete"],
+        remote_configuration_checks=remote_readiness,
+        remote_writes_enabled=False,
+        status=("settings_installed_offline" if local_status.get("settings_present", False)
+                else "awaiting_remote_configuration") if enabled and installed
+               else "disabled" if not enabled else "cli_unavailable",
+    )
+
+
+@app.post("/api/livesync-cli/configure-local")
+def livesync_cli_configure_local():
+    """Explicitly persist E2EE settings locally. Does not connect or sync."""
+    from livesync_cli_bridge import (
+        CLIUnavailable, install_official_cli_settings, validate_remote_configuration,
+    )
+    config = options()
+    if config.get("livesync_cli_enabled") is not True:
+        return jsonify(error="cli_disabled"), 403
+    if request.headers.get("X-Obsidian-Client-Action") != "configure-local":
+        return jsonify(error="missing_action_header"), 403
+    if request.headers.get("Sec-Fetch-Site") not in (None, "same-origin"):
+        return jsonify(error="cross_origin_blocked"), 403
+    if request.headers.get("Origin") and request.headers.get("Sec-Fetch-Site") != "same-origin":
+        return jsonify(error="cross_origin_blocked"), 403
+    if not validate_remote_configuration(config)["configuration_complete"]:
+        return jsonify(error="remote_configuration_incomplete"), 409
+    try:
+        with _local_save_lock:
+            result = install_official_cli_settings(config, "/data/livesync-client")
+        return jsonify(result), 201
+    except CLIUnavailable as exc:
+        return jsonify(error=str(exc)), 409
+
+
+@app.get("/api/livesync-cli/connection-check")
+def livesync_cli_connection_check():
+    """Read-only CouchDB database HEAD. No replication, documents or secrets."""
+    import base64
+    from livesync_cli_bridge import validate_remote_configuration, prepare_official_cli_settings, CLIUnavailable
+    cfg = options()
+    if cfg.get("livesync_cli_enabled") is not True:
+        return jsonify(status="cli_disabled", remote_writes_enabled=False), 403
+    if not validate_remote_configuration(cfg)["configuration_complete"]:
+        return jsonify(status="configuration_incomplete", remote_writes_enabled=False), 409
+    try:
+        settings = prepare_official_cli_settings(cfg)
+    except CLIUnavailable:
+        return jsonify(status="untrusted_endpoint", remote_writes_enabled=False), 400
+    target = settings["couchDB_URI"] + "/" + quote(settings["couchDB_DBNAME"], safe="")
+    credential = base64.b64encode(
+        (settings["couchDB_USER"] + ":" + settings["couchDB_PASSWORD"]).encode()
+    ).decode()
+    class NoRedirect(HTTPRedirectHandler):
+        def redirect_request(self, req, fp, code, msg, headers, newurl):
+            return None
+    try:
+        req = Request(target, headers={"Authorization": "Basic " + credential}, method="HEAD")
+        with build_opener(NoRedirect()).open(req, timeout=8) as resp:
+            status = resp.status
+        if status != 200:
+            return jsonify(status="unexpected_response", remote_writes_enabled=False), 502
+    except HTTPError as exc:
+        result = "authentication_failed" if exc.code in (401, 403) else "database_missing" if exc.code == 404 else "connection_failed"
+        return jsonify(status=result, remote_writes_enabled=False), 502
+    except (OSError, ValueError, URLError):
+        return jsonify(status="connection_failed", remote_writes_enabled=False), 502
+    return jsonify(status="database_reachable", encrypted_settings_present=True,
+                   encryption_verified=False, remote_writes_enabled=False)
+
+
 @app.get("/api/demo")
 def demo_note():
     """Offline example only / Ejemplo aislado, sin acceso a CouchDB."""
@@ -792,8 +919,11 @@ def read_encrypted_note(requested):
                 candidate=meta
                 break
         if candidate is None: return None,"not_found"
-        children=candidate.get("children")
-        if not isinstance(children,list) or not children or len(children)>512 or len(children)!=len(set(children)) or not all(isinstance(x,str) and 0<len(x)<256 for x in children): return None,"unsupported_children"
+        from livesync_metadata import validate_encrypted_parent, UnsupportedMetadata
+        try:
+            children = validate_encrypted_parent(candidate, requested)
+        except UnsupportedMetadata:
+            return None, "unsupported_metadata"
         parts=[]
         for child in children:
             leaf=fetch("/"+quote(child,safe=""),150000)
@@ -839,6 +969,224 @@ def render_wikilinks(content, current_path, known_notes):
     return safe
 
 
+@app.get("/api/remote/note-content")
+def remote_note_content():
+    """Read-only plaintext for an editor; no CouchDB writes until LiveSync encoding is validated."""
+    requested = request.args.get("path", "")
+    if not requested or len(requested) > 1024 or not requested.lower().endswith(".md"):
+        return jsonify(error="invalid_path"), 400
+    content, error = read_encrypted_note(requested)
+    if error:
+        return jsonify(error=error), 404 if error == "not_found" else 422
+    response = jsonify(path=requested, content=content, read_only=True,
+                       saving_supported=False, source="livesync_e2ee")
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
+from threading import Lock
+_local_save_lock = Lock()
+
+@app.get("/api/livesync-cli/local-note")
+def livesync_cli_local_note():
+    """Read a Markdown note from the isolated CLI database, never from CouchDB."""
+    from livesync_cli_bridge import CLIUnavailable, list_local_note_paths, read_local_note
+    from livesync_write_preflight import validate_write_request, UnsafeWrite
+    if options().get("livesync_cli_enabled") is not True:
+        return jsonify(error="cli_disabled"), 403
+    path = request.args.get("path", "")
+    try:
+        validate_write_request(path, "", None, creating=True)
+        binary, database = "/opt/livesync-cli/dist/index.cjs", "/data/livesync-client"
+        with _local_save_lock:
+            metadata = list_local_note_paths(binary, database)
+            if path not in metadata:
+                return jsonify(error="local_note_not_found"), 404
+            if metadata[path]["conflict"]:
+                return jsonify(error="cli_local_conflict"), 409
+            content = read_local_note(binary, database, path)
+        return jsonify(path=path, content=content, remote_synced=False)
+    except (UnsafeWrite, ValueError):
+        return jsonify(error="invalid_note"), 400
+    except CLIUnavailable:
+        return jsonify(error="local_note_unavailable"), 409
+
+
+@app.post("/api/livesync-cli/local-save")
+def livesync_cli_local_save():
+    """Explicit LOCAL-only note save; never replicates to CouchDB."""
+    from livesync_cli_bridge import (
+        CLIUnavailable, safe_create_local_note, safe_update_local_note,
+    )
+    from livesync_write_preflight import validate_write_request, UnsafeWrite
+    if options().get("livesync_cli_enabled") is not True:
+        return jsonify(error="cli_disabled"), 403
+    if request.headers.get("X-Obsidian-Client-Action") != "local-save":
+        return jsonify(error="missing_action_header"), 403
+    if request.headers.get("Sec-Fetch-Site") not in (None, "same-origin"):
+        return jsonify(error="cross_origin_blocked"), 403
+    # HA ingress may rewrite the internal Host. Trust browser fetch metadata
+    # rather than comparing public Origin with the internal proxy hostname.
+    if request.headers.get("Origin") and request.headers.get("Sec-Fetch-Site") != "same-origin":
+        return jsonify(error="cross_origin_blocked"), 403
+    if request.mimetype != "application/json" or request.content_length is None or request.content_length > 2_100_000:
+        return jsonify(error="invalid_request"), 400
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        return jsonify(error="invalid_request"), 400
+    if set(payload) - {"path", "content", "mode", "expected_content"}:
+        return jsonify(error="unexpected_fields"), 400
+    note_path = payload.get("path")
+    content = payload.get("content")
+    mode = payload.get("mode")
+    if mode not in ("create", "update"):
+        return jsonify(error="invalid_mode"), 400
+    try:
+        validate_write_request(note_path, content, None, creating=True)
+        binary = "/opt/livesync-cli/dist/index.cjs"
+        database = "/data/livesync-client"
+        with _local_save_lock:
+            if mode == "create":
+                safe_create_local_note(binary, database, note_path, content)
+            else:
+                safe_update_local_note(binary, database, note_path, payload.get("expected_content"), content)
+    except (UnsafeWrite, ValueError):
+        return jsonify(error="invalid_note"), 400
+    except CLIUnavailable as exc:
+        # Do not disclose credentials, note text or process stderr.
+        return jsonify(error=str(exc)), 409
+    return jsonify(status="saved_locally_only", remote_synced=False, path=note_path)
+
+
+@app.get("/remote/new")
+def remote_new_draft():
+    """Create an offline Markdown draft; never write to CouchDB."""
+    from livesync_write_preflight import validate_write_request, UnsafeWrite
+    requested = request.args.get("path", "")
+    try:
+        validate_write_request(requested, "", None, creating=True)
+    except UnsafeWrite:
+        return page("<h2>Ruta de nota no válida</h2>"), 400
+    path_json = json.dumps(requested, ensure_ascii=True).replace("<", "\\u003c")
+    return page(
+        '<p><a href="../">← Volver</a></p><h2>Nueva nota (borrador)</h2>'
+        '<p class="muted">El guardado local requiere activar el CLI. No se sincroniza con la bóveda remota.</p>'
+        '<h3>' + html.escape(requested) + '</h3>'
+        '<textarea id="editor" style="width:100%;height:50vh;font:14px monospace"></textarea>'
+        '<p><button id="saveLocal" type="button">Guardar localmente (sin sincronizar)</button> '
+        '<button id="export" type="button">Exportar .md</button></p>'
+        '<p id="saveStatus" role="status"></p>'
+        '<pre id="preview" style="white-space:pre-wrap"></pre>'
+        '<script>const path=' + path_json + ';'
+        'const editor=document.getElementById("editor");'
+        'let savedContent=null;let loadingLocal=true;let dirty=false;let saving=false;'
+        'const key="obsidian-new-draft:"+path;'
+        'try{editor.value=sessionStorage.getItem(key)||""}catch(_){}'
+        'const refresh=()=>{document.getElementById("preview").textContent=editor.value;'
+        'try{sessionStorage.setItem(key,editor.value)}catch(_){}};'
+        'editor.addEventListener("input",()=>{dirty=true;refresh()});'
+        'fetch("../api/livesync-cli/local-note?path="+encodeURIComponent(path))'
+        '.then(r=>r.ok?r.json():null).then(data=>{if(data){'
+        'savedContent=data.content;'
+        'const draft=editor.value;editor.value=data.content;'
+        'if((dirty||draft)&&draft!==data.content&&confirm("Recuperar borrador anterior?"))editor.value=draft;'
+        'else try{sessionStorage.removeItem(key)}catch(_){}'
+        'document.getElementById("preview").textContent=editor.value;'
+        'document.getElementById("saveStatus").textContent="Nota local cargada (sin sincronizar)";'
+        '}}).catch(()=>{}).finally(()=>{loadingLocal=false});'
+        'document.getElementById("saveLocal").onclick=async()=>{'
+        'if(loadingLocal||saving){document.getElementById("saveStatus").textContent="Espera a finalizar la operación anterior";return;}'
+        'saving=true;document.getElementById("saveLocal").disabled=true;'
+        'const submitted=editor.value;'
+        'const status=document.getElementById("saveStatus");status.textContent="Guardando...";'
+        'try{const r=await fetch("../api/livesync-cli/local-save",{method:"POST",'
+        'headers:{"Content-Type":"application/json","X-Obsidian-Client-Action":"local-save"},'
+        'body:JSON.stringify({mode:savedContent===null?"create":"update",path:path,'
+        'expected_content:savedContent,content:submitted})});'
+        'const data=await r.json();if(!r.ok)throw Error(data.error||"save_failed");'
+        'savedContent=submitted;dirty=editor.value!==submitted;'
+        'status.textContent="Guardado localmente. Aún NO sincronizado con Obsidian.";'
+        'try{if(!dirty)sessionStorage.removeItem(key);else refresh()}catch(_){}'
+        '}catch(e){status.textContent="No guardado: "+e.message}'
+        'finally{saving=false;document.getElementById("saveLocal").disabled=false}};'
+        'document.getElementById("export").onclick=()=>{'
+        'const url=URL.createObjectURL(new Blob([editor.value],{type:"text/markdown;charset=utf-8"}));'
+        'const a=document.createElement("a");a.href=url;a.download=path.split("/").pop();'
+        'a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};'
+        'window.addEventListener("beforeunload",event=>{if(editor.value!==(savedContent===null?"":savedContent)){'
+        'event.preventDefault();event.returnValue="";}});'
+        'document.getElementById("preview").textContent=editor.value;</script>'
+    )
+
+
+@app.get("/remote/edit")
+def remote_edit_draft():
+    """Edit a temporary browser draft without writing to LiveSync."""
+    requested = request.args.get("path", "")
+    content, error = read_encrypted_note(requested)
+    if error:
+        return page("<h2>No se puede abrir la nota</h2><p>" + html.escape(error) + "</p>"), 404
+    # JSON encoding protects JS string boundaries; escape HTML script terminators.
+    script_data = json.dumps({"path": requested, "content": content}, ensure_ascii=True).replace("<", "\\u003c")
+    body = (
+        '<p><a href="../">← Volver</a></p><h2>Borrador Markdown</h2>'
+        '<p class="muted">Guardar crea una copia local aislada; no sincroniza con LiveSync.</p>'
+        '<h3>' + html.escape(requested) + '</h3>'
+        '<textarea id="editor" style="width:100%;height:50vh;font:14px monospace"></textarea>'
+        '<p><button type="button" id="copyDraft">Copiar Markdown</button> '
+        '<button type="button" id="discardDraft">Descartar borrador</button> '
+        '<button type="button" id="exportDraft">Exportar .md</button> '
+        '<button id="saveLocal" type="button">Guardar localmente (sin sincronizar)</button></p>'
+        '<p id="saveStatus" role="status"></p>'
+        '<h3>Vista previa de texto</h3><pre id="preview" style="white-space:pre-wrap"></pre>'
+        '<script>const note=' + script_data + ';'
+        'const e=document.getElementById("editor");e.value=note.content;'
+        'let original=note.content;let saving=false;let localReady=false;let localLoading=true;let dirty=false;'
+        'const key="obsidian-draft:"+location.pathname+":"+note.path;'
+        'try{const saved=sessionStorage.getItem(key);if(saved!==null&&saved!==original){'
+        'if(confirm("Se encontró un borrador. ¿Recuperarlo?"))e.value=saved;'
+        'else sessionStorage.removeItem(key);}}catch(_){}'
+        'const update=()=>{document.getElementById("preview").textContent=e.value;'
+        'try{if(e.value===original)sessionStorage.removeItem(key);'
+        'else sessionStorage.setItem(key,e.value)}catch(_){}};'
+        'e.addEventListener("input",()=>{dirty=true;update()});'
+        'fetch("../api/livesync-cli/local-note?path="+encodeURIComponent(note.path))'
+        '.then(r=>r.ok?r.json():null).then(data=>{if(data){'
+        'localReady=true;const draft=e.value;original=data.content;e.value=data.content;'
+        'if((dirty||draft!==note.content)&&draft!==data.content&&confirm("Recuperar borrador?"))e.value=draft;'
+        'else try{sessionStorage.removeItem(key)}catch(_){}'
+        'document.getElementById("saveStatus").textContent="Copia local cargada, sin sincronizar";'
+        'update();}}).catch(()=>{}).finally(()=>{localLoading=false});'
+        'document.getElementById("copyDraft").onclick=()=>navigator.clipboard.writeText(e.value);'
+        'document.getElementById("exportDraft").onclick=()=>{'
+        'const blob=new Blob([e.value],{type:"text/markdown;charset=utf-8"});'
+        'const url=URL.createObjectURL(blob);const link=document.createElement("a");'
+        'link.href=url;link.download=note.path.split("/").pop();'
+        'document.body.appendChild(link);link.click();link.remove();'
+        'setTimeout(()=>URL.revokeObjectURL(url),1000);};'
+        'document.getElementById("saveLocal").onclick=async()=>{'
+        'if(saving||localLoading)return;saving=true;document.getElementById("saveLocal").disabled=true;'
+        'const submitted=e.value;'
+        'const status=document.getElementById("saveStatus");status.textContent="Guardando...";'
+        'try{const r=await fetch("../api/livesync-cli/local-save",{method:"POST",'
+        'headers:{"Content-Type":"application/json"},'
+        'body:JSON.stringify({mode:localReady?"update":"create",path:note.path,'
+        'expected_content:localReady?original:null,content:submitted})});'
+        'const data=await r.json();if(!r.ok)throw Error(data.error||"save_failed");'
+        'original=submitted;localReady=true;dirty=e.value!==submitted;'
+        'status.textContent="Guardado localmente. Aún NO sincronizado con Obsidian.";'
+        'try{if(e.value===original)sessionStorage.removeItem(key);else update()}catch(_){}'
+        '}catch(err){status.textContent="No guardado: "+err.message}'
+        'finally{saving=false;document.getElementById("saveLocal").disabled=false}};'
+        'document.getElementById("discardDraft").onclick=()=>{if(confirm("¿Descartar cambios?")){'
+        'e.value=original;update();}};'
+        'window.addEventListener("beforeunload",event=>{if(e.value!==original){'
+        'event.preventDefault();event.returnValue="";}});'
+        'update();</script>'
+    )
+    return page(body)
+
+
 @app.get("/remote/note")
 def remote_note_view():
     requested=request.args.get("path","")
@@ -875,7 +1223,7 @@ def remote_note_view():
     rendered = markdown.markdown(html.escape(prepared), extensions=["tables", "fenced_code", "toc"])
     for i, link in enumerate(links):
         rendered = rendered.replace("OBSIDIANWIKILINKTOKEN" + str(i) + "END", link)
-    return page("<p><a href='../'>← Volver al listado / Back to notes</a></p><h2>"+html.escape(requested)+"</h2><article>"+rendered+"</article><p class='muted'>Solo lectura / Read only</p>")
+    return page("<p><a href='../'>← Volver al listado / Back to notes</a></p><p><a href='../remote/edit?path="+quote(requested,safe="")+"'>Editar borrador</a></p><h2>"+html.escape(requested)+"</h2><article>"+rendered+"</article><p class='muted'>Solo lectura / Read only</p>")
 
 
 @app.get("/api/remote/encrypted-notes")
@@ -934,7 +1282,8 @@ def list_notes():
 def home():
     root = vault_dir()
     status = ('<p><a href="api/demo">Offline example / Ejemplo aislado (JSON)</a> · '
-              '<a href="api/connection">CouchDB diagnostics / Diagnóstico CouchDB (JSON)</a></p>')
+              '<a href="api/connection">CouchDB diagnostics / Diagnóstico CouchDB (JSON)</a> · '
+              '<a href="livesync/setup">Configuración LiveSync</a></p>')
     if not root.is_dir():
         cfg = options()
         if cfg.get("livesync_encryption_enabled"):

@@ -8,6 +8,8 @@ import json
 import os
 import unittest
 import uuid
+from unittest.mock import patch
+from server import app
 from urllib.error import HTTPError
 from urllib.parse import quote
 from urllib.request import Request, urlopen
@@ -40,6 +42,26 @@ class RealCouchDBIntegrationTests(unittest.TestCase):
             result = call(base, "PUT")
             self.assertTrue(result.get("ok"))
             created = True
+            config = {
+                "livesync_cli_enabled": True,
+                "couchdb_url": root,
+                "couchdb_database": db,
+                "couchdb_username": username,
+                "couchdb_password": password,
+                "livesync_encryption_enabled": True,
+                "livesync_e2ee_passphrase": "isolated-ci-only",
+            }
+            with patch("server.options", return_value=config):
+                response = app.test_client().get("/api/livesync-cli/connection-check")
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.json["status"], "database_reachable")
+            self.assertFalse(response.json["encryption_verified"])
+            self.assertFalse(response.json["remote_writes_enabled"])
+            config["couchdb_password"] = "incorrect-test-password"
+            with patch("server.options", return_value=config):
+                rejected = app.test_client().get("/api/livesync-cli/connection-check")
+            self.assertEqual(rejected.status_code, 502)
+            self.assertEqual(rejected.json["status"], "authentication_failed")
             parent = {"_id": "f:synthetic", "type": "plain", "path": "Tests/Hello.md",
                       "children": ["h:first", "h:second"], "size": 11}
             chunks = [

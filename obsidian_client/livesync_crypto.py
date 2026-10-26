@@ -39,3 +39,30 @@ def decrypt_hkdf_string(value: str, passphrase: str, pbkdf2_salt_b64: str) -> st
         return plaintext.decode("utf-8")
     except (InvalidTag, ValueError, UnicodeDecodeError):
         raise UnsupportedEncryption("decryption_failed") from None
+
+
+def encrypt_hkdf_string(plaintext: str, passphrase: str, pbkdf2_salt_b64: str) -> str:
+    """Encode a LiveSync-compatible %= encrypted string (no CouchDB writes).
+
+    Each call uses fresh AES-GCM nonce and HKDF salt. The server-level PBKDF2
+    salt must be the same one used by the corresponding decoder.
+    """
+    import os
+    if not isinstance(plaintext, str):
+        raise UnsupportedEncryption("invalid_plaintext")
+    if not isinstance(passphrase, str) or not passphrase:
+        raise UnsupportedEncryption("missing_passphrase")
+    try:
+        salt = base64.b64decode(pbkdf2_salt_b64, validate=True)
+    except (TypeError, ValueError, binascii.Error):
+        raise UnsupportedEncryption("invalid_encoding") from None
+    if not salt:
+        raise UnsupportedEncryption("invalid_salt")
+    raw = plaintext.encode("utf-8")
+    if len(raw) > 1_900_000:
+        raise UnsupportedEncryption("plaintext_too_large")
+    master = hashlib.pbkdf2_hmac("sha256", passphrase.encode("utf-8"), salt, 310_000, 32)
+    nonce, hkdf_salt = os.urandom(12), os.urandom(32)
+    key = HKDF(algorithm=hashes.SHA256(), length=32, salt=hkdf_salt, info=b"").derive(master)
+    encrypted = AESGCM(key).encrypt(nonce, raw, None)
+    return "%=" + base64.b64encode(nonce + hkdf_salt + encrypted).decode("ascii")

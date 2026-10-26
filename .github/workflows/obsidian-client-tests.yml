@@ -21,12 +21,64 @@ jobs:
         with:
           python-version: '3.13'
       - name: Install dependencies / Instalar dependencias
-        run: pip install flask==3.1.1 Markdown==3.8.2
+        run: pip install flask==3.1.1 Markdown==3.8.2 cryptography==46.0.3
       - name: Check Python syntax / Comprobar sintaxis Python
         run: python -m compileall -q obsidian_client
       - name: Run tests / Ejecutar pruebas
         working-directory: obsidian_client
         run: python -m unittest discover -v -p 'test_*.py'
+
+  official-livesync-cli:
+    name: Official LiveSync CLI / Cliente oficial
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch pinned upstream source / Obtener versión fijada
+        uses: actions/checkout@v4
+        with:
+          repository: vrtmrz/obsidian-livesync
+          ref: e4d47f4f1d73d7c5b0635ff7068ff7da994eb731
+          path: upstream
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install exact upstream dependencies / Instalar dependencias
+        working-directory: upstream
+        run: npm ci
+      - name: Build official CLI / Compilar cliente oficial
+        working-directory: upstream
+        run: npm run build -w self-hosted-livesync-cli
+      - name: Verify CLI bundle / Verificar ejecutable
+        working-directory: upstream
+        run: |
+          test -s src/apps/cli/dist/index.cjs
+          node src/apps/cli/dist/index.cjs --help
+
+      - name: Exercise isolated local note write and read / Probar nota local
+        working-directory: upstream
+        run: |
+          set -euo pipefail
+          DB="$(mktemp -d)"
+          CLI="src/apps/cli/dist/index.cjs"
+          node "$CLI" "$DB" init-settings
+          printf '# Isolated test\\nHello LiveSync\\n' | node "$CLI" "$DB" put "Tests/isolated.md"
+          node "$CLI" "$DB" cat "Tests/isolated.md" > /tmp/livesync-note.md
+          printf '# Isolated test\\nHello LiveSync\\n' | cmp - /tmp/livesync-note.md
+          node "$CLI" "$DB" ls > /tmp/livesync-ls.txt
+          grep -F 'Tests/isolated.md' /tmp/livesync-ls.txt
+          cat /tmp/livesync-ls.txt
+
+  addon-image:
+    name: Add-on image / Imagen de la aplicación
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build add-on container / Construir contenedor
+        run: docker build -t obsidian-client-ci obsidian_client
+      - name: Verify packaged imports / Verificar módulos empaquetados
+        run: |
+          docker run --rm --entrypoint python obsidian-client-ci -c \
+            "import server, livesync_metadata, livesync_write_preflight, couchdb_cas, livesync_cli_bridge; print('imports ok')"
 
   couchdb-integration:
     name: Isolated CouchDB / CouchDB aislado
@@ -44,6 +96,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.13'
+      - name: Install integration dependencies / Instalar dependencias de integración
+        run: pip install flask==3.1.1 Markdown==3.8.2 cryptography==46.0.3
       - name: Wait for test server / Esperar al servidor de pruebas
         run: |
           python - <<'PY'
@@ -77,6 +131,63 @@ jobs:
                                            headers=headers, method='POST')
               with urllib.request.urlopen(req, timeout=15) as response:
                   print('Setup HTTP:', response.status)
+          PY
+      - name: Fetch official CLI for isolated encrypted sync
+        uses: actions/checkout@v4
+        with:
+          repository: vrtmrz/obsidian-livesync
+          ref: e4d47f4f1d73d7c5b0635ff7068ff7da994eb731
+          path: livesync-upstream
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Build official CLI for CouchDB integration
+        working-directory: livesync-upstream
+        run: |
+          npm ci
+          npm run build -w self-hosted-livesync-cli
+      - name: Encrypted CLI replication against disposable CouchDB
+        env:
+          TEST_COUCHDB_USER: testadmin
+          TEST_COUCHDB_PASSWORD: test-only-not-production
+        run: |
+          python - <<'PY'
+          import base64, json, os, pathlib, tempfile, urllib.request, uuid, subprocess
+          from sys import path as syspath
+          syspath.insert(0, "obsidian_client")
+          from livesync_cli_bridge import install_official_cli_settings
+          root="http://127.0.0.1:5984"
+          name="obsidian_encrypted_ci_"+uuid.uuid4().hex
+          auth="Basic "+base64.b64encode((os.environ["TEST_COUCHDB_USER"]+":"+os.environ["TEST_COUCHDB_PASSWORD"]).encode()).decode()
+          url=root+"/"+name
+          def call(method):
+              req=urllib.request.Request(url, method=method, headers={"Authorization":auth})
+              with urllib.request.urlopen(req,timeout=10) as response:
+                  return response.status
+          assert call("PUT") == 201
+          cli="livesync-upstream/src/apps/cli/dist/index.cjs"
+          try:
+              with tempfile.TemporaryDirectory() as temp:
+                  config={"couchdb_url":root,"couchdb_database":name,
+                          "couchdb_username":os.environ["TEST_COUCHDB_USER"],
+                          "couchdb_password":os.environ["TEST_COUCHDB_PASSWORD"],
+                          "livesync_encryption_enabled":True,
+                          "livesync_e2ee_passphrase":"isolated-ci-encryption-only"}
+                  install_official_cli_settings(config,temp)
+                  note="Tests/encrypted-roundtrip.md"
+                  content="# Encrypted isolated test\\nNever production\\n"
+                  subprocess.run(["node",cli,temp,"put",note],input=content,text=True,check=True,timeout=45)
+                  subprocess.run(["node",cli,temp,"sync"],check=True,timeout=90)
+                  with tempfile.TemporaryDirectory() as second:
+                      install_official_cli_settings(config,second)
+                      subprocess.run(["node",cli,second,"sync"],check=True,timeout=90)
+                      result=subprocess.run(["node",cli,second,"cat",note],capture_output=True,text=True,timeout=45)
+                      assert result.returncode==0, "Second client could not read encrypted note"
+                      assert result.stdout==content, "Encrypted note roundtrip content mismatch"
+                  print("Encrypted CLI cross-client roundtrip verified in disposable database")
+          finally:
+              assert call("DELETE")==200
           PY
       - name: Run isolated integration test / Ejecutar integración aislada
         working-directory: obsidian_client
