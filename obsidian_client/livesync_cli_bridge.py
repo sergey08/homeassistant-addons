@@ -435,10 +435,19 @@ def publish_isolated_test_note(config, note_path, content, *, timeout=120):
         database = Path(temp) / "db"
         database.mkdir(mode=0o700)
         install_official_cli_settings(config, str(database))
-        configure_disposable_remote_with_cli(config, database)
+        try:
+            configure_disposable_remote_with_cli(config, database)
+        except CLIUnavailable as exc:
+            raise CLIUnavailable("publish_registration_" + str(exc)) from None
         binary = "/opt/livesync-cli/dist/index.cjs"
-        verify_local_roundtrip(binary, str(database), note_path, content)
-        sync_configured_remote(binary, str(database), timeout=timeout)
+        try:
+            verify_local_roundtrip(binary, str(database), note_path, content)
+        except CLIUnavailable:
+            raise CLIUnavailable("publish_local_roundtrip_failed") from None
+        try:
+            sync_configured_remote(binary, str(database), timeout=timeout)
+        except CLIUnavailable as exc:
+            raise CLIUnavailable("publish_" + str(exc)) from None
         return {"cli_sync_completed": True, "path": note_path,
                 "verified_remotely": False}
 
