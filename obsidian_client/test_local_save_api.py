@@ -93,6 +93,37 @@ class LocalSaveTests(unittest.TestCase):
         self.assertTrue(hasattr(_local_save_lock, "acquire"))
         self.assertTrue(hasattr(_local_save_lock, "release"))
 
+    def test_connection_check_never_writes_or_syncs(self):
+        config = {
+            "livesync_cli_enabled": True,
+            "couchdb_url": "https://localhost:6984",
+            "couchdb_database": "notes",
+            "couchdb_username": "user",
+            "couchdb_password": "secret",
+            "livesync_encryption_enabled": True,
+            "livesync_e2ee_passphrase": "phrase",
+        }
+        from unittest.mock import MagicMock
+        connection = MagicMock()
+        connection.__enter__.return_value.status = 200
+        with patch("server.options", return_value=config):
+            with patch("server.build_opener") as opener:
+                opener.return_value.open.return_value = connection
+                response = self.client.get("/api/livesync-cli/connection-check")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json["status"], "database_reachable")
+        self.assertFalse(response.json["encryption_verified"])
+        self.assertFalse(response.json["remote_writes_enabled"])
+        args, kwargs = opener.return_value.open.call_args
+        self.assertEqual(args[0].get_method(), "HEAD")
+
+    def test_connection_check_rejects_unconfigured(self):
+        with patch("server.options", return_value={"livesync_cli_enabled": True}):
+            with patch("server.build_opener") as opener:
+                response = self.client.get("/api/livesync-cli/connection-check")
+        self.assertEqual(response.status_code, 409)
+        opener.assert_not_called()
+
     def test_configure_local_requires_explicit_action(self):
         with patch("server.options", return_value={"livesync_cli_enabled": True}):
             with patch("livesync_cli_bridge.install_official_cli_settings") as install:
