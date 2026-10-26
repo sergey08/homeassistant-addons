@@ -854,6 +854,32 @@ def remote_note_content():
     return response
 
 
+@app.get("/remote/edit")
+def remote_edit_draft():
+    """Editable draft with no CouchDB writes until LiveSync compatibility is proven."""
+    requested = request.args.get("path", "")
+    content, error = read_encrypted_note(requested)
+    if error:
+        return page("<h2>No se puede abrir la nota</h2><p>" + html.escape(error) + "</p>"), 404
+    safe_content = html.escape(content)
+    body = (
+        '<p><a href="../">← Volver</a></p><h2>Borrador Markdown</h2>'
+        '<p class="muted">El guardado LiveSync está deshabilitado hasta validar compatibilidad.</p>'
+        '<h3>' + html.escape(requested) + '</h3>'
+        '<textarea id="editor" style="width:100%;height:50vh;font:14px monospace">'
+        + safe_content + '</textarea>'
+        '<p><button type="button" onclick="navigator.clipboard.writeText(document.getElementById(\'editor\').value)">'
+        'Copiar Markdown</button> <button disabled>Guardar en LiveSync (pendiente)</button></p>'
+        '<h3>Vista previa de texto</h3><pre id="preview" style="white-space:pre-wrap"></pre>'
+        '<script>const e=document.getElementById("editor");'
+        'const original=e.value;'
+        'e.addEventListener("input",()=>document.getElementById("preview").textContent=e.value);'
+        'window.addEventListener("beforeunload",event=>{if(e.value!==original){event.preventDefault();event.returnValue="";}});'
+        'document.getElementById("preview").textContent=e.value;</script>'
+    )
+    return page(body)
+
+
 @app.get("/remote/note")
 def remote_note_view():
     requested=request.args.get("path","")
