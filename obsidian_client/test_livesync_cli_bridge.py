@@ -66,6 +66,19 @@ class TestCLIBridge(unittest.TestCase):
                                                        "Notes/Test.md", "old", "new"))
                 write.assert_called_once()
 
+    def test_ls_rejects_case_collisions(self):
+        with tempfile.TemporaryDirectory() as temp:
+            binary = Path(temp) / "index.cjs"
+            binary.write_text("test")
+            with patch("livesync_cli_bridge.subprocess.run") as run:
+                run.return_value.returncode = 0
+                run.return_value.stdout = (
+                    b"Notes/Test.md\\t1\\t100\\t1-7f40ba04869446686d6874804c161a6a\\n"
+                    b"notes/test.md\\t1\\t101\\t1-7f40ba04869446686d6874804c161a6b\\n"
+                )
+                with self.assertRaisesRegex(CLIUnavailable, "cli_list_invalid_format"):
+                    list_local_note_paths(str(binary), temp)
+
     def test_ls_parses_documented_tabular_metadata(self):
         with tempfile.TemporaryDirectory() as temp:
             binary = Path(temp) / "index.cjs"
