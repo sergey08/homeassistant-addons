@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
-from livesync_cli_bridge import prepare_put_command, put_local_only, read_local_note, verify_local_roundtrip, verify_local_cli_runtime, safe_update_local_note, list_local_note_paths, CLIUnavailable
+from livesync_cli_bridge import prepare_put_command, put_local_only, read_local_note, verify_local_roundtrip, verify_local_cli_runtime, safe_update_local_note, list_local_note_paths, safe_create_local_note, CLIUnavailable
 
 class TestCLIBridge(unittest.TestCase):
     def test_local_put_never_syncs(self):
@@ -86,6 +86,19 @@ class TestCLIBridge(unittest.TestCase):
                 run.return_value.stdout = b"error: database not initialized\\n"
                 with self.assertRaises(CLIUnavailable):
                     list_local_note_paths(str(binary), temp)
+
+    def test_create_rejects_existing_note(self):
+        with patch("livesync_cli_bridge.list_local_note_paths", return_value={"Notes/Test.md": {}}):
+            with patch("livesync_cli_bridge.verify_local_roundtrip") as write:
+                with self.assertRaisesRegex(CLIUnavailable, "cli_note_already_exists"):
+                    safe_create_local_note("/unused/index.cjs", "/unused/db", "Notes/Test.md", "text")
+                write.assert_not_called()
+
+    def test_create_accepts_verified_absence(self):
+        with patch("livesync_cli_bridge.list_local_note_paths", return_value={}):
+            with patch("livesync_cli_bridge.verify_local_roundtrip", return_value=True) as write:
+                self.assertTrue(safe_create_local_note("/unused/index.cjs", "/unused/db", "Notes/New.md", "text"))
+                write.assert_called_once()
 
     def test_missing_binary_fails_closed(self):
         with tempfile.TemporaryDirectory() as temp:
