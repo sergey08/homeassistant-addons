@@ -147,3 +147,23 @@ def safe_create_local_note(binary, database_directory, note_path, content):
         # failure. Fail closed rather than risking an accidental overwrite.
         raise CLIUnavailable("cli_create_requires_verified_absence") from exc
     raise CLIUnavailable("cli_note_already_exists")
+
+def list_local_note_paths(binary, database_directory, *, timeout=30):
+    """Query official CLI ls, rejecting ambiguous or malformed output."""
+    executable, database = validate_cli_installation(binary, database_directory)
+    try:
+        result = subprocess.run(
+            ["/usr/local/bin/node", executable, database, "ls"],
+            capture_output=True, timeout=timeout, check=False, shell=False
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise CLIUnavailable("cli_list_failed") from exc
+    if result.returncode or len(result.stdout) > 2_000_000:
+        raise CLIUnavailable("cli_list_failed")
+    try:
+        lines = result.stdout.decode("utf-8").splitlines()
+    except UnicodeDecodeError as exc:
+        raise CLIUnavailable("cli_list_invalid_encoding") from exc
+    # Until the exact CLI ls format is validated, never interpret its output
+    # as an authoritative absence check.
+    raise CLIUnavailable("cli_list_format_not_validated")
