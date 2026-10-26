@@ -5,6 +5,7 @@ integrity constraints are satisfied. This does not establish wire compatibility.
 """
 import hashlib
 import re
+import unicodedata
 
 MAX_NOTE_BYTES = 2_000_000
 MAX_PATH_LENGTH = 1024
@@ -16,6 +17,8 @@ def validate_write_request(path, content, expected_revision, *, creating=False):
     if not isinstance(path, str) or len(path) > MAX_PATH_LENGTH or not path.endswith(".md"):
         raise UnsafeWrite("invalid_path")
     if path.startswith("/") or "\\" in path or any(ord(ch) < 32 or ord(ch) == 127 for ch in path):
+        raise UnsafeWrite("invalid_path")
+    if unicodedata.normalize("NFC", path) != path or any(unicodedata.category(ch) in ("Cf", "Cs") for ch in path):
         raise UnsafeWrite("invalid_path")
     if any(part in ("", ".", "..") or part.startswith(".") or part.endswith((" ", ".")) for part in path.split("/")):
         raise UnsafeWrite("invalid_path")
