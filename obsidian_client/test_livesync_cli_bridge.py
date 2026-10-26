@@ -87,6 +87,27 @@ class TestCLIBridge(unittest.TestCase):
                 with self.assertRaises(CLIUnavailable):
                     list_local_note_paths(str(binary), temp)
 
+    def test_ls_conflict_marker_is_preserved(self):
+        with tempfile.TemporaryDirectory() as temp:
+            binary = Path(temp) / "index.cjs"
+            binary.write_text("test")
+            with patch("livesync_cli_bridge.subprocess.run") as run:
+                run.return_value.returncode = 0
+                run.return_value.stdout = b"Notes/Test.md\\t4\\t1720000000000\\t2-" + b"a" * 32 + b"*\\n"
+                result = list_local_note_paths(str(binary), temp)
+                self.assertTrue(result["Notes/Test.md"]["conflict"])
+
+    def test_ls_rejects_duplicate_note_paths(self):
+        with tempfile.TemporaryDirectory() as temp:
+            binary = Path(temp) / "index.cjs"
+            binary.write_text("test")
+            row = b"Notes/Test.md\\t4\\t1720000000000\\t2-" + b"a" * 32 + b"\\n"
+            with patch("livesync_cli_bridge.subprocess.run") as run:
+                run.return_value.returncode = 0
+                run.return_value.stdout = row + row
+                with self.assertRaisesRegex(CLIUnavailable, "cli_list_invalid_format"):
+                    list_local_note_paths(str(binary), temp)
+
     def test_create_rejects_existing_note(self):
         with patch("livesync_cli_bridge.list_local_note_paths", return_value={"Notes/Test.md": {}}):
             with patch("livesync_cli_bridge.verify_local_roundtrip") as write:
