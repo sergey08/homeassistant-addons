@@ -53,11 +53,12 @@ def livesync_cli_status():
         local_database_directory_present=Path("/data/livesync-client").is_dir(),
         local_database_initialized=local_status.get("livesync_directory_present", False),
         local_settings_present=local_status.get("settings_present", False),
-        remote_sync_configured=False,
+        remote_sync_configured=local_status.get("settings_present", False),
         remote_configuration_ready=remote_readiness["configuration_complete"],
         remote_configuration_checks=remote_readiness,
         remote_writes_enabled=False,
-        status="awaiting_remote_configuration" if enabled and installed
+        status=("settings_installed_offline" if local_status.get("settings_present", False)
+                else "awaiting_remote_configuration") if enabled and installed
                else "disabled" if not enabled else "cli_unavailable",
     )
 
