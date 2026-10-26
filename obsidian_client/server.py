@@ -149,6 +149,8 @@ def livesync_cli_publish_test_note():
         except CLIUnavailable as exc:
             code = str(exc)
             allowed = {"publish_local_roundtrip_failed",
+                       "publish_remote_preflight_execution_failed",
+                       "publish_remote_preflight_rejected",
                        "publish_registration_cli_remote_add_failed",
                        "publish_registration_cli_remote_add_not_active",
                        "publish_registration_cli_remote_add_id_missing",
