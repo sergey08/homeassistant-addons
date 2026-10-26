@@ -97,3 +97,23 @@ def verify_local_cli_runtime(binary, database_directory, *, timeout=10):
     if result.returncode != 0:
         raise CLIUnavailable("cli_runtime_failed")
     return True
+
+def sync_configured_remote(binary, database_directory, *, timeout=120):
+    """Explicit replication only after local settings exist; never fetch/rebuild.
+
+    Caller must enforce authorization, conflict checks and safe UI flow.
+    This method is intentionally NOT exposed by a web route.
+    """
+    executable, database = validate_cli_installation(binary, database_directory)
+    if not (Path(database) / "settings.json").is_file():
+        raise CLIUnavailable("cli_settings_missing")
+    try:
+        result = subprocess.run(
+            ["/usr/local/bin/node", executable, database, "sync"],
+            capture_output=True, timeout=timeout, check=False, shell=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise CLIUnavailable("cli_sync_failed") from exc
+    if result.returncode:
+        raise CLIUnavailable("cli_sync_failed")
+    return True
