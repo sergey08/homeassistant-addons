@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
-from livesync_cli_bridge import prepare_put_command, put_local_only, read_local_note, verify_local_roundtrip, verify_local_cli_runtime, CLIUnavailable
+from livesync_cli_bridge import prepare_put_command, put_local_only, read_local_note, verify_local_roundtrip, verify_local_cli_runtime, safe_update_local_note, CLIUnavailable
 
 class TestCLIBridge(unittest.TestCase):
     def test_local_put_never_syncs(self):
@@ -50,6 +50,21 @@ class TestCLIBridge(unittest.TestCase):
                 run.return_value.returncode = 0
                 self.assertTrue(verify_local_cli_runtime(str(binary), temp))
                 self.assertEqual(run.call_args.args[0], ["/usr/local/bin/node", str(binary), "--help"])
+
+    def test_update_rejects_stale_content_without_writing(self):
+        with patch("livesync_cli_bridge.read_local_note", return_value="remote changed"):
+            with patch("livesync_cli_bridge.verify_local_roundtrip") as write:
+                with self.assertRaisesRegex(CLIUnavailable, "cli_local_conflict"):
+                    safe_update_local_note("/unused/index.cjs", "/unused/db",
+                                           "Notes/Test.md", "old", "new")
+                write.assert_not_called()
+
+    def test_update_accepts_matching_content(self):
+        with patch("livesync_cli_bridge.read_local_note", return_value="old"):
+            with patch("livesync_cli_bridge.verify_local_roundtrip", return_value=True) as write:
+                self.assertTrue(safe_update_local_note("/unused/index.cjs", "/unused/db",
+                                                       "Notes/Test.md", "old", "new"))
+                write.assert_called_once()
 
     def test_missing_binary_fails_closed(self):
         with tempfile.TemporaryDirectory() as temp:
