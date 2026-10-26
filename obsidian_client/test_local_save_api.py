@@ -78,6 +78,38 @@ class LocalSaveTests(unittest.TestCase):
         self.assertTrue(hasattr(_local_save_lock, "acquire"))
         self.assertTrue(hasattr(_local_save_lock, "release"))
 
+    def test_local_read_disabled_by_default(self):
+        with patch("server.options", return_value={}):
+            response = self.client.get("/api/livesync-cli/local-note?path=Notes/New.md")
+        self.assertEqual(response.status_code, 403)
+
+    def test_local_read_requires_listed_note(self):
+        with patch("server.options", return_value={"livesync_cli_enabled": True}):
+            with patch("livesync_cli_bridge.list_local_note_paths", return_value={}):
+                response = self.client.get("/api/livesync-cli/local-note?path=Notes/New.md")
+        self.assertEqual(response.status_code, 404)
+
+    def test_local_read_returns_content_without_remote_sync(self):
+        with patch("server.options", return_value={"livesync_cli_enabled": True}):
+            with patch("livesync_cli_bridge.list_local_note_paths", return_value={
+                "Notes/New.md": {"conflict": False}
+            }):
+                with patch("livesync_cli_bridge.read_local_note", return_value="# Saved"):
+                    response = self.client.get("/api/livesync-cli/local-note?path=Notes/New.md")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json["content"], "# Saved")
+        self.assertFalse(response.json["remote_synced"])
+
+    def test_local_read_rejects_conflict(self):
+        with patch("server.options", return_value={"livesync_cli_enabled": True}):
+            with patch("livesync_cli_bridge.list_local_note_paths", return_value={
+                "Notes/New.md": {"conflict": True}
+            }):
+                with patch("livesync_cli_bridge.read_local_note") as read:
+                    response = self.client.get("/api/livesync-cli/local-note?path=Notes/New.md")
+        self.assertEqual(response.status_code, 409)
+        read.assert_not_called()
+
     def test_invalid_path_blocked(self):
         with patch("server.options", return_value={"livesync_cli_enabled": True}):
             with patch("livesync_cli_bridge.safe_create_local_note") as create:
