@@ -416,7 +416,9 @@ def configure_disposable_remote_with_cli(config, database, *, timeout=45):
     registered = json.loads(settings_file.read_text(encoding="utf-8"))
     remotes = registered.get("remoteConfigurations", {})
     active = registered.get("activeConfigurationId")
-    if not isinstance(remotes, dict) or len(remotes) != 1 or active not in remotes:
+    if not isinstance(remotes, dict) or active not in remotes:
+        raise CLIUnavailable("cli_remote_add_not_active")
+    if remotes[active].get("name") != "Home Assistant CouchDB":
         raise CLIUnavailable("cli_remote_add_not_active")
 
 
