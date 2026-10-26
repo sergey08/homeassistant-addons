@@ -544,6 +544,25 @@ def sync_configured_remote(binary, database_directory, *, timeout=120):
     if result.returncode:
         # Do not expose stderr, stdout, remote URLs, passwords or note content.
         output = (result.stderr + result.stdout).decode("utf-8", errors="replace").lower()[-16000:]
+        import re
+        diagnostic = re.search(
+            r"\\[HA_SYNC_STATUS\\] status=([A-Za-z0-9_-]{1,64}) reason=([A-Za-z0-9_-]{1,64})",
+            output,
+        )
+        if diagnostic:
+            status, hint = diagnostic.groups()
+            # Fixed allowlist only. No arbitrary upstream strings reach the API.
+            hints = {
+                "node_locked": "device_not_accepted",
+                "node_cleaned": "device_not_accepted",
+                "version_mismatch": "version_incompatible",
+                "authentication": "authentication",
+                "network": "network",
+            }
+            reason = hints.get(hint.lower(), "upstream_" + status if status in
+                               ("failed", "cancelled", "skipped", "interrupted")
+                               else "unclassified_replication_failure")
+            raise CLIUnavailable("cli_sync_" + reason)
         # Match specific replication diagnostics, not generic startup words
         # such as "incompatible" appearing in unrelated CLI notices.
         if any(x in output for x in (
