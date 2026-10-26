@@ -546,6 +546,8 @@ def sync_configured_remote(binary, database_directory, *, timeout=120):
         output = (result.stderr + result.stdout).decode("utf-8", errors="replace").lower()[-16000:]
         if any(x in output for x in ("node_locked", "node_cleaned", "remote database is locked", "please unlock")):
             reason = "remote_locked"
+        elif any(x in output for x in ("node_locked", "node_cleaned", "not yet accepted", "please unlock")):
+            reason = "device_not_accepted"
         elif any(x in output for x in ("version mismatch", "incompatible", "compatibility rejection")):
             reason = "version_incompatible"
         elif any(x in output for x in ("unauthorized", "forbidden", "authentication failed", "401", "403")):
