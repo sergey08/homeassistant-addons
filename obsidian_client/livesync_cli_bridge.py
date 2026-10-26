@@ -42,3 +42,27 @@ def put_local_only(binary, database_directory, note_path, content, *, timeout=30
     if result.returncode:
         raise CLIUnavailable("cli_put_failed")
     return True
+
+def read_local_note(binary, database_directory, note_path, *, timeout=15):
+    """Read a note from the isolated CLI database, without contacting remote."""
+    argv = prepare_put_command(binary, database_directory, note_path)
+    argv[2] = "cat"
+    try:
+        result = subprocess.run(argv, capture_output=True, timeout=timeout,
+                                check=False, shell=False)
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise CLIUnavailable("cli_read_failed") from exc
+    if result.returncode or len(result.stdout) > 2_000_000:
+        raise CLIUnavailable("cli_read_failed")
+    try:
+        return result.stdout.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise CLIUnavailable("cli_invalid_encoding") from exc
+
+
+def verify_local_roundtrip(binary, database_directory, note_path, content):
+    """Read-back verification after a local-only write, without syncing."""
+    put_local_only(binary, database_directory, note_path, content)
+    if read_local_note(binary, database_directory, note_path) != content:
+        raise CLIUnavailable("cli_roundtrip_mismatch")
+    return True
