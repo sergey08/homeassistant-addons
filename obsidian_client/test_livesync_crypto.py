@@ -41,10 +41,6 @@ class TestHKDF(unittest.TestCase):
         with self.assertRaises(UnsupportedEncryption):
             decrypt_hkdf_string("plaintext", "pass", "c2FsdA==")
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class TestHKDFEncoder(unittest.TestCase):
     def test_round_trip_unicode_and_randomization(self):
         from livesync_crypto import encrypt_hkdf_string
@@ -56,3 +52,7 @@ class TestHKDFEncoder(unittest.TestCase):
             self.assertEqual(decrypt_hkdf_string(first, "test-passphrase", salt), value)
             with self.assertRaises(UnsupportedEncryption):
                 decrypt_hkdf_string(first, "wrong-passphrase", salt)
+
+
+if __name__ == "__main__":
+    unittest.main()
