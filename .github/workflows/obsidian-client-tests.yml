@@ -132,6 +132,57 @@ jobs:
               with urllib.request.urlopen(req, timeout=15) as response:
                   print('Setup HTTP:', response.status)
           PY
+      - name: Fetch official CLI for isolated encrypted sync
+        uses: actions/checkout@v4
+        with:
+          repository: vrtmrz/obsidian-livesync
+          ref: e4d47f4f1d73d7c5b0635ff7068ff7da994eb731
+          path: livesync-upstream
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Build official CLI for CouchDB integration
+        working-directory: livesync-upstream
+        run: |
+          npm ci
+          npm run build -w self-hosted-livesync-cli
+      - name: Encrypted CLI replication against disposable CouchDB
+        env:
+          TEST_COUCHDB_USER: testadmin
+          TEST_COUCHDB_PASSWORD: test-only-not-production
+        run: |
+          python - <<'PY'
+          import base64, json, os, pathlib, tempfile, urllib.request, uuid, subprocess
+          from sys import path as syspath
+          syspath.insert(0, "obsidian_client")
+          from livesync_cli_bridge import install_official_cli_settings
+          root="http://127.0.0.1:5984"
+          name="obsidian_encrypted_ci_"+uuid.uuid4().hex
+          auth="Basic "+base64.b64encode((os.environ["TEST_COUCHDB_USER"]+":"+os.environ["TEST_COUCHDB_PASSWORD"]).encode()).decode()
+          url=root+"/"+name
+          def call(method):
+              req=urllib.request.Request(url, method=method, headers={"Authorization":auth})
+              with urllib.request.urlopen(req,timeout=10) as response:
+                  return response.status
+          assert call("PUT") == 201
+          cli="livesync-upstream/src/apps/cli/dist/index.cjs"
+          try:
+              with tempfile.TemporaryDirectory() as temp:
+                  config={"couchdb_url":root,"couchdb_database":name,
+                          "couchdb_username":os.environ["TEST_COUCHDB_USER"],
+                          "couchdb_password":os.environ["TEST_COUCHDB_PASSWORD"],
+                          "livesync_encryption_enabled":True,
+                          "livesync_e2ee_passphrase":"isolated-ci-encryption-only"}
+                  install_official_cli_settings(config,temp)
+                  note="Tests/encrypted-roundtrip.md"
+                  content="# Encrypted isolated test\\nNever production\\n"
+                  subprocess.run(["node",cli,temp,"put",note],input=content,text=True,check=True,timeout=45)
+                  subprocess.run(["node",cli,temp,"sync"],check=True,timeout=90)
+                  print("Encrypted CLI sync completed against disposable database")
+          finally:
+              assert call("DELETE")==200
+          PY
       - name: Run isolated integration test / Ejecutar integración aislada
         working-directory: obsidian_client
         env:
