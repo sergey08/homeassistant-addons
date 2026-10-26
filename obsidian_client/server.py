@@ -907,6 +907,8 @@ def livesync_cli_local_save():
     payload = request.get_json(silent=True)
     if not isinstance(payload, dict):
         return jsonify(error="invalid_request"), 400
+    if set(payload) - {"path", "content", "mode", "expected_content"}:
+        return jsonify(error="unexpected_fields"), 400
     note_path = payload.get("path")
     content = payload.get("content")
     mode = payload.get("mode")
