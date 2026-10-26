@@ -126,6 +126,9 @@ def safe_update_local_note(binary, database_directory, note_path, expected_conte
     # Local optimistic concurrency uses exact content comparison, not CouchDB _rev.
     if not isinstance(expected_content, str):
         raise ValueError("invalid_expected_content")
+    notes = list_local_note_paths(binary, database_directory)
+    if note_path not in notes or notes[note_path]["conflict"]:
+        raise CLIUnavailable("cli_local_conflict")
     current = read_local_note(binary, database_directory, note_path)
     if current != expected_content:
         raise CLIUnavailable("cli_local_conflict")
@@ -140,7 +143,7 @@ def safe_create_local_note(binary, database_directory, note_path, content):
     from livesync_write_preflight import validate_write_request
     validate_write_request(note_path, content, None, creating=True)
     notes = list_local_note_paths(binary, database_directory)
-    if note_path in notes:
+    if any(existing.casefold() == note_path.casefold() for existing in notes):
         raise CLIUnavailable("cli_note_already_exists")
     return verify_local_roundtrip(binary, database_directory, note_path, content)
 
