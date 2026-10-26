@@ -23,6 +23,7 @@ options:
   couchdb_password: ""
   livesync_encryption_enabled: false
   livesync_e2ee_passphrase: ""
+  livesync_cli_enabled: false
 schema:
   vault_path: str
   couchdb_url: str?
@@ -31,3 +32,4 @@ schema:
   couchdb_password: password?
   livesync_encryption_enabled: bool
   livesync_e2ee_passphrase: password?
+  livesync_cli_enabled: bool
