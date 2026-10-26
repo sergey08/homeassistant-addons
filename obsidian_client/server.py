@@ -151,6 +151,8 @@ def livesync_cli_publish_test_note():
             allowed = {"publish_local_roundtrip_failed",
                        "publish_registration_cli_remote_add_failed",
                        "publish_registration_cli_remote_add_not_active",
+                       "publish_registration_cli_remote_add_id_missing",
+                       "publish_registration_cli_remote_activate_failed",
                        "publish_registration_cli_remote_registration_missing",
                        "publish_cli_sync_remote_locked",
                        "publish_cli_sync_version_incompatible",
