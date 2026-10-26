@@ -987,7 +987,7 @@ def remote_new_draft():
         'savedContent=data.content;'
         'const draft=editor.value;editor.value=data.content;'
         'if((dirty||draft)&&draft!==data.content&&confirm("Recuperar borrador anterior?"))editor.value=draft;'
-        'refresh();'
+        'document.getElementById("preview").textContent=editor.value;'
         'document.getElementById("saveStatus").textContent="Nota local cargada (sin sincronizar)";'
         '}}).catch(()=>{}).finally(()=>{loadingLocal=false});'
         'document.getElementById("saveLocal").onclick=async()=>{'
@@ -1009,7 +1009,7 @@ def remote_new_draft():
         'const url=URL.createObjectURL(new Blob([editor.value],{type:"text/markdown;charset=utf-8"}));'
         'const a=document.createElement("a");a.href=url;a.download=path.split("/").pop();'
         'a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};'
-        'window.addEventListener("beforeunload",event=>{if(editor.value!==savedContent){'
+        'window.addEventListener("beforeunload",event=>{if(editor.value!==(savedContent===null?"":savedContent)){'
         'event.preventDefault();event.returnValue="";}});'
         'document.getElementById("preview").textContent=editor.value;</script>'
     )
