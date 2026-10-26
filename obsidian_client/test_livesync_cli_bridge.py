@@ -3,9 +3,28 @@ import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
-from livesync_cli_bridge import prepare_put_command, put_local_only, read_local_note, verify_local_roundtrip, verify_local_cli_runtime, safe_update_local_note, list_local_note_paths, safe_create_local_note, CLIUnavailable
+from livesync_cli_bridge import prepare_put_command, put_local_only, read_local_note, verify_local_roundtrip, verify_local_cli_runtime, safe_update_local_note, list_local_note_paths, safe_create_local_note, validate_remote_configuration, CLIUnavailable
 
 class TestCLIBridge(unittest.TestCase):
+    def test_encrypted_remote_configuration_readiness_is_secret_free(self):
+        config = {
+            "couchdb_url": "http://db21ed7f-obsidian-syncserver-ssl:5984",
+            "couchdb_database": "notes",
+            "couchdb_username": "user",
+            "couchdb_password": "do-not-expose-password",
+            "livesync_encryption_enabled": True,
+            "livesync_e2ee_passphrase": "do-not-expose-passphrase",
+        }
+        result = validate_remote_configuration(config)
+        self.assertTrue(result["configuration_complete"])
+        self.assertFalse(result["remote_writes_enabled"])
+        self.assertNotIn("do-not-expose", str(result))
+        config["couchdb_url"] = "http://user:password@localhost:5984"
+        self.assertFalse(validate_remote_configuration(config)["configuration_complete"])
+        config["couchdb_url"] = "http://localhost:5984"
+        config["livesync_e2ee_passphrase"] = ""
+        self.assertFalse(validate_remote_configuration(config)["configuration_complete"])
+
     def test_local_put_never_syncs(self):
         with tempfile.TemporaryDirectory() as temp:
             binary = Path(temp) / "index.cjs"
