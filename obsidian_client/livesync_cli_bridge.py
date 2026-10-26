@@ -323,10 +323,10 @@ def probe_official_remote_registration(config, *, timeout=30):
         settings_loaded = "[Settings] Loaded from" in stderr
         settings_defaults = "[Settings] File not found, using defaults" in stderr
         rows = result.stdout.decode("utf-8", errors="replace").splitlines()
-        active = sum(1 for line in rows if len(line.split("\\t")) == 4
-                     and line.split("\\t")[2] == "active")
+        active = sum(1 for line in rows if len(line.split("\t")) == 4
+                     and line.split("\t")[2] == "active")
         return {"registered_remote_count": sum(
-                    1 for line in rows if len(line.split("\\t")) == 4),
+                    1 for line in rows if len(line.split("\t")) == 4),
                 "active_remote_count": active,
                 "settings_registered_remote_count": len(declared_remotes) if isinstance(declared_remotes, dict) else 0,
                 "settings_active_remote_present": bool(declared_active and isinstance(declared_remotes, dict) and declared_active in declared_remotes),
@@ -373,7 +373,7 @@ def probe_official_remote_add(config, *, timeout=45):
         except (OSError, subprocess.TimeoutExpired) as exc:
             raise CLIUnavailable("cli_remote_add_probe_failed") from exc
         rows = listed.stdout.decode("utf-8", errors="replace").splitlines()
-        remote_rows = [line.split("\\t") for line in rows]
+        remote_rows = [line.split("\t") for line in rows]
         remote_rows = [row for row in remote_rows if len(row) == 4]
         after_configs = after_add.get("remoteConfigurations", {})
         after_active = after_add.get("activeConfigurationId", "")
@@ -550,7 +550,7 @@ def list_local_note_paths(binary, database_directory, *, timeout=30):
     notes = {}
     folded_paths = set()
     for line in lines:
-        fields = line.split("\\t") if "\\t" in line else line.split("\t")
+        fields = line.split("\t") if "\\t" in line else line.split("\t")
         if len(fields) != 4:
             raise CLIUnavailable("cli_list_invalid_format")
         path, size, mtime, revision = fields
