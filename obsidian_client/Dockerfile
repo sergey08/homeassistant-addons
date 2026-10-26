@@ -21,7 +21,7 @@ patch = needle + """
                     ? value : "unspecified";
             writeStderrLine(
                 standardIo,
-                `[HA_SYNC_STATUS] status=${safeToken(result.status)} reason=${safeToken(recoveryHint?.reason)}`
+                `[HA_SYNC_STATUS] status=${safeToken(result.status)} reason=${safeToken(recoveryHint?.reason)} fields=${Object.keys(result).filter(k => /^[A-Za-z][A-Za-z0-9]{0,30}$/.test(k)).slice(0,12).join(",") || "none"}`
             );
 """
 p.write_text(s.replace(needle, patch))
