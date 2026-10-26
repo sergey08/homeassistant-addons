@@ -65,6 +65,31 @@ class TestCLIBridge(unittest.TestCase):
             with self.assertRaisesRegex(CLIUnavailable, "already_exist"):
                 install_official_cli_settings(config, temp)
 
+    def test_disposable_remote_preview_never_uses_persistent_database(self):
+        from livesync_cli_bridge import fetch_remote_to_disposable_database
+        config = {
+            "couchdb_url": "https://localhost:6984",
+            "couchdb_database": "notes",
+            "couchdb_username": "user",
+            "couchdb_password": "secret",
+            "livesync_encryption_enabled": True,
+            "livesync_e2ee_passphrase": "phrase",
+        }
+        with patch("livesync_cli_bridge.validate_cli_installation",
+                   side_effect=lambda binary, database: (binary, database)):
+            with patch("livesync_cli_bridge.subprocess.run") as run:
+                run.return_value.returncode = 0
+                with patch("livesync_cli_bridge.list_local_note_paths",
+                           return_value={"Tests/one.md": {}}):
+                    result = fetch_remote_to_disposable_database(config)
+        self.assertEqual(result["paths"], ["Tests/one.md"])
+        self.assertFalse(result["persistent_local_modified"])
+        command = run.call_args.args[0]
+        self.assertIn("fetch", command)
+        self.assertIn("--force", command)
+        self.assertNotIn("/data/livesync-client", command)
+        self.assertFalse(Path(command[2]).exists())
+
     def test_local_put_never_syncs(self):
         with tempfile.TemporaryDirectory() as temp:
             binary = Path(temp) / "index.cjs"
