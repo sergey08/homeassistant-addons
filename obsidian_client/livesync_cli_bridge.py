@@ -5,6 +5,7 @@ integration layer calls this module. The CLI owns protocol encoding.
 """
 from pathlib import Path
 import os
+import re
 import subprocess
 
 class CLIUnavailable(RuntimeError):
@@ -164,6 +165,20 @@ def list_local_note_paths(binary, database_directory, *, timeout=30):
         lines = result.stdout.decode("utf-8").splitlines()
     except UnicodeDecodeError as exc:
         raise CLIUnavailable("cli_list_invalid_encoding") from exc
-    # Until the exact CLI ls format is validated, never interpret its output
-    # as an authoritative absence check.
-    raise CLIUnavailable("cli_list_format_not_validated")
+    # Pinned upstream CLI documents: path<TAB>size<TAB>mtime<TAB>revision[*].
+    # Reject non-data output rather than treating it as an empty database.
+    notes = {}
+    for line in lines:
+        fields = line.split("\\t")
+        if len(fields) != 4:
+            raise CLIUnavailable("cli_list_invalid_format")
+        path, size, mtime, revision = fields
+        if (not path.endswith(".md") or path.startswith("/") or
+                any(segment in ("", ".", "..") for segment in path.split("/")) or
+                not size.isdigit() or not mtime.isdigit() or
+                not re.fullmatch(r"[1-9][0-9]*-[0-9a-fA-F]{32}\\*?", revision) or
+                path in notes):
+            raise CLIUnavailable("cli_list_invalid_format")
+        notes[path] = {"size": int(size), "mtime": int(mtime),
+                       "revision": revision.rstrip("*"), "conflict": revision.endswith("*")}
+    return notes
