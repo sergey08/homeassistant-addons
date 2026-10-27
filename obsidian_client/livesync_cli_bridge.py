@@ -523,6 +523,20 @@ def fetch_remote_to_disposable_database(config, *, timeout=120):
         if result.returncode:
             # Only fixed categories: never expose CLI output or credentials.
             output = (result.stderr + result.stdout).decode("utf-8", errors="replace").lower()[-12000:]
+            fetch_diag = re.search(
+                r"\\[ha_fetch_failure\\] type=([a-z0-9_-]{1,40}) code=([a-z0-9_-]{1,40})",
+                output,
+            )
+            if fetch_diag:
+                error_type, error_code = fetch_diag.groups()
+                known_codes = {"econnrefused", "enotfound", "etimedout", "eai_again",
+                               "eacces", "enoent", "econnreset"}
+                known_types = {"typeerror", "referenceerror", "syntaxerror",
+                               "rangeerror", "aggregateerror", "error"}
+                if error_code in known_codes:
+                    raise CLIUnavailable("cli_preview_code_" + error_code)
+                if error_type in known_types:
+                    raise CLIUnavailable("cli_preview_type_" + error_type)
             if any(term in output for term in ("unauthorized", "forbidden", "authentication failed", "401", "403")):
                 reason = "authentication"
             elif any(term in output for term in ("econnrefused", "enotfound", "getaddrinfo", "timeout", "network")):
