@@ -66,6 +66,17 @@ class MarkdownOperationsTests(unittest.TestCase):
                 module.write_note(path, "should not be written")
         self.assertEqual(module.list_notes(), [])
 
+    def test_guard_detects_external_changes(self):
+        module.write_note("shared.md", "first")
+        old_revision = module.note_revision("shared.md")
+        (self.vault / "shared.md").write_text("edited externally", encoding="utf-8")
+        with self.assertRaisesRegex(RuntimeError, "changed since it was read"):
+            module.write_note("shared.md", "agent change", overwrite=True, expected_sha256=old_revision)
+        self.assertEqual(module.read_note("shared.md"), "edited externally")
+        current_revision = module.note_revision("shared.md")
+        module.write_note("shared.md", "agent change", overwrite=True, expected_sha256=current_revision)
+        self.assertEqual(module.read_note("shared.md"), "agent change")
+
     def test_reject_overwrite_without_permission(self):
         module.write_note("existing.md", "original")
         with self.assertRaises(FileExistsError):
