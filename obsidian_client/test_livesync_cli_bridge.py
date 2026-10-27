@@ -79,9 +79,11 @@ class TestCLIBridge(unittest.TestCase):
                    side_effect=lambda binary, database: (binary, database)):
             with patch("livesync_cli_bridge.subprocess.run") as run:
                 run.return_value.returncode = 0
-                with patch("livesync_cli_bridge.list_local_note_paths",
-                           return_value={"Tests/one.md": {}}):
-                    result = fetch_remote_to_disposable_database(config)
+                with patch("livesync_cli_bridge.configure_disposable_remote_with_cli") as configure:
+                    with patch("livesync_cli_bridge.list_local_note_paths",
+                               return_value={"Tests/one.md": {}}):
+                        result = fetch_remote_to_disposable_database(config)
+                    configure.assert_called_once()
         self.assertEqual(result["paths"], ["Tests/one.md"])
         self.assertFalse(result["persistent_local_modified"])
         command = run.call_args.args[0]
