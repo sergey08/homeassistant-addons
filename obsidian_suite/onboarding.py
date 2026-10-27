@@ -52,6 +52,19 @@ def collect_status(data=DATA, legacy=LEGACY):
         "tunnel_key": exists(base / "tunnel/api-key"),
     }
 
+def shared_folders(root=Path("/share"), limit=100):
+    """Read-only, bounded folder listing for the Ingress setup page."""
+    if not root.is_dir():
+        return []
+    found = []
+    for folder in sorted(root.iterdir()):
+        if len(found) >= limit:
+            break
+        if folder.is_dir() and not folder.is_symlink() and folder.resolve().is_relative_to(root.resolve()):
+            found.append(str(folder))
+    return found
+
+
 def render_page(status, message=""):
     items = [
         ("Markdown vault (" + status["storage_mode"] + ")", status["vault"],
@@ -71,6 +84,13 @@ def render_page(status, message=""):
     )
     message_html = ("<p role='status'>" + html.escape(message) + "</p>") if message else ""
     setup_form = ""
+    if status["storage_mode"] == "local":
+        choices = "".join("<li><code>" + html.escape(p) + "</code></li>" for p in shared_folders())
+        setup_form += ("<h2>Choose a Markdown folder</h2>"
+                       "<p>Copy one of these paths into vault_path in the Home Assistant Configuration tab, then restart.</p>"
+                       "<ul>" + choices + "</ul>"
+                       "<p>This directory list is read-only.</p>")
+
     if status["storage_mode"] == "livesync" and not status["sync_settings"] and not status["sync_enabled"]:
         setup_form = (
             "<h2>Import existing LiveSync CLI settings</h2>"
