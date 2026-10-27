@@ -44,10 +44,22 @@ def required(path, executable=False):
 
 def main():
     options = json.loads((DATA / "options.json").read_text(encoding="utf-8"))
-    vault = BASE / "vault"
+    configured_vault = str(options.get("vault_path", "")).strip()
+    if configured_vault:
+        shared_root = Path("/share").resolve(strict=True)
+        vault = Path(configured_vault)
+        if not vault.is_absolute() or vault == Path("/share"):
+            raise RuntimeError("vault_path must be an existing subfolder of /share")
+        if not vault.is_dir() or vault.is_symlink():
+            raise RuntimeError("Configured vault must be an existing real directory")
+        vault = vault.resolve(strict=True)
+        if not vault.is_relative_to(shared_root) or vault == shared_root:
+            raise RuntimeError("Configured vault must stay inside /share")
+    else:
+        vault = BASE / "vault"
     trash = BASE / "mcp-trash"
     # Do not follow unexpected symbolic links when preparing persistent storage.
-    for folder in (vault, trash):
+    for folder in ((trash,) if configured_vault else (vault, trash)):
         if folder.is_symlink():
             raise RuntimeError(f"Managed storage path must not be a symbolic link: {folder}")
         folder.mkdir(parents=True, exist_ok=True)
