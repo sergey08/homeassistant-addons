@@ -27,3 +27,14 @@ If you need a local CouchDB backend in Home Assistant, we recommend **[Obsidian 
 The current release supports existing, provisioned installations. **A fresh installation requires manually placing the vault, LiveSync settings and tunnel credentials in their documented private locations.** Do not start two LiveSync writers against the same vault or two clients sharing the same tunnel identity.
 
 See [complete Documentation](DOCS.md), the [Changelog](CHANGELOG.md), and the [OpenAI Secure MCP Tunnel guide](https://developers.openai.com/api/docs/guides/secure-mcp-tunnels).
+
+
+## Local Markdown folder (experimental 0.2.3-dev1)
+
+Set `vault_path` to an **existing** directory under `/share`, e.g. `/share/my-markdown-vault`, then set `enable_livesync: false`. MCP reads and writes Markdown files directly. No CouchDB or LiveSync is required for this local-only workflow.
+
+- Leave `vault_path` empty (default) to preserve the existing production vault and LiveSync behavior.
+- Use only a directory you own and intentionally grant the agent read/write access to. The agent can modify Markdown notes there.
+- `vault_path` cannot point outside `/share`, to `/share` itself, or to a symlink.
+- Back up your Markdown folder before enabling writes.
+- This setting is not available in the stable 0.2.2 build.
