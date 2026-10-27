@@ -279,7 +279,8 @@ def livesync_cli_remote_preview():
                    "cli_preview_encryption", "cli_preview_remote_configuration",
                    "cli_preview_database", "cli_preview_cli_failure",
                    "cli_preview_fetch_operation", "cli_preview_local_database",
-                   "cli_preview_cli_exception"}
+                   "cli_preview_cli_exception",
+                   "cli_preview_code_econnrefused", "cli_preview_code_enotfound", "cli_preview_code_etimedout", "cli_preview_code_eai_again", "cli_preview_code_eacces", "cli_preview_code_enoent", "cli_preview_code_econnreset", "cli_preview_type_typeerror", "cli_preview_type_referenceerror", "cli_preview_type_syntaxerror", "cli_preview_type_rangeerror", "cli_preview_type_aggregateerror", "cli_preview_type_error" }
         return jsonify(error=code if code in allowed else "remote_preview_failed"), 502
 
 
