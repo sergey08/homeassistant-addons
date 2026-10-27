@@ -1,0 +1,30 @@
+name: "Obsidian MCP Local (Development)"
+version: "0.2.3-dev2"
+slug: "obsidian_mcp_local_dev"
+description: "Isolated local Markdown testing without CouchDB, tunnel or shared app-config access"
+url: "https://github.com/sergey08/homeassistant-addons"
+arch:
+  - amd64
+startup: application
+ingress: true
+ingress_port: 8099
+ingress_entry: /
+boot: manual
+init: false
+map:
+  - type: share
+    read_only: false
+options:
+  tunnel_id: ""
+  enable_tunnel: false
+  enable_livesync: false
+  livesync_interval: 60
+  vault_path: "/share/obsidian-prueba-local"
+  storage_mode: "local"
+schema:
+  tunnel_id: str
+  enable_tunnel: bool
+  enable_livesync: bool
+  livesync_interval: int(30,3600)
+  vault_path: str
+  storage_mode: list(livesync|local)
