@@ -293,6 +293,18 @@ def probe_remote_status(config, *, timeout=45):
                                 found[name] = value
                     inspect(status)
                     safe["compatibility_metadata"] = found
+                    # Only property names, never values. Useful when upstream
+                    # changes its remote-status schema.
+                    safe["status_shape"] = sorted(
+                        key for key in status
+                        if isinstance(key, str)
+                        and re.fullmatch(r"[A-Za-z][A-Za-z0-9_]{0,35}", key)
+                        and not any(secret in key.lower() for secret in (
+                            "password", "passphrase", "token", "credential",
+                            "secret", "uri", "url", "path", "username", "user",
+                            "document", "content", "note", "header", "cookie",
+                            "key", "salt"))
+                    )[:25]
             except (ValueError, UnicodeError):
                 pass
         return safe
