@@ -16,6 +16,11 @@ def note_path(name: str, must_exist: bool = False) -> Path:
     if p.is_absolute() or ".." in p.parts or p.suffix.lower() != ".md" or any(part.startswith(".") for part in p.parts):
         raise ValueError("Only Markdown (.md) files inside the vault are allowed")
     dest = ROOT / p
+    cursor = ROOT
+    for part in p.parts:
+        cursor = cursor / part
+        if cursor.is_symlink():
+            raise ValueError("Symlinked Markdown paths are not allowed")
     if not dest.resolve().is_relative_to(ROOT):
         raise ValueError("Path is outside the vault")
     if must_exist and (not dest.is_file() or dest.is_symlink()):
@@ -30,6 +35,7 @@ def list_notes() -> list[str]:
         str(p.relative_to(ROOT))
         for p in ROOT.rglob("*.md")
         if p.is_file() and not p.is_symlink() and p.resolve().is_relative_to(ROOT)
+        and not any(parent.is_symlink() for parent in p.parents if parent != ROOT and parent.is_relative_to(ROOT))
     )
 
 
