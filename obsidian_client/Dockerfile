@@ -24,7 +24,21 @@ patch = needle + """
                 `[HA_SYNC_STATUS] status=${safeToken(result.status)} reason=${safeToken(recoveryHint?.reason)} fields=${Object.keys(result).filter(k => /^[A-Za-z][A-Za-z0-9]{0,30}$/.test(k)).slice(0,12).join(",") || "none"}`
             );
 """
-p.write_text(s.replace(needle, patch))
+s = s.replace(needle, patch)
+fetch_needle = '            writeStderrLine(standardIo, "[Error] Fetch failed:", error);'
+assert s.count(fetch_needle) == 1, "upstream fetch implementation changed"
+fetch_patch = """            // Only report bounded error class/code, never exception message.
+            const fetchToken = (value: unknown): string =>
+                typeof value === "string" && /^[A-Za-z0-9_-]{1,40}$/.test(value)
+                    ? value : "unspecified";
+            const fetchError = error instanceof Error ? error : undefined;
+            const fetchCode = error && typeof error === "object" && "code" in error
+                ? (error as {code?: unknown}).code : undefined;
+            writeStderrLine(standardIo,
+                \`[HA_FETCH_FAILURE] type=\${fetchToken(fetchError?.name)} code=\${fetchToken(fetchCode)}\`);
+"""
+s = s.replace(fetch_needle, fetch_patch + fetch_needle)
+p.write_text(s)
 PY
 RUN npm ci && npm run build -w self-hosted-livesync-cli \
     && test -s src/apps/cli/dist/index.cjs
