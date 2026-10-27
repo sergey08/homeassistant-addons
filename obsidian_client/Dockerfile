@@ -35,7 +35,7 @@ fetch_patch = """            // Only report bounded error class/code, never exce
             const fetchCode = error && typeof error === "object" && "code" in error
                 ? (error as {code?: unknown}).code : undefined;
             writeStderrLine(standardIo,
-                \`[HA_FETCH_FAILURE] type=\${fetchToken(fetchError?.name)} code=\${fetchToken(fetchCode)}\`);
+                `[HA_FETCH_FAILURE] type=${fetchToken(fetchError?.name)} code=${fetchToken(fetchCode)}`);
 """
 s = s.replace(fetch_needle, fetch_patch + fetch_needle)
 p.write_text(s)
