@@ -675,7 +675,7 @@ def list_local_note_paths(binary, database_directory, *, timeout=30):
     notes = {}
     folded_paths = set()
     for line in lines:
-        fields = line.split("\t") if "\\t" in line else line.split("\t")
+        fields = line.split("\\t") if "\\t" in line else line.split("\t")
         if len(fields) != 4:
             raise CLIUnavailable("cli_list_invalid_format")
         path, size, mtime, revision = fields
