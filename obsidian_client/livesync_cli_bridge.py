@@ -401,6 +401,48 @@ def probe_official_remote_add(config, *, timeout=45):
                 "remote_notes_modified": False}
 
 
+def merge_official_cli_defaults_for_disposable_database(database, *, timeout=45):
+    """Merge complete official CLI defaults into isolated temporary settings only."""
+    import json
+    import tempfile
+    database = Path(database)
+    if database.name != "db" or not database.is_dir() or database.is_symlink():
+        raise CLIUnavailable("cli_disposable_database_required")
+    settings_path = database / ".livesync" / "settings.json"
+    if not settings_path.is_file() or settings_path.is_symlink():
+        raise CLIUnavailable("cli_settings_missing")
+    executable, _ = validate_cli_installation(
+        "/opt/livesync-cli/dist/index.cjs", str(database))
+    with tempfile.TemporaryDirectory(prefix="obsidian-cli-defaults-") as temp:
+        target = Path(temp) / "defaults.json"
+        try:
+            result = subprocess.run(
+                ["/usr/local/bin/node", executable, "init-settings", str(target)],
+                capture_output=True, timeout=timeout, check=False, shell=False)
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            raise CLIUnavailable("cli_defaults_generation_failed") from exc
+        if result.returncode or not target.is_file():
+            raise CLIUnavailable("cli_defaults_generation_failed")
+        try:
+            defaults = json.loads(target.read_text(encoding="utf-8"))
+            overrides = json.loads(settings_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            raise CLIUnavailable("cli_defaults_invalid") from exc
+        if not isinstance(defaults, dict) or not isinstance(overrides, dict):
+            raise CLIUnavailable("cli_defaults_invalid")
+        merged = {**defaults, **overrides}
+        staged = settings_path.with_name("settings.next.json")
+        if staged.exists() or staged.is_symlink():
+            raise CLIUnavailable("cli_defaults_staging_exists")
+        with staged.open("x", encoding="utf-8") as handle:
+            json.dump(merged, handle, ensure_ascii=False)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.chmod(staged, 0o600)
+        os.replace(staged, settings_path)
+    return True
+
+
 def configure_disposable_remote_with_cli(config, database, *, timeout=45):
     """Let the official CLI register its own remote in disposable storage."""
     import json
@@ -467,6 +509,7 @@ def publish_isolated_test_note(config, note_path, content, *, timeout=120):
         database = Path(temp) / "db"
         database.mkdir(mode=0o700)
         install_official_cli_settings(config, str(database))
+        merge_official_cli_defaults_for_disposable_database(database)
         try:
             configure_disposable_remote_with_cli(config, database)
         except CLIUnavailable as exc:
@@ -509,6 +552,7 @@ def fetch_remote_to_disposable_database(config, *, timeout=120):
         database.mkdir(mode=0o700)
         vault.mkdir(mode=0o700)
         install_official_cli_settings(config, str(database))
+        merge_official_cli_defaults_for_disposable_database(database)
         configure_disposable_remote_with_cli(config, database)
         binary = "/opt/livesync-cli/dist/index.cjs"
         executable, _ = validate_cli_installation(binary, str(database))
