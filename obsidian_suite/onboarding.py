@@ -8,7 +8,7 @@ import html
 import json
 import os
 import secrets
-from urllib.parse import parse_qs
+from urllib.parse import parse_qs, quote, urlsplit
 from settings_import import import_settings_json, SettingsImportError
 from couchdb_check import check_couchdb, CouchCheckError
 from tunnel_key import store_runtime_key, TunnelKeyError
@@ -52,20 +52,34 @@ def collect_status(data=DATA, legacy=LEGACY):
         "tunnel_key": exists(base / "tunnel/api-key"),
     }
 
-def shared_folders(root=Path("/share"), limit=100):
-    """Read-only, bounded folder listing for the Ingress setup page."""
-    if not root.is_dir():
-        return []
-    found = []
-    for folder in sorted(root.iterdir()):
-        if len(found) >= limit:
+def shared_folders(root=Path("/share"), selected="", limit=100):
+    """Browse one real directory inside /share without following symlinks."""
+    root = root.resolve(strict=True)
+    requested = Path(selected) if selected else root
+    if not requested.is_absolute() or requested.is_symlink():
+        raise ValueError("Invalid folder")
+    current = requested.resolve(strict=True)
+    if not current.is_relative_to(root):
+        raise ValueError("Outside shared folder")
+    # Reject symlinked intermediate path components.
+    relative = requested.relative_to(root)
+    cursor = root
+    for part in relative.parts:
+        cursor = cursor / part
+        if cursor.is_symlink():
+            raise ValueError("Symlinked folder")
+    if not current.is_dir():
+        raise ValueError("Not a folder")
+    children = []
+    for folder in sorted(current.iterdir()):
+        if len(children) >= limit:
             break
-        if folder.is_dir() and not folder.is_symlink() and folder.resolve().is_relative_to(root.resolve()):
-            found.append(str(folder))
-    return found
+        if folder.is_dir() and not folder.is_symlink():
+            children.append(str(folder))
+    return str(current), children
 
 
-def render_page(status, message=""):
+def render_page(status, message="", browse=""):
     items = [
         ("Markdown vault (" + status["storage_mode"] + ")", status["vault"],
          status["vault_error"] or "Check vault_path in Configuration if using local mode"),
@@ -85,11 +99,27 @@ def render_page(status, message=""):
     message_html = ("<p role='status'>" + html.escape(message) + "</p>") if message else ""
     setup_form = ""
     if status["storage_mode"] == "local":
-        choices = "".join("<li><code>" + html.escape(p) + "</code></li>" for p in shared_folders())
-        setup_form += ("<h2>Choose a Markdown folder</h2>"
-                       "<p>Copy one of these paths into vault_path in the Home Assistant Configuration tab, then restart.</p>"
-                       "<ul>" + choices + "</ul>"
-                       "<p>This directory list is read-only.</p>")
+        try:
+            current, folders = shared_folders(selected=browse)
+            choices = "".join(
+                '<li><a href="?browse=' + quote(p, safe="") + '">' +
+                html.escape(Path(p).name) + '</a></li>' for p in folders
+            )
+            parent = str(Path(current).parent)
+            up = ('<a href="?browse=' + quote(parent, safe="") +
+                  '">Up one folder</a>') if current != "/share" else ""
+            setup_form += (
+                "<h2>Browse Markdown folders</h2>"
+                "<p>Current: <code>" + html.escape(current) + "</code></p>"
+                + up + "<ul>" + choices + "</ul>"
+                "<p>To use this folder, copy the path below to <code>vault_path</code> "
+                "in the app Configuration tab. Restart after saving.</p>"
+                "<input readonly aria-label='Selected folder path' value='" +
+                html.escape(current, quote=True) + "' style='width:100%'>"
+                "<p>This browser does not change settings or files.</p>"
+            )
+        except (ValueError, OSError) as exc:
+            setup_form += "<p>Folder unavailable: " + html.escape(str(exc)) + "</p>"
 
     if status["storage_mode"] == "livesync" and not status["sync_settings"] and not status["sync_enabled"]:
         setup_form = (
@@ -145,7 +175,8 @@ class Handler(BaseHTTPRequestHandler):
         if self.path.split("?", 1)[0] not in ("/", "/index.html"):
             self.send_error(404)
             return
-        content = render_page(collect_status()).encode("utf-8")
+        query = parse_qs(urlsplit(self.path).query)
+        content = render_page(collect_status(), browse=query.get("browse", [""])[0]).encode("utf-8")
         self.send_response(200)
         self.send_header("Content-Type", "text/html; charset=utf-8")
         self.send_header("Cache-Control", "no-store")
