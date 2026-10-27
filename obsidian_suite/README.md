@@ -31,9 +31,9 @@ See [complete Documentation](DOCS.md), the [Changelog](CHANGELOG.md), and the [O
 
 ## Local Markdown folder (experimental 0.2.3-dev1)
 
-Set `vault_path` to an **existing** directory under `/share`, e.g. `/share/my-markdown-vault`, then set `enable_livesync: false`. MCP reads and writes Markdown files directly. No CouchDB or LiveSync is required for this local-only workflow.
+Select `storage_mode: local` and set `vault_path` to an **existing** directory under `/share`, e.g. `/share/my-markdown-vault`, The application does not start LiveSync in local mode, even if an old `enable_livesync` option was previously enabled. MCP reads and writes Markdown files directly. No CouchDB or LiveSync is required for this local-only workflow.
 
-- Leave `vault_path` empty (default) to preserve the existing production vault and LiveSync behavior.
+- Leave `storage_mode: livesync` (default) to preserve the existing production vault and LiveSync behavior. `vault_path` is ignored in this mode.
 - Use only a directory you own and intentionally grant the agent read/write access to. The agent can modify Markdown notes there.
 - `vault_path` cannot point outside `/share`, to `/share` itself, or to a symlink.
 - Back up your Markdown folder before enabling writes.
