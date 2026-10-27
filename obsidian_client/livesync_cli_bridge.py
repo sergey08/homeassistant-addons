@@ -248,6 +248,8 @@ def probe_remote_status(config, *, timeout=45):
         database = Path(temp) / "db"
         database.mkdir(mode=0o700)
         install_official_cli_settings(config, str(database))
+        # Match the publisher's registration and activation sequence.
+        configure_disposable_remote_with_cli(config, database)
         binary = "/opt/livesync-cli/dist/index.cjs"
         executable, _ = validate_cli_installation(binary, str(database))
         try:
