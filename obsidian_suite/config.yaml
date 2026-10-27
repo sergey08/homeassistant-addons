@@ -22,9 +22,11 @@ options:
   enable_livesync: false
   livesync_interval: 60
   vault_path: ""
+  storage_mode: "livesync"
 schema:
   tunnel_id: str
   enable_tunnel: bool
   enable_livesync: bool
   livesync_interval: int(30,3600)
   vault_path: str
+  storage_mode: list(livesync|local)
