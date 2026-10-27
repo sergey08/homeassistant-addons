@@ -19,4 +19,4 @@ jobs:
       - name: Check Python syntax and secure vault path selection
         run: |
           python3 -m compileall -q obsidian_suite
-          python3 -m unittest discover -s obsidian_suite/tests -p test_vault_selection.py -v
+          python3 -m unittest discover -s obsidian_suite/tests -p 'test_*.py' -v
