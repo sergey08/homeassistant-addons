@@ -5,7 +5,7 @@ import os
 import signal
 import subprocess
 from preflight import main as check_prerequisites
-from vault_selection import select_vault
+from vault_selection import select_storage
 import sys
 import time
 import socket
@@ -45,15 +45,8 @@ def required(path, executable=False):
 
 def main():
     options = json.loads((DATA / "options.json").read_text(encoding="utf-8"))
-    mode = str(options.get("storage_mode", "livesync")).strip()
-    if mode not in ("livesync", "local"):
-        raise RuntimeError("Invalid storage_mode")
-    configured_vault = str(options.get("vault_path", "")).strip() if mode == "local" else ""
-    if mode == "local" and not configured_vault:
-        raise RuntimeError("Local mode requires vault_path inside /share")
-    if mode == "livesync" and str(options.get("vault_path", "")).strip():
-        print("Ignoring vault_path in LiveSync mode; keeping existing vault", flush=True)
-    vault = select_vault(configured_vault, BASE / "vault")
+    mode, vault, run_livesync = select_storage(options, BASE / "vault")
+    configured_vault = mode == "local"
     trash = BASE / "mcp-trash"
     # Do not follow unexpected symbolic links when preparing persistent storage.
     for folder in ((trash,) if configured_vault else (vault, trash)):
@@ -76,7 +69,7 @@ def main():
 
     start("onboarding", ["/opt/venv/bin/python", "/opt/obsidian/onboarding.py"])
     start("mcp", ["/opt/venv/bin/python", "/opt/obsidian/server.py"])
-    if mode == "livesync" and options.get("enable_livesync", False):
+    if run_livesync:
         settings = BASE / "settings/livesync-operativo.json"
         required(settings)
         interval = int(options.get("livesync_interval", 60))
