@@ -509,6 +509,7 @@ def fetch_remote_to_disposable_database(config, *, timeout=120):
         database.mkdir(mode=0o700)
         vault.mkdir(mode=0o700)
         install_official_cli_settings(config, str(database))
+        configure_disposable_remote_with_cli(config, database)
         binary = "/opt/livesync-cli/dist/index.cjs"
         executable, _ = validate_cli_installation(binary, str(database))
         try:
