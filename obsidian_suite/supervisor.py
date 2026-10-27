@@ -5,6 +5,7 @@ import os
 import signal
 import subprocess
 from preflight import main as check_prerequisites
+from vault_selection import select_vault
 import sys
 import time
 import socket
@@ -45,18 +46,7 @@ def required(path, executable=False):
 def main():
     options = json.loads((DATA / "options.json").read_text(encoding="utf-8"))
     configured_vault = str(options.get("vault_path", "")).strip()
-    if configured_vault:
-        shared_root = Path("/share").resolve(strict=True)
-        vault = Path(configured_vault)
-        if not vault.is_absolute() or vault == Path("/share"):
-            raise RuntimeError("vault_path must be an existing subfolder of /share")
-        if not vault.is_dir() or vault.is_symlink():
-            raise RuntimeError("Configured vault must be an existing real directory")
-        vault = vault.resolve(strict=True)
-        if not vault.is_relative_to(shared_root) or vault == shared_root:
-            raise RuntimeError("Configured vault must stay inside /share")
-    else:
-        vault = BASE / "vault"
+    vault = select_vault(configured_vault, BASE / "vault")
     trash = BASE / "mcp-trash"
     # Do not follow unexpected symbolic links when preparing persistent storage.
     for folder in ((trash,) if configured_vault else (vault, trash)):
