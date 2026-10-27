@@ -85,8 +85,8 @@ class LocalSaveTests(unittest.TestCase):
     def test_addon_uses_single_worker_for_local_save_lock(self):
         from pathlib import Path
         dockerfile = (Path(__file__).resolve().parent / "Dockerfile").read_text()
-        self.assertIn('"--workers", "1"', dockerfile)
-        self.assertIn('"--threads", "4"', dockerfile)
+        self.assertRegex(dockerfile, r'--workers(?:"|\\s)+1')
+        self.assertRegex(dockerfile, r'--threads(?:"|\\s)+4')
 
     def test_local_saves_share_one_process_lock(self):
         from server import _local_save_lock
