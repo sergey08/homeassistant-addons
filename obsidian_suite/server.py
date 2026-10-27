@@ -2,6 +2,7 @@ from pathlib import Path
 import os
 import shutil
 import datetime
+import hashlib
 from mcp.server.fastmcp import FastMCP
 
 ROOT = Path("/vault").resolve()
@@ -62,7 +63,13 @@ def read_note(name: str) -> str:
 
 
 @mcp.tool()
-def write_note(name: str, content: str, overwrite: bool = False) -> str:
+def note_revision(name: str) -> str:
+    """Return SHA-256 of a note for safe optimistic updates."""
+    return hashlib.sha256(note_path(name, True).read_bytes()).hexdigest()
+
+
+@mcp.tool()
+def write_note(name: str, content: str, overwrite: bool = False, expected_sha256: str = "") -> str:
     """Create a Markdown note. Replacing an existing note requires overwrite=True."""
     p = note_path(name)
     p.parent.mkdir(parents=True, exist_ok=True)
@@ -70,6 +77,9 @@ def write_note(name: str, content: str, overwrite: bool = False) -> str:
         raise FileExistsError("Note already exists; use overwrite=True to replace it")
     if p.exists() and (not p.is_file() or p.is_symlink()):
         raise ValueError("Invalid destination")
+    if expected_sha256:
+        if not p.is_file() or hashlib.sha256(p.read_bytes()).hexdigest() != expected_sha256:
+            raise RuntimeError("Note changed since it was read; refusing overwrite")
     if p.exists():
         backup = TRASH / "versions" / datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%S%f") / name
         backup.parent.mkdir(parents=True, exist_ok=True)
