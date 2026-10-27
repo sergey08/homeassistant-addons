@@ -1,0 +1,22 @@
+name: Obsidian MCP local Markdown vault tests
+on:
+  push:
+    branches: [feature/markdown-local-vault]
+    paths:
+      - 'obsidian_suite/**'
+      - '.github/workflows/obsidian-mcp-local-vault.yml'
+  pull_request:
+    paths:
+      - 'obsidian_suite/**'
+      - '.github/workflows/obsidian-mcp-local-vault.yml'
+permissions:
+  contents: read
+jobs:
+  vault-path:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check Python syntax and secure vault path selection
+        run: |
+          python3 -m compileall -q obsidian_suite
+          python3 -m unittest discover -s obsidian_suite/tests -p test_vault_selection.py -v
