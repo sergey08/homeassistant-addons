@@ -50,7 +50,9 @@ class VaultSelectionTests(unittest.TestCase):
             outside.mkdir()
             (root / "link").symlink_to(outside, target_is_directory=True)
             (root / "inside").mkdir()
-            bad = [str(outside), str(root), str(root / "link"), str(root / "missing"), "relative/path", str(root / "inside" / ".." / ".." / "private")]
+            (root / "inside" / "vault").mkdir()
+            (root / "nested-link").symlink_to(root / "inside", target_is_directory=True)
+            bad = [str(outside), str(root), str(root / "link"), str(root / "nested-link" / "vault"), str(root / "missing"), "relative/path", str(root / "inside" / ".." / ".." / "private")]
             for entry in bad:
                 with self.subTest(path=entry), self.assertRaises((ValueError, FileNotFoundError)):
                     select_vault(entry, root / "default", root)
