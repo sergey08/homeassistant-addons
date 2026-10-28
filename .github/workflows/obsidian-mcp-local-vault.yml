@@ -18,3 +18,14 @@ jobs:
           grep -q 'slug: "obsidian_mcp_local_dev"' obsidian_mcp_local_dev/config.yaml
           grep -q 'BASE = DATA' obsidian_mcp_local_dev/supervisor.py
           python3 -m unittest discover -s obsidian_suite/tests -p 'test_*.py' -v
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          for addon in ('obsidian_suite', 'obsidian_mcp_local_dev'):
+              dockerfile = (Path(addon) / 'Dockerfile').read_text()
+              sources = re.findall(r'^COPY\s+(\S+)\s+', dockerfile, flags=re.MULTILINE)
+              missing = [source for source in sources if not (Path(addon) / source).exists()]
+              if missing:
+                  raise SystemExit(f'{addon}: missing Docker COPY sources: {missing}')
+          print('Docker COPY source checks passed')
+          PY
