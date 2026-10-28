@@ -29,12 +29,20 @@ The current release supports existing, provisioned installations. **A fresh inst
 See [complete Documentation](DOCS.md), the [Changelog](CHANGELOG.md), and the [OpenAI Secure MCP Tunnel guide](https://developers.openai.com/api/docs/guides/secure-mcp-tunnels).
 
 
-## Local Markdown folder (experimental 0.2.3-dev1)
+## Local Markdown folder (0.2.3 development)
 
-Select `storage_mode: local` and set `vault_path` to an **existing** directory under `/share`, e.g. `/share/my-markdown-vault`, The application does not start LiveSync in local mode, even if an old `enable_livesync` option was previously enabled. MCP reads and writes Markdown files directly. No CouchDB or LiveSync is required for this local-only workflow.
+Select `storage_mode: local` and set `vault_path` to an **existing** directory under `/share`, e.g. `/share/my-markdown-vault`. The application does not start LiveSync in local mode, even if an old `enable_livesync` option was previously enabled. MCP reads and writes Markdown files directly. No CouchDB or LiveSync is required for this local-only workflow.
 
 - Leave `storage_mode: livesync` (default) to preserve the existing production vault and LiveSync behavior. `vault_path` is ignored in this mode.
 - Use only a directory you own and intentionally grant the agent read/write access to. The agent can modify Markdown notes there.
 - `vault_path` cannot point outside `/share`, to `/share` itself, or to a symlink.
 - Back up your Markdown folder before enabling writes.
 - This setting is not available in the stable 0.2.2 build.
+
+### Language-natural ChatGPT usage and migration checklist
+
+The same MCP tools work in both modes. In Home Assistant **Configuration**, select `storage_mode=local`, set `vault_path` to an existing subfolder of `/share`, leave `enable_livesync=false`, and enable the tunnel only after stopping the other app using the same tunnel ID. Save and restart the app. Never run two tunnel clients with one ID.
+
+Before replacing a working 0.2.2 install: back up the vault and add-on configuration, verify the current tunnel credentials remain provisioned, then test `list_notes`, `read_note`, `write_note`, and `search_notes` against disposable local notes. To return to LiveSync, set `storage_mode=livesync`, keep the existing persistent LiveSync vault and settings, and enable `enable_livesync` as appropriate. Avoid running two LiveSync writers at once. The Ingress page is for diagnostics, not an alternative configuration form.
+
+On the experimental local development add-on, tunnel credential files are read from an existing provisioned app's read-only mounted configuration; no keys are copied into the Markdown vault. Do not delete the provisioned stable app during testing.
