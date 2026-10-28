@@ -67,6 +67,15 @@ class MarkdownOperationsTests(unittest.TestCase):
                 module.write_note(path, "should not be written")
         self.assertEqual(module.list_notes(), [])
 
+    def test_read_with_revision_prevents_stale_edit(self):
+        module.write_note("revision.md", "old")
+        snapshot = module.read_note_with_revision("revision.md")
+        self.assertEqual(snapshot["content"], "old")
+        module.append_note("revision.md", "\\nother editor")
+        with self.assertRaises(RuntimeError):
+            module.write_note("revision.md", "stale", overwrite=True, expected_sha256=snapshot["sha256"])
+        self.assertEqual(module.read_note("revision.md"), "old\\nother editor")
+
     def test_guard_detects_external_changes(self):
         module.write_note("shared.md", "first")
         old_revision = module.note_revision("shared.md")
