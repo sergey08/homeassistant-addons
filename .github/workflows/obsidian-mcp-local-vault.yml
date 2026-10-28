@@ -1,5 +1,6 @@
 name: Obsidian MCP local Markdown vault tests
 on:
+  workflow_dispatch:
   push:
     branches: [feature/markdown-local-vault]
     paths:
