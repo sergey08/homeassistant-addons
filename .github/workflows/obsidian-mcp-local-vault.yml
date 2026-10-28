@@ -41,7 +41,7 @@ jobs:
           printf '%s\n' '{"storage_mode":"local","vault_path":"/share/new-vault","enable_livesync":false,"enable_tunnel":false,"livesync_interval":60,"tunnel_id":""}' > "$RUNNER_TEMP/obsidian-smoke/data/options.json"
           docker run -d --name obsidian-smoke -p 127.0.0.1:18765:8765 -v "$RUNNER_TEMP/obsidian-smoke/data:/data" -v "$RUNNER_TEMP/obsidian-smoke/share:/share" obsidian-mcp-smoke
           for i in $(seq 1 60); do
-            if curl -fsS --max-time 2 http://127.0.0.1:18765/mcp -H 'Accept: text/event-stream' -o /dev/null; then break; fi
+            if curl -fsS --max-time 3 http://127.0.0.1:18765/mcp -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' --data '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"ci-smoke","version":"1.0"}}}' | grep -q 'serverInfo'; then break; fi
             if ! docker ps --format '{{.Names}}' | grep -qx obsidian-smoke; then docker logs obsidian-smoke; exit 1; fi
             sleep 2
           done
