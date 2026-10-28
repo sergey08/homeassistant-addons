@@ -2,6 +2,7 @@ from pathlib import Path
 import os
 import shutil
 import datetime
+import hashlib
 from mcp.server.fastmcp import FastMCP
 
 ROOT = Path("/vault").resolve()
@@ -16,6 +17,11 @@ def note_path(name: str, must_exist: bool = False) -> Path:
     if p.is_absolute() or ".." in p.parts or p.suffix.lower() != ".md" or any(part.startswith(".") for part in p.parts):
         raise ValueError("Only Markdown (.md) files inside the vault are allowed")
     dest = ROOT / p
+    cursor = ROOT
+    for part in p.parts:
+        cursor = cursor / part
+        if cursor.is_symlink():
+            raise ValueError("Symlinked Markdown paths are not allowed")
     if not dest.resolve().is_relative_to(ROOT):
         raise ValueError("Path is outside the vault")
     if must_exist and (not dest.is_file() or dest.is_symlink()):
@@ -30,6 +36,7 @@ def list_notes() -> list[str]:
         str(p.relative_to(ROOT))
         for p in ROOT.rglob("*.md")
         if p.is_file() and not p.is_symlink() and p.resolve().is_relative_to(ROOT)
+        and not any(parent.is_symlink() for parent in p.parents if parent != ROOT and parent.is_relative_to(ROOT))
     )
 
 
@@ -56,7 +63,20 @@ def read_note(name: str) -> str:
 
 
 @mcp.tool()
-def write_note(name: str, content: str, overwrite: bool = False) -> str:
+def note_revision(name: str) -> str:
+    """Return SHA-256 of a note for safe optimistic updates."""
+    return hashlib.sha256(note_path(name, True).read_bytes()).hexdigest()
+
+
+def check_revision(path: Path, expected_sha256: str) -> None:
+    """Reject stale edits when a revision is supplied by the caller."""
+    if expected_sha256 and (not path.is_file() or
+        hashlib.sha256(path.read_bytes()).hexdigest() != expected_sha256):
+        raise RuntimeError("Note changed since it was read; refusing modification")
+
+
+@mcp.tool()
+def write_note(name: str, content: str, overwrite: bool = False, expected_sha256: str = "") -> str:
     """Create a Markdown note. Replacing an existing note requires overwrite=True."""
     p = note_path(name)
     p.parent.mkdir(parents=True, exist_ok=True)
@@ -64,6 +84,7 @@ def write_note(name: str, content: str, overwrite: bool = False) -> str:
         raise FileExistsError("Note already exists; use overwrite=True to replace it")
     if p.exists() and (not p.is_file() or p.is_symlink()):
         raise ValueError("Invalid destination")
+    check_revision(p, expected_sha256)
     if p.exists():
         backup = TRASH / "versions" / datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%S%f") / name
         backup.parent.mkdir(parents=True, exist_ok=True)
@@ -84,18 +105,20 @@ def write_note(name: str, content: str, overwrite: bool = False) -> str:
 
 
 @mcp.tool()
-def append_note(name: str, content: str) -> str:
+def append_note(name: str, content: str, expected_sha256: str = "") -> str:
     """Append content to an existing Markdown note."""
     p = note_path(name, True)
+    check_revision(p, expected_sha256)
     with p.open("a", encoding="utf-8") as f:
         f.write(content)
     return f"Updated: {name}"
 
 
 @mcp.tool()
-def rename_note(source: str, destination: str) -> str:
+def rename_note(source: str, destination: str, expected_sha256: str = "") -> str:
     """Move or rename a note without overwriting an existing destination."""
     src, dst = note_path(source, True), note_path(destination)
+    check_revision(src, expected_sha256)
     if dst.exists():
         raise FileExistsError(destination)
     dst.parent.mkdir(parents=True, exist_ok=True)
@@ -104,9 +127,10 @@ def rename_note(source: str, destination: str) -> str:
 
 
 @mcp.tool()
-def delete_note(name: str) -> str:
+def delete_note(name: str, expected_sha256: str = "") -> str:
     """Move a note to private recoverable trash instead of permanently deleting it."""
     p = note_path(name, True)
+    check_revision(p, expected_sha256)
     dest = TRASH / "deleted" / datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%S%f") / name
     dest.parent.mkdir(parents=True, exist_ok=True)
     shutil.move(str(p), str(dest))
