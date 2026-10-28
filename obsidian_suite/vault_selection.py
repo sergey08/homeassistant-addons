@@ -7,6 +7,8 @@ def select_vault(configured_vault: str, default_vault: Path, shared_root: Path =
         return default_vault
     root = shared_root.resolve(strict=True)
     vault = Path(configured_vault.strip())
+    if ".." in vault.parts or "." in vault.parts:
+        raise ValueError("Relative navigation segments are not allowed in vault_path")
     if not vault.is_absolute() or vault == shared_root or not vault.is_dir() or vault.is_symlink():
         raise ValueError("Vault must be an existing real subdirectory of /share")
     resolved = vault.resolve(strict=True)
