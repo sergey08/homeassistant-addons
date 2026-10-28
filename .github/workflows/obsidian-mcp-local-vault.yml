@@ -2,16 +2,8 @@ name: Obsidian MCP local Markdown vault tests
 on:
   workflow_dispatch:
   push:
-    branches: [feature/markdown-local-vault]
-    paths:
-      - 'obsidian_suite/**'
-      - 'obsidian_mcp_local_dev/**'
-      - '.github/workflows/obsidian-mcp-local-vault.yml'
+    branches: [main, feature/markdown-local-vault]
   pull_request:
-    paths:
-      - 'obsidian_suite/**'
-      - 'obsidian_mcp_local_dev/**'
-      - '.github/workflows/obsidian-mcp-local-vault.yml'
 permissions:
   contents: read
 jobs:
