@@ -14,6 +14,7 @@ from couchdb_check import check_couchdb, CouchCheckError
 from tunnel_key import store_runtime_key, TunnelKeyError
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from vault_selection import select_storage
 
 DATA = Path("/data")
 LEGACY = Path("/app_configs/obsidian_bridge")
@@ -29,9 +30,19 @@ def collect_status(data=DATA, legacy=LEGACY):
     def exists(path):
         return path.is_file() and path.stat().st_size > 0
     tunnel = bool(options.get("enable_tunnel", False))
-    sync = bool(options.get("enable_livesync", False))
+    try:
+        mode, vault, sync = select_storage(options, base / "vault")
+        vault_ready = vault.is_dir()
+        vault_error = ""
+    except (ValueError, OSError) as exc:
+        mode = "invalid"
+        vault_ready = False
+        vault_error = str(exc)
+        sync = False
     return {
-        "vault": (base / "vault").is_dir(),
+        "vault": vault_ready,
+        "storage_mode": mode,
+        "vault_error": vault_error,
         "trash": (base / "mcp-trash").is_dir(),
         "sync_enabled": sync,
         "sync_settings": exists(base / "settings/livesync-operativo.json"),
@@ -43,7 +54,8 @@ def collect_status(data=DATA, legacy=LEGACY):
 
 def render_page(status, message=""):
     items = [
-        ("Local Markdown vault", status["vault"], "Created on first startup"),
+        ("Markdown vault (" + status["storage_mode"] + ")", status["vault"],
+         status["vault_error"] or "Check vault_path in Configuration if using local mode"),
         ("Recoverable trash", status["trash"], "Created on first startup"),
         ("LiveSync settings", status["sync_settings"], "Import settings from your Obsidian client"),
         ("LiveSync enabled", status["sync_enabled"], "Enable only after configuring synchronization"),
@@ -59,7 +71,7 @@ def render_page(status, message=""):
     )
     message_html = ("<p role='status'>" + html.escape(message) + "</p>") if message else ""
     setup_form = ""
-    if not status["sync_settings"] and not status["sync_enabled"]:
+    if status["storage_mode"] == "livesync" and not status["sync_settings"] and not status["sync_enabled"]:
         setup_form = (
             "<h2>Import existing LiveSync CLI settings</h2>"
             "<p>Paste the contents of a trusted, pre-exported LiveSync CLI settings JSON file. "
@@ -71,7 +83,7 @@ def render_page(status, message=""):
             "style='display:block;width:100%;max-width:100%;margin:.5em 0;background:#282b38;color:white'></textarea>"
             "<button type='submit'>Import settings once</button></form>"
         )
-    if status["sync_settings"]:
+    if status["storage_mode"] == "livesync" and status["sync_settings"]:
         setup_form += (
             "<h2>Check CouchDB connection</h2>"
             "<p>Read-only: checks authentication, database metadata and TLS. Never starts synchronization.</p>"
@@ -105,7 +117,7 @@ def render_page(status, message=""):
         "<table><thead><tr><th>Requirement</th><th>Status</th><th>Next step</th></tr></thead>"
         "<tbody>"+rows+"</tbody></table>"+message_html+setup_form
         +"<p class='hint'>CouchDB connection and end-to-end synchronization have not been verified by this checklist.</p>"
-        "<p><a href='https://github.com/sergey08/obsidian-mcp-homeassistant/blob/main/obsidian_suite/DOCS.md'"
+        "<p><a href='https://github.com/sergey08/homeassistant-addons/blob/main/obsidian_suite/DOCS.md'"
         " target='_blank' rel='noopener noreferrer'>Setup documentation</a></p></html>")
 
 class Handler(BaseHTTPRequestHandler):

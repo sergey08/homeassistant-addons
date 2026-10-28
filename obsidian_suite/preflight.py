@@ -3,6 +3,7 @@
 import json
 import os
 from pathlib import Path
+from vault_selection import select_storage
 
 OWNED = Path("/data")
 LEGACY = Path("/app_configs/obsidian_bridge")
@@ -17,16 +18,20 @@ def main():
         options = json.loads(config.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         options = {}
-    vault = BASE / "vault"
-    status("Vault directory", vault.is_dir(), "Created automatically on first start")
+    try:
+        mode, vault, sync_enabled = select_storage(options, BASE / "vault")
+        status(f"Vault directory ({mode})", vault.is_dir(), "Check the configured folder")
+    except (ValueError, OSError) as exc:
+        status("Vault directory", False, str(exc))
+        sync_enabled = False
     status("Private trash", (BASE / "mcp-trash").is_dir(), "Created automatically on first start")
-    if options.get("enable_livesync", False):
+    if sync_enabled:
         settings = BASE / "settings/livesync-operativo.json"
         status("LiveSync settings", settings.is_file() and settings.stat().st_size > 0,
                "Import a Self-hosted LiveSync setup URI before enabling sync")
         # Do not attempt authentication or a remote sync from a diagnostic command.
     else:
-        print("[DISABLED] LiveSync: configure CouchDB/LiveSync first")
+        print("[DISABLED] LiveSync: local mode or sync disabled")
     if options.get("enable_tunnel", False):
         binary = BASE / "tunnel/bin/tunnel-client"
         key = BASE / "tunnel/api-key"

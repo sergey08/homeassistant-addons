@@ -5,6 +5,7 @@ import os
 import signal
 import subprocess
 from preflight import main as check_prerequisites
+from vault_selection import select_storage
 import sys
 import time
 import socket
@@ -44,10 +45,11 @@ def required(path, executable=False):
 
 def main():
     options = json.loads((DATA / "options.json").read_text(encoding="utf-8"))
-    vault = BASE / "vault"
+    mode, vault, run_livesync = select_storage(options, BASE / "vault")
+    configured_vault = mode == "local"
     trash = BASE / "mcp-trash"
     # Do not follow unexpected symbolic links when preparing persistent storage.
-    for folder in (vault, trash):
+    for folder in ((trash,) if configured_vault else (vault, trash)):
         if folder.is_symlink():
             raise RuntimeError(f"Managed storage path must not be a symbolic link: {folder}")
         folder.mkdir(parents=True, exist_ok=True)
@@ -67,7 +69,7 @@ def main():
 
     start("onboarding", ["/opt/venv/bin/python", "/opt/obsidian/onboarding.py"])
     start("mcp", ["/opt/venv/bin/python", "/opt/obsidian/server.py"])
-    if options.get("enable_livesync", True):
+    if run_livesync:
         settings = BASE / "settings/livesync-operativo.json"
         required(settings)
         interval = int(options.get("livesync_interval", 60))
