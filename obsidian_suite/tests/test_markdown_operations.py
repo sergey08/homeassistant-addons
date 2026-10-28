@@ -89,7 +89,7 @@ class MarkdownOperationsTests(unittest.TestCase):
             module.delete_note("guarded.md", expected_sha256=revision)
         self.assertEqual(module.read_note("guarded.md"), "external edit")
         fresh = module.note_revision("guarded.md")
-        module.append_note("guarded.md", "\\nnew line", expected_sha256=fresh)
+        module.append_note("guarded.md", "\nnew line", expected_sha256=fresh)
         self.assertIn("new line", module.read_note("guarded.md"))
 
     def test_reject_overwrite_without_permission(self):
