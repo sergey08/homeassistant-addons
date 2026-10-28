@@ -1,5 +1,5 @@
 name: "Obsidian MCP Local (Development)"
-version: "0.2.3-dev2"
+version: "0.2.3-dev3"
 slug: "obsidian_mcp_local_dev"
 description: "Isolated local Markdown testing without CouchDB, tunnel or shared app-config access"
 url: "https://github.com/sergey08/homeassistant-addons"
@@ -14,6 +14,8 @@ init: false
 map:
   - type: share
     read_only: false
+  - type: all_app_configs
+    read_only: true
 options:
   tunnel_id: ""
   enable_tunnel: false
