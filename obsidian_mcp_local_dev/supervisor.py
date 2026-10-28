@@ -86,26 +86,26 @@ def main():
             "--vault", str(vault), "--interval", str(interval)
         ], cwd=DATA, env={**os.environ, "LIVESYNC_DB_PATH": str(db_path)})
     if options.get("enable_tunnel", False):
-        raise RuntimeError("Secure tunnel is disabled in isolated development app")
-    if False:
         deadline = time.monotonic() + 30
         while time.monotonic() < deadline:
             if CHILDREN["mcp"].poll() is not None:
-                raise RuntimeError("MCP server exited before becoming ready")
+                raise RuntimeError("MCP server exited before tunnel readiness")
             try:
                 with socket.create_connection(("127.0.0.1", 8765), timeout=1):
-                    print("MCP TCP endpoint is ready", flush=True)
                     break
             except OSError:
                 time.sleep(0.5)
         else:
-            raise RuntimeError("MCP server did not become ready within 30 seconds")
+            raise RuntimeError("MCP not ready")
         tunnel_id = str(options.get("tunnel_id", "")).strip()
         if not tunnel_id:
-            raise RuntimeError("Tunnel ID is required when tunnel is enabled")
-        binary = required(BASE / "tunnel/bin/tunnel-client", executable=True)
-        key = required(BASE / "tunnel/api-key")
-        run_dir = BASE / "tunnel/run"
+            raise RuntimeError("Tunnel ID required")
+        # Existing production provisioned credentials are mounted read-only.
+        # The development app writes only its own runtime files to /data.
+        credentials = Path("/app_configs/obsidian_bridge/tunnel")
+        binary = required(credentials / "bin/tunnel-client", executable=True)
+        key = required(credentials / "api-key")
+        run_dir = DATA / "tunnel/run"
         run_dir.mkdir(parents=True, exist_ok=True)
         start("tunnel", [
             binary, "run",
