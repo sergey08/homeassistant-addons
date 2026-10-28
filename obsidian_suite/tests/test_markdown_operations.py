@@ -77,6 +77,21 @@ class MarkdownOperationsTests(unittest.TestCase):
         module.write_note("shared.md", "agent change", overwrite=True, expected_sha256=current_revision)
         self.assertEqual(module.read_note("shared.md"), "agent change")
 
+    def test_guard_applies_to_append_rename_delete(self):
+        module.write_note("guarded.md", "initial")
+        revision = module.note_revision("guarded.md")
+        (self.vault / "guarded.md").write_text("external edit", encoding="utf-8")
+        with self.assertRaises(RuntimeError):
+            module.append_note("guarded.md", "should not append", expected_sha256=revision)
+        with self.assertRaises(RuntimeError):
+            module.rename_note("guarded.md", "renamed.md", expected_sha256=revision)
+        with self.assertRaises(RuntimeError):
+            module.delete_note("guarded.md", expected_sha256=revision)
+        self.assertEqual(module.read_note("guarded.md"), "external edit")
+        fresh = module.note_revision("guarded.md")
+        module.append_note("guarded.md", "\\nnew line", expected_sha256=fresh)
+        self.assertIn("new line", module.read_note("guarded.md"))
+
     def test_reject_overwrite_without_permission(self):
         module.write_note("existing.md", "original")
         with self.assertRaises(FileExistsError):
