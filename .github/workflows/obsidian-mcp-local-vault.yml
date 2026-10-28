@@ -26,3 +26,33 @@ jobs:
                   raise SystemExit(f'{addon}: missing Docker COPY sources: {missing}')
           print('Docker COPY source checks passed')
           PY
+
+  clean-install-container:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build real Home Assistant add-on image
+        run: docker build --build-arg BUILD_VERSION=ci -t obsidian-mcp-smoke ./obsidian_suite
+      - name: Start clean Local mode without CouchDB or tunnel
+        run: |
+          set -eu
+          mkdir -p "$RUNNER_TEMP/obsidian-smoke/data" "$RUNNER_TEMP/obsidian-smoke/share/new-vault"
+          printf '%s\n' '{"storage_mode":"local","vault_path":"/share/new-vault","enable_livesync":false,"enable_tunnel":false,"livesync_interval":60,"tunnel_id":""}' > "$RUNNER_TEMP/obsidian-smoke/data/options.json"
+          docker run -d --name obsidian-smoke -p 127.0.0.1:18765:8765 -v "$RUNNER_TEMP/obsidian-smoke/data:/data" -v "$RUNNER_TEMP/obsidian-smoke/share:/share" obsidian-mcp-smoke
+          for i in $(seq 1 60); do
+            if curl -fsS --max-time 3 http://127.0.0.1:18765/mcp -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' --data '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"ci-smoke","version":"1.0"}}}' | grep -q 'serverInfo'; then break; fi
+            if ! docker ps --format '{{.Names}}' | grep -qx obsidian-smoke; then docker logs obsidian-smoke; exit 1; fi
+            sleep 2
+          done
+          docker inspect -f '{{.State.Running}}' obsidian-smoke | grep -qx true
+          docker logs obsidian-smoke 2>&1 | grep -q 'Using persistent vault at /share/new-vault'
+          docker logs obsidian-smoke 2>&1 | grep -q 'Started mcp'
+          test ! -e "$RUNNER_TEMP/obsidian-smoke/data/settings/livesync-operativo.json"
+          test ! -e "$RUNNER_TEMP/obsidian-smoke/data/tunnel/api-key"
+          echo 'Fresh Local-mode container startup validated'
+      - name: Logs and cleanup
+        if: always()
+        run: |
+          docker logs obsidian-smoke 2>&1 | tail -100 || true
+          docker rm -f obsidian-smoke || true
