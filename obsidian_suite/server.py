@@ -65,6 +65,15 @@ def read_note(name: str) -> str:
 
 
 @mcp.tool()
+def read_note_with_revision(name: str) -> dict:
+    """Read a note with its SHA-256 revision. Pass sha256 as expected_sha256 when editing."""
+    with NOTE_WRITE_LOCK:
+        content = note_path(name, True).read_bytes()
+        return {"name": name, "content": content.decode("utf-8"),
+                "sha256": hashlib.sha256(content).hexdigest()}
+
+
+@mcp.tool()
 def note_revision(name: str) -> str:
     """Return SHA-256 of a note for safe optimistic updates."""
     return hashlib.sha256(note_path(name, True).read_bytes()).hexdigest()
