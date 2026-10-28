@@ -12,6 +12,11 @@ def select_vault(configured_vault: str, default_vault: Path, shared_root: Path =
     resolved = vault.resolve(strict=True)
     if resolved == root or not resolved.is_relative_to(root):
         raise ValueError("Vault path is outside /share")
+    cursor = root
+    for part in vault.relative_to(shared_root).parts:
+        cursor = cursor / part
+        if cursor.is_symlink():
+            raise ValueError("Symlinked parent directories are not allowed")
     return resolved
 
 
