@@ -51,6 +51,25 @@ jobs:
           test ! -e "$RUNNER_TEMP/obsidian-smoke/data/settings/livesync-operativo.json"
           test ! -e "$RUNNER_TEMP/obsidian-smoke/data/tunnel/api-key"
           echo 'Fresh Local-mode container startup validated'
+      - name: Verify staged fresh LiveSync boot without CouchDB credentials
+        run: |
+          set -eu
+          docker rm -f obsidian-smoke || true
+          mkdir -p "$RUNNER_TEMP/obsidian-smoke/livesync-data"
+          printf '%s\n' '{"storage_mode":"livesync","vault_path":"","enable_livesync":false,"enable_tunnel":false,"livesync_interval":60,"tunnel_id":""}' > "$RUNNER_TEMP/obsidian-smoke/livesync-data/options.json"
+          docker run -d --name obsidian-livesync-smoke -p 127.0.0.1:18766:8765 -v "$RUNNER_TEMP/obsidian-smoke/livesync-data:/data" obsidian-mcp-smoke
+          ready=0
+          for i in $(seq 1 40); do
+            if curl -fsS --max-time 3 http://127.0.0.1:18766/mcp -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' --data '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"ci-livesync-smoke","version":"1.0"}}}' | grep -q 'serverInfo'; then ready=1; break; fi
+            if ! docker ps --format '{{.Names}}' | grep -qx obsidian-livesync-smoke; then docker logs obsidian-livesync-smoke; exit 1; fi
+            sleep 2
+          done
+          test "$ready" -eq 1
+          docker logs obsidian-livesync-smoke 2>&1 | grep -q 'Using persistent vault at /data/vault'
+          test -d "$RUNNER_TEMP/obsidian-smoke/livesync-data/vault"
+          test ! -e "$RUNNER_TEMP/obsidian-smoke/livesync-data/settings/livesync-operativo.json"
+          docker rm -f obsidian-livesync-smoke
+          echo 'Fresh LiveSync staged startup validated'
       - name: Logs and cleanup
         if: always()
         run: |
