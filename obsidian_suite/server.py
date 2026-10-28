@@ -68,6 +68,13 @@ def note_revision(name: str) -> str:
     return hashlib.sha256(note_path(name, True).read_bytes()).hexdigest()
 
 
+def check_revision(path: Path, expected_sha256: str) -> None:
+    """Reject stale edits when a revision is supplied by the caller."""
+    if expected_sha256 and (not path.is_file() or
+        hashlib.sha256(path.read_bytes()).hexdigest() != expected_sha256):
+        raise RuntimeError("Note changed since it was read; refusing modification")
+
+
 @mcp.tool()
 def write_note(name: str, content: str, overwrite: bool = False, expected_sha256: str = "") -> str:
     """Create a Markdown note. Replacing an existing note requires overwrite=True."""
@@ -77,9 +84,7 @@ def write_note(name: str, content: str, overwrite: bool = False, expected_sha256
         raise FileExistsError("Note already exists; use overwrite=True to replace it")
     if p.exists() and (not p.is_file() or p.is_symlink()):
         raise ValueError("Invalid destination")
-    if expected_sha256:
-        if not p.is_file() or hashlib.sha256(p.read_bytes()).hexdigest() != expected_sha256:
-            raise RuntimeError("Note changed since it was read; refusing overwrite")
+    check_revision(p, expected_sha256)
     if p.exists():
         backup = TRASH / "versions" / datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%S%f") / name
         backup.parent.mkdir(parents=True, exist_ok=True)
@@ -100,18 +105,20 @@ def write_note(name: str, content: str, overwrite: bool = False, expected_sha256
 
 
 @mcp.tool()
-def append_note(name: str, content: str) -> str:
+def append_note(name: str, content: str, expected_sha256: str = "") -> str:
     """Append content to an existing Markdown note."""
     p = note_path(name, True)
+    check_revision(p, expected_sha256)
     with p.open("a", encoding="utf-8") as f:
         f.write(content)
     return f"Updated: {name}"
 
 
 @mcp.tool()
-def rename_note(source: str, destination: str) -> str:
+def rename_note(source: str, destination: str, expected_sha256: str = "") -> str:
     """Move or rename a note without overwriting an existing destination."""
     src, dst = note_path(source, True), note_path(destination)
+    check_revision(src, expected_sha256)
     if dst.exists():
         raise FileExistsError(destination)
     dst.parent.mkdir(parents=True, exist_ok=True)
@@ -120,9 +127,10 @@ def rename_note(source: str, destination: str) -> str:
 
 
 @mcp.tool()
-def delete_note(name: str) -> str:
+def delete_note(name: str, expected_sha256: str = "") -> str:
     """Move a note to private recoverable trash instead of permanently deleting it."""
     p = note_path(name, True)
+    check_revision(p, expected_sha256)
     dest = TRASH / "deleted" / datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%S%f") / name
     dest.parent.mkdir(parents=True, exist_ok=True)
     shutil.move(str(p), str(dest))
