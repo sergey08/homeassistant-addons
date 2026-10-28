@@ -9,6 +9,20 @@ from vault_selection import select_storage
 
 
 class ModeSwitchTests(unittest.TestCase):
+    def test_invalid_local_path_never_falls_back_to_real_vault(self):
+        with tempfile.TemporaryDirectory() as temp:
+            base = Path(temp)
+            share = base / "share"
+            share.mkdir()
+            real = base / "real-vault"
+            real.mkdir()
+            (real / "private.md").write_text("preserve", encoding="utf-8")
+            for path in ("", str(share), str(share / "missing")):
+                with self.subTest(path=path), self.assertRaises((ValueError, FileNotFoundError)):
+                    select_storage({"storage_mode": "local", "vault_path": path,
+                                    "enable_livesync": True}, real, share)
+            self.assertEqual((real / "private.md").read_text(encoding="utf-8"), "preserve")
+
     def test_switching_storage_is_non_destructive(self):
         with tempfile.TemporaryDirectory() as temp:
             base = Path(temp)
