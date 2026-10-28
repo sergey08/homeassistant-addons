@@ -3,6 +3,7 @@ import importlib.util
 import sys
 import tempfile
 import types
+from concurrent.futures import ThreadPoolExecutor
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -91,6 +92,20 @@ class MarkdownOperationsTests(unittest.TestCase):
         fresh = module.note_revision("guarded.md")
         module.append_note("guarded.md", "\nnew line", expected_sha256=fresh)
         self.assertIn("new line", module.read_note("guarded.md"))
+
+    def test_two_mcp_writers_cannot_both_commit_same_revision(self):
+        module.write_note("race.md", "original")
+        revision = module.note_revision("race.md")
+        def attempt(value):
+            try:
+                module.write_note("race.md", value, overwrite=True, expected_sha256=revision)
+                return True
+            except RuntimeError:
+                return False
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            results = list(pool.map(attempt, ["writer A", "writer B"]))
+        self.assertEqual(sorted(results), [False, True])
+        self.assertIn(module.read_note("race.md"), ("writer A", "writer B"))
 
     def test_reject_overwrite_without_permission(self):
         module.write_note("existing.md", "original")
