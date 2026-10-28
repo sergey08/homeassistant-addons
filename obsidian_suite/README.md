@@ -46,3 +46,5 @@ The same MCP tools work in both modes. In Home Assistant **Configuration**, sele
 Before replacing a working 0.2.2 install: back up the vault and add-on configuration, verify the current tunnel credentials remain provisioned, then test `list_notes`, `read_note`, `write_note`, and `search_notes` against disposable local notes. To return to LiveSync, set `storage_mode=livesync`, keep the existing persistent LiveSync vault and settings, and enable `enable_livesync` as appropriate. Avoid running two LiveSync writers at once. The Ingress page is for diagnostics, not an alternative configuration form.
 
 On the experimental local development add-on, tunnel credential files are read from an existing provisioned app's read-only mounted configuration; no keys are copied into the Markdown vault. Do not delete the provisioned stable app during testing.
+
+CI validation: the regression workflow is registered on the repository default branch so pull requests can be checked before merging.
