@@ -15,6 +15,8 @@ from tunnel_key import store_runtime_key, TunnelKeyError
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from vault_selection import select_storage
+from folder_options import save_local_vault
+from urllib.error import URLError, HTTPError
 
 DATA = Path("/data")
 LEGACY = Path("/app_configs/obsidian_bridge")
@@ -112,11 +114,14 @@ def render_page(status, message="", browse=""):
                 "<h2>Browse Markdown folders</h2>"
                 "<p>Current: <code>" + html.escape(current) + "</code></p>"
                 + up + "<ul>" + choices + "</ul>"
-                "<p>To use this folder, copy the path below to <code>vault_path</code> "
-                "in the app Configuration tab. Restart after saving.</p>"
-                "<input readonly aria-label='Selected folder path' value='" +
+                "<p>Select this folder for the local Markdown vault:</p>"
+                "<form method='post' action='./'>"
+                "<input type='hidden' name='csrf' value='" + CSRF_TOKEN + "'>"
+                "<input type='hidden' name='action' value='set_local_folder'>"
+                "<input readonly name='vault_path' aria-label='Selected folder path' value='" +
                 html.escape(current, quote=True) + "' style='width:100%'>"
-                "<p>This browser does not change settings or files.</p>"
+                "<button type='submit'>Save selected folder</button></form>"
+                "<p>Saving updates this app's own settings. Restart the app to activate the change.</p>"
             )
         except (ValueError, OSError) as exc:
             setup_form += "<p>Folder unavailable: " + html.escape(str(exc)) + "</p>"
@@ -203,7 +208,16 @@ class Handler(BaseHTTPRequestHandler):
             self.send_error(403)
             return
         status = collect_status()
-        if data.get("action") == ["save_tunnel_key"]:
+        if data.get("action") == ["set_local_folder"]:
+            if status["storage_mode"] != "local":
+                message = "Folder selection is only available in local mode."
+            else:
+                try:
+                    selected = save_local_vault(data.get("vault_path", [""])[0])
+                    message = "Saved " + selected + ". Restart the app to activate the new folder."
+                except (ValueError, OSError, RuntimeError, HTTPError, URLError) as exc:
+                    message = "Folder could not be saved: " + str(exc)
+        elif data.get("action") == ["save_tunnel_key"]:
             base = LEGACY if (LEGACY / "vault").is_dir() else DATA
             if status["tunnel_enabled"] or status["tunnel_key"]:
                 message = "Import refused: tunnel is enabled or key already exists."
