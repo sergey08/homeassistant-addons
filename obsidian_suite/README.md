@@ -29,22 +29,48 @@ The current release supports existing, provisioned installations. **A fresh inst
 See [complete Documentation](DOCS.md), the [Changelog](CHANGELOG.md), and the [OpenAI Secure MCP Tunnel guide](https://developers.openai.com/api/docs/guides/secure-mcp-tunnels).
 
 
-## Local Markdown folder (0.2.3)
+## Choose your storage mode: LiveSync or Local Markdown
 
-Select `storage_mode: local` and set `vault_path` to an **existing** directory under `/share`, e.g. `/share/my-markdown-vault`. The application does not start LiveSync in local mode, even if an old `enable_livesync` option was previously enabled. MCP reads and writes Markdown files directly. No CouchDB or LiveSync is required for this local-only workflow.
+**One add-on, two storage modes.** Choose the mode in **Home Assistant → Settings → Apps → Obsidian MCP for Home Assistant → Configuration**. The ChatGPT MCP tools (list, search, read, write, append, rename and delete notes) work in both modes, but they operate on different folders.
 
-- Leave `storage_mode: livesync` (default) to preserve the existing production vault and LiveSync behavior. `vault_path` is ignored in this mode.
-- Use only a directory you own and intentionally grant the agent read/write access to. The agent can modify Markdown notes there.
-- `vault_path` cannot point outside `/share`, to `/share` itself, or to a symlink.
-- Back up your Markdown folder before enabling writes.
-- This setting is not available in the stable 0.2.2 build.
+| | **LiveSync — recommended for an existing Obsidian setup** | **Local Markdown — no synchronization** |
+|---|---|---|
+| Main use | Work with your normal Obsidian notes across devices | Work with Markdown files already stored on Home Assistant |
+| `storage_mode` | `livesync` (default) | `local` |
+| `vault_path` | **Leave empty**; the existing persistent LiveSync vault is selected automatically | **Required**: existing directory below `/share`, e.g. `/share/my-markdown-vault` |
+| `enable_livesync` | **On** to synchronize with CouchDB | **Off** (LiveSync will not start in local mode) |
+| CouchDB / Self-hosted LiveSync | Required for synchronization | Not required |
+| `enable_tunnel` | On if you want ChatGPT access | On if you want ChatGPT access |
 
-### Language-natural ChatGPT usage and migration checklist
+### Option 1 — LiveSync (your existing Obsidian vault)
 
-The same MCP tools work in both modes. In Home Assistant **Configuration**, select `storage_mode=local`, set `vault_path` to an existing subfolder of `/share`, leave `enable_livesync=false`, and enable the tunnel only after stopping the other app using the same tunnel ID. Save and restart the app. Never run two tunnel clients with one ID.
+This is the best option when you already use **Obsidian + Self-hosted LiveSync + CouchDB** and want ChatGPT to work with the *same* notes as your desktop or mobile Obsidian.
 
-Before replacing a working 0.2.2 install: back up the vault and add-on configuration, verify the current tunnel credentials remain provisioned, then test `list_notes`, `read_note`, `write_note`, and `search_notes` against disposable local notes. To return to LiveSync, set `storage_mode=livesync`, keep the existing persistent LiveSync vault and settings, and enable `enable_livesync` as appropriate. Avoid running two LiveSync writers at once. The Ingress page is for diagnostics, not an alternative configuration form.
+1. Select **Storage mode → livesync**.
+2. **Leave Local Markdown folder (`vault_path`) empty.** It is not a path to your CouchDB server and you do not need to enter the existing LiveSync vault path.
+3. Enable **LiveSync** and retain your existing LiveSync configuration and CouchDB credentials.
+4. Enable the **ChatGPT tunnel** if you want to access your notes from ChatGPT.
+5. Save and restart the add-on if you changed these settings.
 
-On the experimental local development add-on, tunnel credential files are read from an existing provisioned app's read-only mounted configuration; no keys are copied into the Markdown vault. Do not delete the provisioned stable app during testing.
+The add-on uses its previously provisioned vault under `/app_configs/obsidian_bridge/vault`. LiveSync mirrors changes between that vault and CouchDB. **Changing to Local mode does not migrate or synchronize files between the two modes.**
 
-CI validation: the regression workflow is registered on the repository default branch so pull requests can be checked before merging.
+### Option 2 — Local Markdown folder (without LiveSync)
+
+Choose this when you want ChatGPT to read or edit Markdown files directly in a folder on Home Assistant, **without a CouchDB server**.
+
+1. Create or select an **existing** directory inside `/share`, such as `/share/my-markdown-vault`.
+2. Select **Storage mode → local**.
+3. Fill in **Local Markdown folder (`vault_path`)** with the full directory path.
+4. Disable **LiveSync**; it will not start in Local mode even if the old option remains enabled.
+5. Optionally enable the **ChatGPT tunnel**, then save and restart the add-on.
+
+The directory cannot be `/share` itself, outside `/share`, or a symbolic link. The MCP agent can modify and delete notes: grant access only to a folder you own, and back it up before testing.
+
+### Switching modes safely
+
+- **LiveSync → Local:** make sure the local folder exists, back up your notes, select `local`, set `vault_path`, disable LiveSync, save and restart. This does **not** move the LiveSync vault.
+- **Local → LiveSync:** select `livesync`, clear `vault_path`, enable LiveSync and restart. The original synchronized vault and CouchDB settings are reused.
+- **Never run two add-ons using the same OpenAI tunnel ID simultaneously, nor two LiveSync writers on the same vault.** Stop the experimental instance before starting the production tunnel.
+- The add-on's **Configuration** tab is the source of truth for these settings; the Ingress page provides diagnostics, not another configuration form.
+
+For setup details and backups, see [the full documentation](DOCS.md). The storage-mode option requires **version 0.2.3 or later**.
