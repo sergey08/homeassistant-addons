@@ -107,6 +107,20 @@ class MarkdownOperationsTests(unittest.TestCase):
         self.assertEqual(sorted(results), [False, True])
         self.assertIn(module.read_note("race.md"), ("writer A", "writer B"))
 
+    def test_concurrent_append_with_same_revision_only_one_succeeds(self):
+        module.write_note("append-race.md", "base")
+        revision = module.note_revision("append-race.md")
+        def attempt(value):
+            try:
+                module.append_note("append-race.md", value, expected_sha256=revision)
+                return True
+            except RuntimeError:
+                return False
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            outcomes = list(pool.map(attempt, [" A", " B"]))
+        self.assertEqual(sorted(outcomes), [False, True])
+        self.assertIn(module.read_note("append-race.md"), ("base A", "base B"))
+
     def test_reject_overwrite_without_permission(self):
         module.write_note("existing.md", "original")
         with self.assertRaises(FileExistsError):
