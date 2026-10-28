@@ -10,6 +10,27 @@ Obsidian MCP Suite runs three services inside **one Home Assistant app**:
 
 The app is currently built for **amd64 Home Assistant OS** and supports an existing, provisioned `obsidian_bridge` vault. It does not create a new vault, CouchDB database or OpenAI account.
 
+## Fresh installation: choose the storage mode first
+
+The default configuration starts with **LiveSync selected but disabled**, and the **ChatGPT tunnel disabled**. This is intentional: a new installation should not require credentials before its first start.
+
+**Local Markdown mode (no CouchDB needed):**
+
+1. Create an existing Markdown directory under Home Assistant's `/share`, e.g. `/share/notes`.
+2. In **Configuration**, set `storage_mode: local`, `vault_path: /share/notes`, `enable_livesync: false`, and initially `enable_tunnel: false`.
+3. Start the add-on. The MCP HTTP service runs internally; it is not exposed publicly. The private tunnel can be configured and enabled separately after its credentials and binary are provisioned.
+4. Verify access and test only disposable notes first. Enabling the tunnel allows authorized ChatGPT users to edit files inside this folder.
+
+**LiveSync mode (your Obsidian vault via CouchDB):**
+
+1. Start with `storage_mode: livesync`, **`vault_path` empty**, `enable_livesync: false`, `enable_tunnel: false`.
+2. Start the add-on. On fresh installs the local vault is prepared under `/data/vault`; existing upgraded installations can reuse their legacy `/app_configs/obsidian_bridge/vault`.
+3. Provision a **separate** CouchDB database and compatible Self-hosted LiveSync CLI settings. Use the add-on's Ingress page to import a trusted pre-exported `livesync-operativo.json` (never paste private settings into GitHub).
+4. Only after validating the connection and backups, enable `enable_livesync` in **Configuration** and restart. Watch the logs for successful replication.
+5. Configure the OpenAI tunnel separately, with its own authorized tunnel ID, runtime key and client executable, then enable `enable_tunnel`.
+
+**Important:** Switching modes does not copy or migrate notes. Never share a tunnel ID across concurrently running add-ons, or use multiple LiveSync writers against the same vault. A fresh-start container check is not the same as a full bidirectional synchronization test; that validation remains tracked in [issue #8](https://github.com/sergey08/homeassistant-addons/issues/8).
+
 ## Recommended Home Assistant Obsidian server
 
 For the required CouchDB sync backend, we recommend **[Obsidian Sync Server SSL](https://github.com/alexbelgium/hassio-addons/tree/master/obsidian_syncserver_ssl)** from [alexbelgium's Home Assistant add-on repository](https://github.com/alexbelgium/hassio-addons).
@@ -59,8 +80,8 @@ See the [official Secure MCP Tunnel documentation](https://developers.openai.com
 | Field | Default | Description |
 | --- | --- | --- |
 | **Tunnel ID** (`tunnel_id`) | Empty | Your OpenAI Platform tunnel identifier. Required when tunnel is enabled; **not the runtime API key**. |
-| **Enable tunnel** (`enable_tunnel`) | `true` | Start the private ChatGPT tunnel connection. Requires executable, API key file and tunnel ID. |
-| **Enable LiveSync** (`enable_livesync`) | `true` | Run continuous synchronization using the existing CouchDB/LiveSync settings. Do not run a second LiveSync writer. |
+| **Enable tunnel** (`enable_tunnel`) | `false` | Start the private ChatGPT tunnel connection. Requires executable, API key file and tunnel ID. |
+| **Enable LiveSync** (`enable_livesync`) | `false` | Run continuous synchronization using the existing CouchDB/LiveSync settings. Do not run a second LiveSync writer. |
 | **LiveSync interval** (`livesync_interval`) | `60` | Seconds between polling cycles, allowed 30–3600. |
 
 Settings changes may require restarting the app. For an established installation, enable **Start on boot** only after all services have been tested.
