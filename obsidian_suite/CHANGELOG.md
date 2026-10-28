@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.3 — 2026-10-28
+
+- Adds selectable LiveSync and local Markdown storage modes in Home Assistant's native Configuration tab.
+- Keeps existing LiveSync vault and tunnel configuration compatible with the 0.2.2 installation.
+- Adds validated local vault paths, atomic Markdown writes, guarded revisions and regression tests.
+- Verified upgrade to the 0.2.3 release candidate with the user's CouchDB LiveSync, active tunnel and read access to 51 notes.
+- Does not remove or migrate existing notes; the experimental add-on remains separate until explicitly retired.
+
 ## 0.2.2 — 2026-10-26
 
 - Preserves the `obsidian_suite` add-on identity, existing Home Assistant options and persistent vault paths.
