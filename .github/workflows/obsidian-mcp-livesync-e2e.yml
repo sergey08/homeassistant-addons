@@ -1,0 +1,85 @@
+name: Obsidian MCP isolated CouchDB bidirectional E2E
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'obsidian_suite/**'
+      - '.github/workflows/obsidian-mcp-livesync-e2e.yml'
+permissions:
+  contents: read
+jobs:
+  isolated-livesync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build production add-on container
+        run: docker build --build-arg BUILD_VERSION=ci -t obsidian-e2e ./obsidian_suite
+      - name: Start isolated CouchDB
+        run: |
+          set -eu
+          docker network create obsidian-e2e
+          docker run -d --name obsidian-e2e-couch --network obsidian-e2e -e COUCHDB_USER=ci_admin -e COUCHDB_PASSWORD=ci_local_only_password couchdb:3.4
+          for i in $(seq 1 45); do
+            if docker exec obsidian-e2e-couch curl -fsS -u ci_admin:ci_local_only_password http://127.0.0.1:5984/_up >/dev/null; then break; fi
+            sleep 2
+          done
+          docker exec obsidian-e2e-couch curl -fsS -u ci_admin:ci_local_only_password -X PUT http://127.0.0.1:5984/obsidian_ci_e2e
+      - name: Prepare two independent LiveSync clients
+        run: |
+          set -eu
+          mkdir -p "$RUNNER_TEMP/e2e/a/vault" "$RUNNER_TEMP/e2e/b/vault"
+          python3 - <<'PY'
+          import json, os, pathlib
+          root = pathlib.Path(os.environ["RUNNER_TEMP"]) / "e2e"
+          settings = {
+            "couchDB_URI": "http://obsidian-e2e-couch:5984",
+            "couchDB_USER": "ci_admin",
+            "couchDB_PASSWORD": "ci_local_only_password",
+            "couchDB_DBNAME": "obsidian_ci_e2e",
+            "liveSync": True, "syncOnSave": True, "syncOnStart": True,
+            "encrypt": False, "usePluginSync": False, "isConfigured": True
+          }
+          for name in ("a", "b"):
+            p = root / name
+            (p / "data").mkdir()
+            (p / "data" / "options.json").write_text(json.dumps({"storage_mode":"livesync","vault_path":"","enable_livesync":True,"enable_tunnel":False,"livesync_interval":30,"tunnel_id":""}))
+            q = p / "data" / "settings"
+            q.mkdir()
+            (q / "livesync-operativo.json").write_text(json.dumps(settings))
+          PY
+      - name: Run two isolated production containers and verify A to B and B to A
+        run: |
+          set -eu
+          ROOT="$RUNNER_TEMP/e2e"
+          for name in a b; do
+            docker run -d --name "obsidian-e2e-$name" --network obsidian-e2e -v "$ROOT/$name/data:/data" obsidian-e2e
+          done
+          for i in $(seq 1 45); do
+            if docker logs obsidian-e2e-a 2>&1 | grep -q 'Initial replication complete' && docker logs obsidian-e2e-b 2>&1 | grep -q 'Initial replication complete'; then break; fi
+            if ! docker ps --format '{{.Names}}' | grep -qx obsidian-e2e-a || ! docker ps --format '{{.Names}}' | grep -qx obsidian-e2e-b; then docker logs obsidian-e2e-a; docker logs obsidian-e2e-b; exit 1; fi
+            sleep 2
+          done
+          printf 'from A\n' > "$ROOT/a/data/vault/a-to-b.md"
+          found=0
+          for i in $(seq 1 20); do
+            if test -f "$ROOT/b/data/vault/a-to-b.md" && grep -q 'from A' "$ROOT/b/data/vault/a-to-b.md"; then found=1; break; fi
+            sleep 5
+          done
+          test "$found" -eq 1
+          printf 'from B\n' > "$ROOT/b/data/vault/b-to-a.md"
+          found=0
+          for i in $(seq 1 20); do
+            if test -f "$ROOT/a/data/vault/b-to-a.md" && grep -q 'from B' "$ROOT/a/data/vault/b-to-a.md"; then found=1; break; fi
+            sleep 5
+          done
+          test "$found" -eq 1
+          echo 'Bidirectional LiveSync verified on isolated CouchDB'
+      - name: Logs and cleanup
+        if: always()
+        run: |
+          for name in obsidian-e2e-a obsidian-e2e-b obsidian-e2e-couch; do
+            docker logs "$name" 2>&1 | tail -50 || true
+            docker rm -f "$name" || true
+          done
+          docker network rm obsidian-e2e || true
