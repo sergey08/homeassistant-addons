@@ -8,6 +8,7 @@ RUN python3 -m venv /opt/venv && /opt/venv/bin/pip install --no-cache-dir "mcp==
 COPY server.py /opt/obsidian/server.py
 COPY supervisor.py /opt/obsidian/supervisor.py
 COPY vault_selection.py /opt/obsidian/vault_selection.py
+COPY folder_options.py /opt/obsidian/folder_options.py
 COPY preflight.py /opt/obsidian/preflight.py
 COPY onboarding.py /opt/obsidian/onboarding.py
 COPY settings_import.py /opt/obsidian/settings_import.py
