@@ -29,7 +29,7 @@ The current release supports existing, provisioned installations. **A fresh inst
 See [complete Documentation](DOCS.md), the [Changelog](CHANGELOG.md), and the [OpenAI Secure MCP Tunnel guide](https://developers.openai.com/api/docs/guides/secure-mcp-tunnels).
 
 
-## Local Markdown folder (0.2.3 development)
+## Local Markdown folder (0.2.3)
 
 Select `storage_mode: local` and set `vault_path` to an **existing** directory under `/share`, e.g. `/share/my-markdown-vault`. The application does not start LiveSync in local mode, even if an old `enable_livesync` option was previously enabled. MCP reads and writes Markdown files directly. No CouchDB or LiveSync is required for this local-only workflow.
 
