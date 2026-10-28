@@ -60,14 +60,14 @@ jobs:
             if ! docker ps --format '{{.Names}}' | grep -qx obsidian-e2e-a || ! docker ps --format '{{.Names}}' | grep -qx obsidian-e2e-b; then docker logs obsidian-e2e-a; docker logs obsidian-e2e-b; exit 1; fi
             sleep 2
           done
-          printf 'from A\n' > "$ROOT/a/data/vault/a-to-b.md"
+          docker exec obsidian-e2e-a sh -c "printf 'from A\\n' > /data/vault/a-to-b.md"
           found=0
           for i in $(seq 1 20); do
             if test -f "$ROOT/b/data/vault/a-to-b.md" && grep -q 'from A' "$ROOT/b/data/vault/a-to-b.md"; then found=1; break; fi
             sleep 5
           done
           test "$found" -eq 1
-          printf 'from B\n' > "$ROOT/b/data/vault/b-to-a.md"
+          docker exec obsidian-e2e-b sh -c "printf 'from B\\n' > /data/vault/b-to-a.md"
           found=0
           for i in $(seq 1 20); do
             if test -f "$ROOT/a/data/vault/b-to-a.md" && grep -q 'from B' "$ROOT/a/data/vault/b-to-a.md"; then found=1; break; fi
