@@ -1,5 +1,5 @@
 name: "Obsidian MCP for Home Assistant"
-version: "0.2.3-dev1"
+version: "0.2.3-rc1"
 slug: "obsidian_suite"
 description: "One Home Assistant app for Obsidian notes, ChatGPT MCP access and LiveSync synchronization"
 url: "https://github.com/sergey08/homeassistant-addons"
