@@ -70,6 +70,16 @@ jobs:
           test ! -e "$RUNNER_TEMP/obsidian-smoke/livesync-data/settings/livesync-operativo.json"
           docker rm -f obsidian-livesync-smoke
           echo 'Fresh LiveSync staged startup validated'
+      - name: Reject enabled LiveSync without settings on a fresh install
+        run: |
+          set -eu
+          mkdir -p "$RUNNER_TEMP/obsidian-smoke/missing-sync-data"
+          printf '%s\n' '{"storage_mode":"livesync","vault_path":"","enable_livesync":true,"enable_tunnel":false,"livesync_interval":60,"tunnel_id":""}' > "$RUNNER_TEMP/obsidian-smoke/missing-sync-data/options.json"
+          docker run --name obsidian-missing-sync -v "$RUNNER_TEMP/obsidian-smoke/missing-sync-data:/data" obsidian-mcp-smoke > "$RUNNER_TEMP/obsidian-smoke/missing-sync.log" 2>&1 && { echo 'Unexpected success with missing settings'; exit 1; } || status=$?
+          grep -q 'Missing required file: /data/settings/livesync-operativo.json' "$RUNNER_TEMP/obsidian-smoke/missing-sync.log"
+          test ! -e "$RUNNER_TEMP/obsidian-smoke/missing-sync-data/settings/livesync-operativo.json"
+          docker rm obsidian-missing-sync
+          echo 'Missing LiveSync settings rejected safely'
       - name: Logs and cleanup
         if: always()
         run: |
