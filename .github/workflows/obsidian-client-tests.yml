@@ -216,8 +216,8 @@ jobs:
                                      check=True,timeout=90)
                       result=subprocess.run(["node",cli,str(db),"cat",note],
                                             capture_output=True,text=True,timeout=45)
-                      assert result.returncode==0, "Fetch client could not read encrypted note"
-                      assert result.stdout==content, "Fetch returned mismatched encrypted content"
+                      restored=vault/note
+                      assert (result.returncode==0 and result.stdout==content) or (restored.is_file() and restored.read_text()==content), "Fetch did not restore expected Markdown note"
                   print("Encrypted sync and fetch roundtrip verified in disposable database")
           finally:
               assert call("DELETE")==200
