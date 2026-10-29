@@ -604,8 +604,33 @@ def fetch_remote_to_disposable_database(config, *, timeout=120):
             else:
                 reason = "cli_failure"
             raise CLIUnavailable("cli_preview_" + reason)
-        notes = list_local_note_paths(binary, str(database))
-        return {"note_count": len(notes), "paths": sorted(notes),
+        # fetch may restore Markdown directly into the isolated Vault while
+        # its local database has no cat-addressable note. Inspect actual files.
+        restored = []
+        for root, dirs, files in os.walk(vault, followlinks=False):
+            dirs[:] = [name for name in dirs
+                       if not (Path(root) / name).is_symlink()]
+            for name in files:
+                candidate = Path(root) / name
+                if candidate.is_symlink() or not name.lower().endswith(".md"):
+                    continue
+                relative = candidate.relative_to(vault).as_posix()
+                from livesync_write_preflight import validate_write_request, UnsafeWrite
+                try:
+                    validate_write_request(relative, "", None, creating=True)
+                except UnsafeWrite:
+                    raise CLIUnavailable("cli_preview_invalid_restored_path") from None
+                restored.append(relative)
+                if len(restored) > 1200:
+                    raise CLIUnavailable("cli_preview_too_many_notes")
+        if restored:
+            paths = sorted(set(restored))
+            source = "vault"
+        else:
+            notes = list_local_note_paths(binary, str(database))
+            paths = sorted(notes)
+            source = "local_database"
+        return {"note_count": len(paths), "paths": paths, "source": source,
                 "remote_writes_enabled": False, "persistent_local_modified": False}
 
 
