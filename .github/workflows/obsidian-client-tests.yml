@@ -203,7 +203,22 @@ jobs:
                       result=subprocess.run(["node",cli,second,"cat",note],capture_output=True,text=True,timeout=45)
                       assert result.returncode==0, "Second client could not read encrypted note"
                       assert result.stdout==content, "Encrypted note roundtrip content mismatch"
-                  print("Encrypted CLI cross-client roundtrip verified in disposable database")
+                  # The production client uses fetch, not just sync. Exercise
+                  # that exact command against a fresh disposable database.
+                  with tempfile.TemporaryDirectory() as third:
+                      vault=pathlib.Path(third)/"vault"
+                      vault.mkdir()
+                      db=pathlib.Path(third)/"db"
+                      db.mkdir()
+                      install_official_cli_settings(config,str(db))
+                      register_remote(cli,str(db),config)
+                      subprocess.run(["node",cli,str(db),"fetch","--force","--vault",str(vault)],
+                                     check=True,timeout=90)
+                      result=subprocess.run(["node",cli,str(db),"cat",note],
+                                            capture_output=True,text=True,timeout=45)
+                      assert result.returncode==0, "Fetch client could not read encrypted note"
+                      assert result.stdout==content, "Fetch returned mismatched encrypted content"
+                  print("Encrypted sync and fetch roundtrip verified in disposable database")
           finally:
               assert call("DELETE")==200
           PY
