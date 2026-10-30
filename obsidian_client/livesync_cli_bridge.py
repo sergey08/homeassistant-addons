@@ -580,7 +580,7 @@ def fetch_remote_to_disposable_database(config, *, timeout=120, note_path=None):
                 if error_code in known_codes:
                     raise CLIUnavailable("cli_preview_code_" + error_code)
                 detail_match = re.search(
-                    r"detail=(null_property|not_function|network|encryption|invalid_url|other) cause=[a-z0-9_-]{1,40}",
+                    r"detail=(null_property|not_function|network|encryption|invalid_url|undefined_value|invalid_structure|invalid_argument|database_closed|permission|other) cause=[a-z0-9_-]{1,40}",
                     output,
                 )
                 if error_type in ("typeerror", "error") and detail_match:
