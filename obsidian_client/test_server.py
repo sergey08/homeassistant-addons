@@ -88,6 +88,18 @@ class ClientTests(unittest.TestCase):
                     self.assertEqual(response.status_code, 502)
                     self.assertEqual(response.json["error"], expected)
 
+    def test_preview_typeerror_detail_is_safe(self):
+        from livesync_cli_bridge import CLIUnavailable
+        with patch.object(server, "options", return_value={"livesync_cli_enabled": True}):
+            with patch("livesync_cli_bridge.fetch_remote_to_disposable_database",
+                       side_effect=CLIUnavailable("cli_preview_typeerror_null_property")):
+                response = self.client.post(
+                    "/api/livesync-cli/remote-preview",
+                    json={"path": "Tests/note.md"},
+                    headers={"X-Obsidian-Client-Action": "remote-preview"})
+        self.assertEqual(response.status_code, 502)
+        self.assertEqual(response.json["error"], "cli_preview_typeerror_null_property")
+
     def test_unconfigured_connection(self):
         with patch.object(server, "options", return_value={}):
             response = self.client.get("/api/connection")
