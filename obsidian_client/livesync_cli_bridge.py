@@ -579,6 +579,12 @@ def fetch_remote_to_disposable_database(config, *, timeout=120, note_path=None):
                                "rangeerror", "aggregateerror", "error"}
                 if error_code in known_codes:
                     raise CLIUnavailable("cli_preview_code_" + error_code)
+                detail_match = re.search(
+                    r"detail=(null_property|not_function|network|encryption|invalid_url|other) cause=[a-z0-9_-]{1,40}",
+                    output,
+                )
+                if error_type == "typeerror" and detail_match:
+                    raise CLIUnavailable("cli_preview_typeerror_" + detail_match.group(1))
                 if error_type in known_types:
                     raise CLIUnavailable("cli_preview_type_" + error_type)
             if any(term in output for term in ("unauthorized", "forbidden", "authentication failed", "401", "403")):
