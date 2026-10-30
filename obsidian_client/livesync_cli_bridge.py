@@ -538,7 +538,7 @@ def publish_isolated_test_note(config, note_path, content, *, timeout=120):
                 "verified_remotely": False}
 
 
-def fetch_remote_to_disposable_database(config, *, timeout=120):
+def fetch_remote_to_disposable_database(config, *, timeout=120, note_path=None):
     """Fetch remote notes into a new temporary CLI database, never into live local data.
 
     The official CLI 'fetch --force' replaces only the disposable local database.
@@ -630,8 +630,32 @@ def fetch_remote_to_disposable_database(config, *, timeout=120):
             notes = list_local_note_paths(binary, str(database))
             paths = sorted(notes)
             source = "local_database"
-        return {"note_count": len(paths), "paths": paths, "source": source,
-                "remote_writes_enabled": False, "persistent_local_modified": False}
+        preview = {"note_count": len(paths), "paths": paths, "source": source,
+                   "remote_writes_enabled": False, "persistent_local_modified": False}
+        if note_path is not None:
+            from livesync_write_preflight import validate_write_request
+            validate_write_request(note_path, "", None, creating=True)
+            if note_path not in paths:
+                raise CLIUnavailable("cli_preview_note_not_found")
+            if source == "vault":
+                target = vault.joinpath(*note_path.split("/"))
+                # Refuse symlinks in every component, including the leaf.
+                if any(part.is_symlink() for part in (target, *target.parents)
+                       if part == vault or vault in part.parents):
+                    raise CLIUnavailable("cli_preview_symlink_not_allowed")
+                try:
+                    with target.open("rb") as handle:
+                        data = handle.read(2_000_001)
+                    if len(data) > 2_000_000:
+                        raise CLIUnavailable("cli_preview_note_too_large")
+                    content = data.decode("utf-8")
+                except (OSError, UnicodeDecodeError) as exc:
+                    raise CLIUnavailable("cli_preview_read_failed") from exc
+            else:
+                content = read_local_note(binary, str(database), note_path)
+            preview["note_path"] = note_path
+            preview["content"] = content
+        return preview
 
 
 def sync_configured_remote(binary, database_directory, *, timeout=120):
