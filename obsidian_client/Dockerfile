@@ -34,8 +34,17 @@ fetch_patch = """            // Only report bounded error class/code, never exce
             const fetchError = error instanceof Error ? error : undefined;
             const fetchCode = error && typeof error === "object" && "code" in error
                 ? (error as {code?: unknown}).code : undefined;
+            // Only fixed categories, never expose exception messages.
+            const message = fetchError?.message || "";
+            const cause = fetchError?.cause;
+            const causeName = cause instanceof Error ? cause.name : "unspecified";
+            const detail = /cannot read properties of (undefined|null)/i.test(message)
+                ? "null_property" : /is not a function/i.test(message) ? "not_function"
+                : /fetch failed|network/i.test(message) ? "network"
+                : /decrypt|encrypt|passphrase/i.test(message) ? "encryption"
+                : /invalid url|failed to parse url/i.test(message) ? "invalid_url" : "other";
             writeStderrLine(standardIo,
-                `[HA_FETCH_FAILURE] type=${fetchToken(fetchError?.name)} code=${fetchToken(fetchCode)}`);
+                `[HA_FETCH_FAILURE] type=${fetchToken(fetchError?.name)} code=${fetchToken(fetchCode)} detail=${detail} cause=${fetchToken(causeName)}`);
 """
 s = s.replace(fetch_needle, fetch_patch + fetch_needle)
 p.write_text(s)
