@@ -312,6 +312,9 @@ def livesync_cli_remote_preview():
             "cli_preview_typeerror_undefined_value", "cli_preview_typeerror_invalid_structure",
             "cli_preview_typeerror_invalid_argument", "cli_preview_typeerror_database_closed",
             "cli_preview_typeerror_permission",
+            "cli_preview_origin_rebuilder", "cli_preview_origin_replication",
+            "cli_preview_origin_storage", "cli_preview_origin_crypto",
+            "cli_preview_origin_settings", "cli_preview_origin_unknown",
             "cli_list_invalid_encoding", "cli_read_failed", "cli_invalid_encoding",
         }
         safe_code = code if code in allowed or code in safe_preview_codes else "remote_preview_failed"
