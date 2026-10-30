@@ -568,7 +568,7 @@ def fetch_remote_to_disposable_database(config, *, timeout=120):
             # Only fixed categories: never expose CLI output or credentials.
             output = (result.stderr + result.stdout).decode("utf-8", errors="replace").lower()[-12000:]
             fetch_diag = re.search(
-                r"\\[ha_fetch_failure\\] type=([a-z0-9_-]{1,40}) code=([a-z0-9_-]{1,40})",
+                r"\[ha_fetch_failure\] type=([a-z0-9_-]{1,40}) code=([a-z0-9_-]{1,40})",
                 output,
             )
             if fetch_diag:
@@ -662,7 +662,7 @@ def sync_configured_remote(binary, database_directory, *, timeout=120):
             status, hint = diagnostic.groups()
             # Expose only presence of known metadata fields, never their values.
             fields_match = re.search(
-                r"\\[ha_sync_status\\][^\\r\\n]{0,400} fields=([a-z0-9,]{1,240})",
+                r"\[ha_sync_status\][^\r\n]{0,400} fields=([a-z0-9,]{1,240})",
                 output,
             )
             if fields_match and status == "failed" and hint == "unspecified":
