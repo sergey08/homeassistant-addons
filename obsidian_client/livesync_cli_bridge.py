@@ -583,6 +583,9 @@ def fetch_remote_to_disposable_database(config, *, timeout=120, note_path=None):
                     r"detail=(null_property|not_function|network|encryption|invalid_url|undefined_value|invalid_structure|invalid_argument|database_closed|permission|other) cause=[a-z0-9_-]{1,40}",
                     output,
                 )
+                origin_match = re.search(r"origin=(rebuilder|replication|storage|crypto|settings|unknown)", output)
+                if error_type in ("typeerror", "error") and origin_match:
+                    raise CLIUnavailable("cli_preview_origin_" + origin_match.group(1))
                 if error_type in ("typeerror", "error") and detail_match:
                     raise CLIUnavailable("cli_preview_typeerror_" + detail_match.group(1))
                 if error_type in known_types:
