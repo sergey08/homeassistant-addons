@@ -170,7 +170,7 @@ class TestCLIBridge(unittest.TestCase):
             "livesync_encryption_enabled": True,
             "livesync_e2ee_passphrase": "phrase",
         }
-        fake_error = (b"[HA_FETCH_FAILURE] type=TypeError code=unspecified "
+        fake_error = (b"[HA_FETCH_FAILURE] type=Error code=unspecified "
                       b"detail=null_property cause=TypeError\\n")
         with patch("livesync_cli_bridge.validate_cli_installation",
                    side_effect=lambda binary, database: (binary, database)):
