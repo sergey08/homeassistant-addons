@@ -558,8 +558,8 @@ def fetch_remote_to_disposable_database(config, *, timeout=120, note_path=None):
         executable, _ = validate_cli_installation(binary, str(database))
         try:
             result = subprocess.run(
-                ["/usr/local/bin/node", executable, str(database), "fetch",
-                 "--force", "--vault", str(vault)],
+                ["/usr/local/bin/node", executable, str(database),
+                 "--vault", str(vault), "fetch", "--force"],
                 capture_output=True, timeout=timeout, check=False, shell=False,
             )
         except (OSError, subprocess.TimeoutExpired) as exc:
