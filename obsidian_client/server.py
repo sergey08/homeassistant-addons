@@ -269,10 +269,22 @@ def livesync_cli_remote_preview():
         return jsonify(error="cross_origin_blocked"), 403
     if request.headers.get("Origin") and request.headers.get("Sec-Fetch-Site") != "same-origin":
         return jsonify(error="cross_origin_blocked"), 403
+    payload = request.get_json(silent=True) if request.is_json else {}
+    if not isinstance(payload, dict) or set(payload) - {"path"}:
+        return jsonify(error="invalid_request"), 400
+    note_path = payload.get("path")
+    if note_path is not None:
+        from livesync_write_preflight import validate_write_request, UnsafeWrite
+        try:
+            validate_write_request(note_path, "", None, creating=True)
+        except (UnsafeWrite, ValueError, TypeError):
+            return jsonify(error="invalid_path"), 400
     try:
         with _local_save_lock:
-            result = fetch_remote_to_disposable_database(cfg)
-        return jsonify(result)
+            result = fetch_remote_to_disposable_database(cfg, note_path=note_path)
+        response = jsonify(result)
+        response.headers["Cache-Control"] = "no-store"
+        return response
     except CLIUnavailable as exc:
         code = str(exc)
         allowed = {"cli_preview_authentication", "cli_preview_network",
