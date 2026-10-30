@@ -70,6 +70,24 @@ class ClientTests(unittest.TestCase):
                 response = self.client.get("/remote/edit?path=Tests/note.md")
         self.assertEqual(response.status_code, 404)
 
+    def test_preview_exposes_only_known_failure_categories(self):
+        from livesync_cli_bridge import CLIUnavailable
+        with patch.object(server, "options", return_value={"livesync_cli_enabled": True}):
+            for upstream, expected in [
+                ("cli_preview_read_failed", "cli_preview_read_failed"),
+                ("cli_preview_remote_locked", "cli_preview_remote_locked"),
+                ("secret_internal_exception_detail", "remote_preview_failed"),
+            ]:
+                with self.subTest(upstream=upstream):
+                    with patch("livesync_cli_bridge.fetch_remote_to_disposable_database",
+                               side_effect=CLIUnavailable(upstream)):
+                        response = self.client.post(
+                            "/api/livesync-cli/remote-preview",
+                            json={"path": "Tests/note.md"},
+                            headers={"X-Obsidian-Client-Action": "remote-preview"})
+                    self.assertEqual(response.status_code, 502)
+                    self.assertEqual(response.json["error"], expected)
+
     def test_unconfigured_connection(self):
         with patch.object(server, "options", return_value={}):
             response = self.client.get("/api/connection")
