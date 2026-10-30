@@ -118,7 +118,12 @@ class TestCLIBridge(unittest.TestCase):
                     with patch("livesync_cli_bridge.subprocess.run", side_effect=pretend_fetch):
                         with patch("livesync_cli_bridge.list_local_note_paths") as local_list:
                             result = fetch_remote_to_disposable_database(config)
+                            preview = fetch_remote_to_disposable_database(
+                                config, note_path="Tests/restored.md")
                             local_list.assert_not_called()
+        self.assertEqual(preview["note_path"], "Tests/restored.md")
+        self.assertEqual(preview["content"], "# Restored")
+        self.assertFalse(preview["remote_writes_enabled"])
         self.assertEqual(result["paths"], ["Tests/restored.md"])
         self.assertEqual(result["source"], "vault")
         self.assertFalse(result["persistent_local_modified"])
