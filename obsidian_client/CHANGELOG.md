@@ -1,5 +1,14 @@
 # Changelog / Historial de cambios
 
+## 0.1.0-dev82 (experimental / experimental)
+- EN: Explicit, read-only Markdown retrieval through an isolated LiveSync CLI fetch; an editor button loads the remote copy on demand.
+- ES: Recuperación explícita de Markdown en solo lectura mediante una copia temporal aislada de LiveSync CLI; botón de carga manual en el editor.
+- EN: The draft editor can open when direct E2EE read fails, but local saving is blocked until a remote copy has been loaded.
+- ES: El editor puede abrirse si falla la lectura E2EE directa, pero bloquea el guardado local hasta cargar una copia remota.
+- EN: Preview request bounds, safe error categories and new offline tests. Remote editing/synchronization remain disabled.
+- ES: Límites de petición, categorías de errores seguras y nuevas pruebas locales. La edición y sincronización remota siguen desactivadas.
+- EN/ES: Automated regression suite and real CouchDB end-to-end verification still pending / Pendientes las pruebas automatizadas y la validación real extremo a extremo con CouchDB.
+
 ## 0.1.0-dev26
 - EN: Optional LiveSync encryption switch and private E2EE passphrase in add-on configuration. Decryption is **not yet implemented**.
 - ES: Selector de cifrado LiveSync y frase E2EE privada en la configuración. El descifrado **aún no está implementado**.
