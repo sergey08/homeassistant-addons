@@ -75,6 +75,15 @@ jobs:
       - uses: actions/checkout@v4
       - name: Build add-on container / Construir contenedor
         run: docker build -t obsidian-client-ci obsidian_client
+      - name: Verify patched fetch diagnostics in bundled CLI
+        run: |
+          docker run --rm --entrypoint sh obsidian-client-ci -c '
+            set -eu
+            test -s /opt/livesync-cli/dist/index.cjs
+            grep -q "HA_FETCH_FAILURE" /opt/livesync-cli/dist/index.cjs
+            grep -q "origin=" /opt/livesync-cli/dist/index.cjs
+            /usr/local/bin/node /opt/livesync-cli/dist/index.cjs --help >/dev/null
+          '
       - name: Verify packaged imports / Verificar módulos empaquetados
         run: |
           docker run --rm --entrypoint python obsidian-client-ci -c \
