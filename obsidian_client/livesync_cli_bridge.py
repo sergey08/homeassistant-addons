@@ -583,7 +583,7 @@ def fetch_remote_to_disposable_database(config, *, timeout=120, note_path=None):
                     r"detail=(null_property|not_function|network|encryption|invalid_url|other) cause=[a-z0-9_-]{1,40}",
                     output,
                 )
-                if error_type == "typeerror" and detail_match:
+                if error_type in ("typeerror", "error") and detail_match:
                     raise CLIUnavailable("cli_preview_typeerror_" + detail_match.group(1))
                 if error_type in known_types:
                     raise CLIUnavailable("cli_preview_type_" + error_type)
