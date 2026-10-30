@@ -235,8 +235,21 @@ jobs:
                       db.mkdir()
                       install_official_cli_settings(config,str(db))
                       register_remote(cli,str(db),config)
-                      subprocess.run(["node",cli,str(db),"--vault",str(vault),"fetch","--force"],
-                                     check=True,timeout=90)
+                      fetch_result=subprocess.run(
+                          ["node",cli,str(db),"--vault",str(vault),"fetch","--force"],
+                          capture_output=True,text=True,timeout=90)
+                      if fetch_result.returncode:
+                          import re
+                          diagnostic=re.search(
+                              r"\[HA_FETCH_FAILURE\] type=([A-Za-z0-9_-]{1,40}) "
+                              r"code=([A-Za-z0-9_-]{1,40}) "
+                              r"detail=([A-Za-z0-9_-]{1,40}) "
+                              r"cause=([A-Za-z0-9_-]{1,40}) "
+                              r"origin=([A-Za-z0-9_-]{1,40})",
+                              fetch_result.stderr)
+                          assert diagnostic, "Isolated fetch failed without structured diagnostic"
+                          print("Isolated fetch failure category:", diagnostic.groups())
+                          raise AssertionError("Packaged CLI failed encrypted isolated fetch")
                       result=subprocess.run(["node",cli,str(db),"cat",note],
                                             capture_output=True,text=True,timeout=45)
                       restored=vault/note
