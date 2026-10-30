@@ -299,7 +299,17 @@ def livesync_cli_remote_preview():
             return jsonify(error="note_not_found"), 404
         if code == "cli_preview_note_too_large":
             return jsonify(error="note_too_large"), 413
-        return jsonify(error=code if code in allowed else "remote_preview_failed"), 502
+        # Only expose fixed diagnostic categories: no process output, paths or credentials.
+        safe_preview_codes = {
+            "cli_preview_read_failed", "cli_preview_invalid_restored_path",
+            "cli_preview_too_many_notes", "cli_preview_symlink_not_allowed",
+            "cli_preview_fetch_failed", "cli_preview_remote_locked",
+            "cli_preview_version_incompatible", "cli_preview_invalid_encoding",
+            "cli_preview_cli_failure", "cli_list_failed", "cli_list_invalid_format",
+            "cli_list_invalid_encoding", "cli_read_failed", "cli_invalid_encoding",
+        }
+        safe_code = code if code in allowed or code in safe_preview_codes else "remote_preview_failed"
+        return jsonify(error=safe_code), 502
 
 
 @app.get("/api/livesync-cli/connection-check")
