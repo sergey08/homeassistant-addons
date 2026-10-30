@@ -164,9 +164,11 @@ jobs:
           container=$(docker create obsidian-client-integration)
           trap 'docker rm -f "$container" >/dev/null 2>&1 || true' EXIT
           docker cp "$container:/opt/livesync-cli/dist/index.cjs" livesync-upstream/src/apps/cli/dist/index.cjs
-          docker cp "$container:/usr/local/bin/node" /tmp/obsidian-client-node
-          chmod +x /tmp/obsidian-client-node
-          cmp -s /tmp/obsidian-client-node "$(command -v node)" || echo "Node binaries differ; executing upstream-built runtime in integration"
+          mkdir -p /tmp/obsidian-cli-bin
+          docker cp "$container:/usr/local/bin/node" /tmp/obsidian-cli-bin/node
+          chmod +x /tmp/obsidian-cli-bin/node
+          echo "/tmp/obsidian-cli-bin" >> "$GITHUB_PATH"
+          /tmp/obsidian-cli-bin/node --version
           grep -q 'HA_FETCH_FAILURE' livesync-upstream/src/apps/cli/dist/index.cjs
       - name: Encrypted CLI replication against disposable CouchDB
         env:
