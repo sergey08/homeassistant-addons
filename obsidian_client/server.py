@@ -306,6 +306,9 @@ def livesync_cli_remote_preview():
             "cli_preview_fetch_failed", "cli_preview_remote_locked",
             "cli_preview_version_incompatible", "cli_preview_invalid_encoding",
             "cli_preview_cli_failure", "cli_list_failed", "cli_list_invalid_format",
+            "cli_preview_typeerror_null_property", "cli_preview_typeerror_not_function",
+            "cli_preview_typeerror_network", "cli_preview_typeerror_encryption",
+            "cli_preview_typeerror_invalid_url", "cli_preview_typeerror_other",
             "cli_list_invalid_encoding", "cli_read_failed", "cli_invalid_encoding",
         }
         safe_code = code if code in allowed or code in safe_preview_codes else "remote_preview_failed"
