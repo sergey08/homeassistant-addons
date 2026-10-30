@@ -33,6 +33,27 @@ class ClientTests(unittest.TestCase):
                 headers={"X-Obsidian-Client-Action": "remote-preview"})
         self.assertEqual(response.status_code, 400)
 
+    def test_livesync_preview_missing_note_returns_404(self):
+        from livesync_cli_bridge import CLIUnavailable
+        with patch.object(server, "options", return_value={"livesync_cli_enabled": True}):
+            with patch("livesync_cli_bridge.fetch_remote_to_disposable_database",
+                       side_effect=CLIUnavailable("cli_preview_note_not_found")):
+                response = self.client.post(
+                    "/api/livesync-cli/remote-preview",
+                    json={"path": "Tests/missing.md"},
+                    headers={"X-Obsidian-Client-Action": "remote-preview"})
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.json["error"], "note_not_found")
+
+    def test_livesync_preview_rejects_oversized_request(self):
+        with patch.object(server, "options", return_value={"livesync_cli_enabled": True}):
+            response = self.client.post(
+                "/api/livesync-cli/remote-preview",
+                data='{"path":"' + ("x" * 5000) + '"}',
+                content_type="application/json",
+                headers={"X-Obsidian-Client-Action": "remote-preview"})
+        self.assertEqual(response.status_code, 413)
+
     def test_unconfigured_connection(self):
         with patch.object(server, "options", return_value={}):
             response = self.client.get("/api/connection")
