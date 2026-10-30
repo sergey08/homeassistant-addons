@@ -269,6 +269,8 @@ def livesync_cli_remote_preview():
         return jsonify(error="cross_origin_blocked"), 403
     if request.headers.get("Origin") and request.headers.get("Sec-Fetch-Site") != "same-origin":
         return jsonify(error="cross_origin_blocked"), 403
+    if request.content_length is not None and request.content_length > 4096:
+        return jsonify(error="request_too_large"), 413
     payload = request.get_json(silent=True) if request.is_json else {}
     if not isinstance(payload, dict) or set(payload) - {"path"}:
         return jsonify(error="invalid_request"), 400
@@ -293,6 +295,10 @@ def livesync_cli_remote_preview():
                    "cli_preview_fetch_operation", "cli_preview_local_database",
                    "cli_preview_cli_exception",
                    "cli_preview_code_econnrefused", "cli_preview_code_enotfound", "cli_preview_code_etimedout", "cli_preview_code_eai_again", "cli_preview_code_eacces", "cli_preview_code_enoent", "cli_preview_code_econnreset", "cli_preview_type_typeerror", "cli_preview_type_referenceerror", "cli_preview_type_syntaxerror", "cli_preview_type_rangeerror", "cli_preview_type_aggregateerror", "cli_preview_type_error" }
+        if code == "cli_preview_note_not_found":
+            return jsonify(error="note_not_found"), 404
+        if code == "cli_preview_note_too_large":
+            return jsonify(error="note_too_large"), 413
         return jsonify(error=code if code in allowed else "remote_preview_failed"), 502
 
 
