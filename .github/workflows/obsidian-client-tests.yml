@@ -183,7 +183,17 @@ jobs:
           from urllib.parse import quote
           def register_remote(cli, database, config):
               settings_file=pathlib.Path(database)/".livesync"/"settings.json"
-              settings=json.loads(settings_file.read_text())
+              # Mirror fetch_remote_to_disposable_database: merge official
+              # CLI defaults before registering the remote connection.
+              with tempfile.TemporaryDirectory() as defaults_dir:
+                  defaults_path=pathlib.Path(defaults_dir)/"defaults.json"
+                  subprocess.run(["node",cli,"init-settings",str(defaults_path)],
+                                 capture_output=True,text=True,check=True,timeout=45)
+                  defaults=json.loads(defaults_path.read_text(encoding="utf-8"))
+                  overrides=json.loads(settings_file.read_text(encoding="utf-8"))
+                  assert isinstance(defaults,dict) and isinstance(overrides,dict)
+                  settings={**defaults,**overrides}
+                  settings_file.write_text(json.dumps(settings),encoding="utf-8")
               remote_id=settings["activeConfigurationId"]
               conn=settings["remoteConfigurations"][remote_id]["uri"]
               settings["remoteConfigurations"]={}
