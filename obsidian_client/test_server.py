@@ -54,6 +54,22 @@ class ClientTests(unittest.TestCase):
                 headers={"X-Obsidian-Client-Action": "remote-preview"})
         self.assertEqual(response.status_code, 413)
 
+    def test_draft_editor_can_open_with_cli_fallback(self):
+        with patch.object(server, "options", return_value={"livesync_cli_enabled": True}):
+            with patch.object(server, "read_encrypted_note",
+                              return_value=(None, "e2ee_unavailable")):
+                response = self.client.get("/remote/edit?path=Tests/note.md")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b"needs_remote_load", response.data)
+        self.assertIn(b"loadRemote", response.data)
+
+    def test_draft_editor_does_not_fallback_without_cli(self):
+        with patch.object(server, "options", return_value={"livesync_cli_enabled": False}):
+            with patch.object(server, "read_encrypted_note",
+                              return_value=(None, "e2ee_unavailable")):
+                response = self.client.get("/remote/edit?path=Tests/note.md")
+        self.assertEqual(response.status_code, 404)
+
     def test_unconfigured_connection(self):
         with patch.object(server, "options", return_value={}):
             response = self.client.get("/api/connection")
