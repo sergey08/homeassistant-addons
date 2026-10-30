@@ -216,7 +216,7 @@ jobs:
                   install_official_cli_settings(config,temp)
                   register_remote(cli,temp,config)
                   note="Tests/encrypted-roundtrip.md"
-                  content="# Encrypted isolated test\\nNever production\\n"
+                  content="# Encrypted isolated test\nNever production\n"
                   subprocess.run(["node",cli,temp,"put",note],input=content,text=True,check=True,timeout=45)
                   subprocess.run(["node",cli,temp,"sync"],check=True,timeout=90)
                   with tempfile.TemporaryDirectory() as second:
