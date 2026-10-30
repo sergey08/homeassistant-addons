@@ -8,6 +8,31 @@ class ClientTests(unittest.TestCase):
     def setUp(self):
         self.client = server.app.test_client()
 
+    def test_livesync_preview_note_is_read_only(self):
+        settings = {"livesync_cli_enabled": True}
+        result = {"paths": ["Tests/note.md"], "note_count": 1,
+                  "content": "# Example", "note_path": "Tests/note.md",
+                  "remote_writes_enabled": False}
+        with patch.object(server, "options", return_value=settings):
+            with patch("livesync_cli_bridge.fetch_remote_to_disposable_database",
+                       return_value=result) as fetch:
+                response = self.client.post(
+                    "/api/livesync-cli/remote-preview",
+                    json={"path": "Tests/note.md"},
+                    headers={"X-Obsidian-Client-Action": "remote-preview"})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json["content"], "# Example")
+        self.assertEqual(response.headers["Cache-Control"], "no-store")
+        fetch.assert_called_once_with(settings, note_path="Tests/note.md")
+
+    def test_livesync_preview_rejects_invalid_paths(self):
+        with patch.object(server, "options", return_value={"livesync_cli_enabled": True}):
+            response = self.client.post(
+                "/api/livesync-cli/remote-preview",
+                json={"path": "../unsafe.md"},
+                headers={"X-Obsidian-Client-Action": "remote-preview"})
+        self.assertEqual(response.status_code, 400)
+
     def test_unconfigured_connection(self):
         with patch.object(server, "options", return_value={}):
             response = self.client.get("/api/connection")
