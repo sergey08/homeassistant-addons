@@ -91,6 +91,8 @@ class TestCLIBridge(unittest.TestCase):
         command = run.call_args.args[0]
         self.assertIn("fetch", command)
         self.assertIn("--force", command)
+        self.assertLess(command.index("--vault"), command.index("fetch"))
+        self.assertLess(command.index("fetch"), command.index("--force"))
         self.assertNotIn("/data/livesync-client", command)
         self.assertFalse(Path(command[2]).exists())
 
