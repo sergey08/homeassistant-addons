@@ -1302,11 +1302,19 @@ def remote_new_draft():
 def remote_edit_draft():
     """Edit a temporary browser draft without writing to LiveSync."""
     requested = request.args.get("path", "")
+    from livesync_write_preflight import validate_write_request, UnsafeWrite
+    try:
+        validate_write_request(requested, "", None, creating=True)
+    except (UnsafeWrite, ValueError, TypeError):
+        return page("<h2>Ruta de nota no válida</h2>"), 400
     content, error = read_encrypted_note(requested)
-    if error:
+    cli_fallback = bool(error and options().get("livesync_cli_enabled") is True)
+    if error and not cli_fallback:
         return page("<h2>No se puede abrir la nota</h2><p>" + html.escape(error) + "</p>"), 404
+    if cli_fallback:
+        content = ""
     # JSON encoding protects JS string boundaries; escape HTML script terminators.
-    script_data = json.dumps({"path": requested, "content": content}, ensure_ascii=True).replace("<", "\\u003c")
+    script_data = json.dumps({"path": requested, "content": content, "needs_remote_load": cli_fallback}, ensure_ascii=True).replace("<", "\\u003c")
     body = (
         '<p><a href="../">← Volver</a></p><h2>Borrador Markdown</h2>'
         '<p class="muted">Guardar crea una copia local aislada; no sincroniza con LiveSync.</p>'
@@ -1320,7 +1328,7 @@ def remote_edit_draft():
         '<p id="saveStatus" role="status"></p>'
         '<h3>Vista previa de texto</h3><pre id="preview" style="white-space:pre-wrap"></pre>'
         '<script>const note=' + script_data + ';'
-        'const e=document.getElementById("editor");e.value=note.content;'
+        'const e=document.getElementById("editor");e.value=note.content;'\n        'let remoteLoaded=!note.needs_remote_load;'
         'let original=note.content;let saving=false;let localReady=false;let localLoading=true;let dirty=false;'
         'const key="obsidian-draft:"+location.pathname+":"+note.path;'
         'try{const saved=sessionStorage.getItem(key);if(saved!==null&&saved!==original){'
@@ -1350,7 +1358,7 @@ def remote_edit_draft():
         'if(e.value!==data.content&&!confirm("¿Reemplazar el texto del editor por la copia de LiveSync? '
         'Se perderán los cambios no guardados que no hayas exportado."))'
         '{status.textContent="Lectura completada. Borrador conservado.";return;}'
-        'e.value=data.content;dirty=true;update();'
+        'e.value=data.content;remoteLoaded=true;dirty=true;update();'
         'status.textContent="Contenido LiveSync cargado como borrador. No sincronizado. '
         'Guardar localmente solo modifica la copia aislada.";'
         '}catch(err){status.textContent="Lectura fallida: "+err.message}'
@@ -1363,7 +1371,7 @@ def remote_edit_draft():
         'document.body.appendChild(link);link.click();link.remove();'
         'setTimeout(()=>URL.revokeObjectURL(url),1000);};'
         'document.getElementById("saveLocal").onclick=async()=>{'
-        'if(saving||localLoading)return;saving=true;document.getElementById("saveLocal").disabled=true;'
+        'if(saving||localLoading)return;'\n        'if(!remoteLoaded){document.getElementById("saveStatus").textContent='\n        '"Primero carga la nota desde LiveSync.";return;}'\n        'saving=true;document.getElementById("saveLocal").disabled=true;'
         'const submitted=e.value;'
         'const status=document.getElementById("saveStatus");status.textContent="Guardando...";'
         'try{const r=await fetch("../api/livesync-cli/local-save",{method:"POST",'
