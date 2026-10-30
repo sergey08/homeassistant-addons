@@ -42,7 +42,13 @@ fetch_patch = """            // Only report bounded error class/code, never exce
                 ? "null_property" : /is not a function/i.test(message) ? "not_function"
                 : /fetch failed|network/i.test(message) ? "network"
                 : /decrypt|encrypt|passphrase/i.test(message) ? "encryption"
-                : /invalid url|failed to parse url/i.test(message) ? "invalid_url" : "other";
+                : /invalid url|failed to parse url/i.test(message) ? "invalid_url"
+                : /cannot read properties|cannot set properties|undefined|null/i.test(message) ? "undefined_value"
+                : /not iterable|not async iterable|cannot destructure/i.test(message) ? "invalid_structure"
+                : /cannot convert|invalid argument|expected .* (string|object)/i.test(message) ? "invalid_argument"
+                : /database is closed|database closed|database is destroyed/i.test(message) ? "database_closed"
+                : /permission denied|access denied|eacces/i.test(message) ? "permission"
+                : "other";
             writeStderrLine(standardIo,
                 `[HA_FETCH_FAILURE] type=${fetchToken(fetchError?.name)} code=${fetchToken(fetchCode)} detail=${detail} cause=${fetchToken(causeName)}`);
 """
