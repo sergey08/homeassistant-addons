@@ -128,6 +128,35 @@ class TestCLIBridge(unittest.TestCase):
         self.assertEqual(result["source"], "vault")
         self.assertFalse(result["persistent_local_modified"])
 
+    def test_preview_rejects_missing_and_oversized_restored_notes(self):
+        from livesync_cli_bridge import fetch_remote_to_disposable_database
+        from unittest.mock import MagicMock
+        config = {
+            "couchdb_url": "https://localhost:6984",
+            "couchdb_database": "notes",
+            "couchdb_username": "user",
+            "couchdb_password": "secret",
+            "livesync_encryption_enabled": True,
+            "livesync_e2ee_passphrase": "phrase",
+        }
+        def pretend_fetch(command, **kwargs):
+            vault = Path(command[command.index("--vault") + 1])
+            restored = vault / "Tests" / "large.md"
+            restored.parent.mkdir(parents=True)
+            restored.write_bytes(b"x" * 2_000_001)
+            return MagicMock(returncode=0, stdout=b"", stderr=b"")
+        with patch("livesync_cli_bridge.validate_cli_installation",
+                   side_effect=lambda binary, database: (binary, database)):
+            with patch("livesync_cli_bridge.configure_disposable_remote_with_cli"):
+                with patch("livesync_cli_bridge.merge_official_cli_defaults_for_disposable_database"):
+                    with patch("livesync_cli_bridge.subprocess.run", side_effect=pretend_fetch):
+                        with self.assertRaisesRegex(CLIUnavailable, "cli_preview_note_not_found"):
+                            fetch_remote_to_disposable_database(
+                                config, note_path="Tests/missing.md")
+                        with self.assertRaisesRegex(CLIUnavailable, "cli_preview_note_too_large"):
+                            fetch_remote_to_disposable_database(
+                                config, note_path="Tests/large.md")
+
     def test_local_put_never_syncs(self):
         with tempfile.TemporaryDirectory() as temp:
             binary = Path(temp) / "index.cjs"
