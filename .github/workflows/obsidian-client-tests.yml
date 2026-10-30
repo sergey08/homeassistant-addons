@@ -212,7 +212,7 @@ jobs:
                       db.mkdir()
                       install_official_cli_settings(config,str(db))
                       register_remote(cli,str(db),config)
-                      subprocess.run(["node",cli,str(db),"fetch","--force","--vault",str(vault)],
+                      subprocess.run(["node",cli,str(db),"--vault",str(vault),"fetch","--force"],
                                      check=True,timeout=90)
                       result=subprocess.run(["node",cli,str(db),"cat",note],
                                             capture_output=True,text=True,timeout=45)
