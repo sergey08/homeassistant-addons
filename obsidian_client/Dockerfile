@@ -50,12 +50,14 @@ fetch_patch = """            // Only report bounded error class/code, never exce
                 : /permission denied|access denied|eacces/i.test(message) ? "permission"
                 : "other";
             const stack = fetchError?.stack || "";
-            const origin = /rebuilder|rebuildLocal|fetchLocal/i.test(stack) ? "rebuilder"
-                : /replicat|couchdb|pouchdb/i.test(stack) ? "replication"
-                : /storage|vault|filesystem/i.test(stack) ? "storage"
-                : /encrypt|crypt|decrypt/i.test(stack) ? "crypto"
-                : /setting|config/i.test(stack) ? "settings" : "unknown";
-            writeStderrLine(standardIo,
+            const topFrame = stack.split("\\n").slice(1).find(line => /^\\s*at\\s+/.test(line)) || "";
+            const origin = /replicat|couchdb|pouchdb/i.test(topFrame) ? "replication"
+                : /storage|vault|filesystem/i.test(topFrame) ? "storage"
+                : /encrypt|crypt|decrypt/i.test(topFrame) ? "crypto"
+                : /setting|config/i.test(topFrame) ? "settings"
+                : /rebuilder|rebuildLocal|fetchLocal/i.test(topFrame) ? "rebuilder"
+                : "unknown";
+                        writeStderrLine(standardIo,
                 `[HA_FETCH_FAILURE] type=${fetchToken(fetchError?.name)} code=${fetchToken(fetchCode)} detail=${detail} cause=${fetchToken(causeName)} origin=${origin}`);
 """
 s = s.replace(fetch_needle, fetch_patch + fetch_needle)
