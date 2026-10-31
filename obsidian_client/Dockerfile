@@ -50,7 +50,7 @@ fetch_patch = """            // Only report bounded error class/code, never exce
                 : /permission denied|access denied|eacces/i.test(message) ? "permission"
                 : "other";
             const stack = fetchError?.stack || "";
-            const topFrame = stack.split("\\n").slice(1).find(line => /^\\s*at\\s+/.test(line)) || "";
+            const topFrame = stack.split("\n").slice(1).find(line => /^\s*at\s+/.test(line)) || "";
             const origin = /replicat|couchdb|pouchdb/i.test(topFrame) ? "replication"
                 : /storage|vault|filesystem/i.test(topFrame) ? "storage"
                 : /encrypt|crypt|decrypt/i.test(topFrame) ? "crypto"
