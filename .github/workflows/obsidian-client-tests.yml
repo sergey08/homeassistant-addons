@@ -1,5 +1,4 @@
 name: Tests / Pruebas
-# CI validation draft: isolate the encrypted LiveSync test from production.
 on:
   workflow_dispatch:
   push:
