@@ -1,5 +1,11 @@
 # Changelog / Historial de cambios
 
+## 0.1.0-dev90 (experimental / experimental)
+- EN: Prefer specific, allowlisted fetch error details over the generic rebuilder origin.
+- ES: Prioriza detalles específicos y seguros de errores fetch frente al origen genérico rebuilder.
+- EN: Add regression coverage. Remote writes remain disabled; no real vault migration.
+- ES: Añade prueba de regresión. Escrituras remotas desactivadas y sin migración de la bóveda real.
+
 ## 0.1.0-dev89 (experimental / experimental)
 - EN: Improve safe CLI fetch diagnostics by classifying the first exception frame rather than the entire stack.
 - ES: Mejora el diagnóstico seguro de errores de fetch: identifica el primer punto de excepción y no toda la pila.
