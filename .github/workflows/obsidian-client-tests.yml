@@ -280,6 +280,7 @@ jobs:
                           with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as summary:
                               summary.write("### Encrypted LiveSync fetch / Recuperación cifrada\n")
                               summary.write("Result / Resultado: **FAILED**\n\n")
+                              summary.write("Independent sync control / Control de sincronización: **" + ("PASS" if sync_control_ok else "FAIL") + "**\n\n")
                               summary.write("Safe diagnostic / Diagnóstico seguro: `" + " / ".join(diagnostic.groups()) + "`\n")
                           raise AssertionError("Packaged CLI failed encrypted isolated fetch")
                       result=subprocess.run(["node",cli,str(db),"cat",note],
