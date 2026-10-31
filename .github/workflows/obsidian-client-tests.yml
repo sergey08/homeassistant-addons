@@ -261,6 +261,22 @@ jobs:
                               fetch_result.stderr)
                           assert diagnostic, "Isolated fetch failed without structured diagnostic"
                           print("Isolated fetch failure category:", diagnostic.groups())
+                          # Independent control on the same disposable CouchDB:
+                          # does normal replication recover the encrypted note?
+                          # This tests whether the failure is specific to fetch.
+                          with tempfile.TemporaryDirectory() as control:
+                              install_official_cli_settings(config,control)
+                              register_remote(cli,control,config)
+                              control_sync=subprocess.run(
+                                  ["node",cli,control,"sync"],
+                                  capture_output=True,text=True,timeout=90)
+                              control_cat=subprocess.run(
+                                  ["node",cli,control,"cat",note],
+                                  capture_output=True,text=True,timeout=45) if control_sync.returncode==0 else None
+                              sync_control_ok=bool(
+                                  control_cat and control_cat.returncode==0
+                                  and control_cat.stdout==content)
+                          print("Isolated encrypted sync control:", "PASS" if sync_control_ok else "FAIL")
                           with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as summary:
                               summary.write("### Encrypted LiveSync fetch / Recuperación cifrada\n")
                               summary.write("Result / Resultado: **FAILED**\n\n")
