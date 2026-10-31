@@ -584,6 +584,8 @@ def fetch_remote_to_disposable_database(config, *, timeout=120, note_path=None):
                     output,
                 )
                 origin_match = re.search(r"origin=(rebuilder|replication|storage|crypto|settings|unknown)", output)
+                if error_type in ("typeerror", "error") and detail_match and detail_match.group(1) != "other":
+                    raise CLIUnavailable("cli_preview_typeerror_" + detail_match.group(1))
                 if error_type in ("typeerror", "error") and origin_match:
                     raise CLIUnavailable("cli_preview_origin_" + origin_match.group(1))
                 if error_type in ("typeerror", "error") and detail_match:
