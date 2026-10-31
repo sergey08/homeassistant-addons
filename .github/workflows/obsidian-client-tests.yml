@@ -202,7 +202,7 @@ jobs:
               result=subprocess.run(["node",cli,database,"remote-add","CI CouchDB",conn],
                                     capture_output=True,text=True,check=True,timeout=45)
               import re
-              ids=re.findall(r"(?m)^([A-Za-z0-9_-]{8,128})\\tCI CouchDB\\t",result.stdout)
+              ids=re.findall(r"(?m)^([A-Za-z0-9_-]{8,128})\tCI CouchDB\t",result.stdout)
               assert len(ids)==1, "Remote registration did not return one valid profile"
               remote_id=ids[0]
               subprocess.run(["node",cli,database,"remote-activate",remote_id],
