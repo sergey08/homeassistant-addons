@@ -259,8 +259,8 @@ jobs:
                               r"cause=([A-Za-z0-9_-]{1,40}) "
                               r"origin=([A-Za-z0-9_-]{1,40})",
                               fetch_result.stderr)
-                          assert diagnostic, "Isolated fetch failed without structured diagnostic"
-                          print("Isolated fetch failure category:", diagnostic.groups())
+                          safe_category=diagnostic.groups() if diagnostic else ("unclassified",)
+                          print("Isolated fetch failure category:", safe_category)
                           # Independent control on the same disposable CouchDB:
                           # does normal replication recover the encrypted note?
                           # This tests whether the failure is specific to fetch.
@@ -281,7 +281,7 @@ jobs:
                               summary.write("### Encrypted LiveSync fetch / Recuperación cifrada\n")
                               summary.write("Result / Resultado: **FAILED**\n\n")
                               summary.write("Independent sync control / Control de sincronización: **" + ("PASS" if sync_control_ok else "FAIL") + "**\n\n")
-                              summary.write("Safe diagnostic / Diagnóstico seguro: `" + " / ".join(diagnostic.groups()) + "`\n")
+                              summary.write("Safe diagnostic / Diagnóstico seguro: `" + " / ".join(safe_category) + "`\n")
                           raise AssertionError("Packaged CLI failed encrypted isolated fetch")
                       result=subprocess.run(["node",cli,str(db),"cat",note],
                                             capture_output=True,text=True,timeout=45)
