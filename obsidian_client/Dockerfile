@@ -57,7 +57,7 @@ fetch_patch = """            // Only report bounded error class/code, never exce
                 : /setting|config/i.test(topFrame) ? "settings"
                 : /rebuilder|rebuildLocal|fetchLocal/i.test(topFrame) ? "rebuilder"
                 : "unknown";
-                        writeStderrLine(standardIo,
+            writeStderrLine(standardIo,
                 `[HA_FETCH_FAILURE] type=${fetchToken(fetchError?.name)} code=${fetchToken(fetchCode)} detail=${detail} cause=${fetchToken(causeName)} origin=${origin}`);
 """
 s = s.replace(fetch_needle, fetch_patch + fetch_needle)
