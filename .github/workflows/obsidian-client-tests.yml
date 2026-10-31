@@ -83,6 +83,8 @@ jobs:
             test -s /opt/livesync-cli/dist/index.cjs
             grep -q "HA_FETCH_FAILURE" /opt/livesync-cli/dist/index.cjs
             grep -q "origin=" /opt/livesync-cli/dist/index.cjs
+            grep -q "topFrame" /opt/livesync-cli/dist/index.cjs
+            ! grep -q 'test(stack) ? "rebuilder"' /opt/livesync-cli/dist/index.cjs
             /usr/local/bin/node /opt/livesync-cli/dist/index.cjs --help >/dev/null
           '
       - name: Verify packaged imports / Verificar módulos empaquetados
