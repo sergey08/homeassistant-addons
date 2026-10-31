@@ -1,5 +1,9 @@
 # Changelog / Historial de cambios
 
+## 0.1.0-dev92
+- Editor: reload encrypted remote Markdown directly through the proven read-only CouchDB endpoint, without depending on the failing CLI fetch.
+- Preserve unsaved drafts unless replacement is explicitly accepted; no remote writes.
+
 ## 0.1.0-dev91
 - Editor: asks before replacing a decrypted remote note with a different local copy; preserves the selected content and accurately reports the result.
 - Remote CouchDB writes remain disabled.
