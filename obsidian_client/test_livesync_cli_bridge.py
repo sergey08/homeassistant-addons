@@ -206,6 +206,29 @@ class TestCLIBridge(unittest.TestCase):
                         with self.assertRaisesRegex(CLIUnavailable, "cli_preview_origin_rebuilder"):
                             fetch_remote_to_disposable_database(cfg)
 
+    def test_fetch_specific_detail_overrides_generic_rebuilder_origin(self):
+        from livesync_cli_bridge import fetch_remote_to_disposable_database
+        from unittest.mock import MagicMock
+        cfg = {
+            "couchdb_url": "https://localhost:6984",
+            "couchdb_database": "notes",
+            "couchdb_username": "user",
+            "couchdb_password": "secret",
+            "livesync_encryption_enabled": True,
+            "livesync_e2ee_passphrase": "phrase",
+        }
+        marker = (b"[HA_FETCH_FAILURE] type=TypeError code=unspecified "
+                  b"detail=null_property cause=unspecified origin=rebuilder")
+        with patch("livesync_cli_bridge.validate_cli_installation",
+                   side_effect=lambda binary, database: (binary, database)):
+            with patch("livesync_cli_bridge.configure_disposable_remote_with_cli"):
+                with patch("livesync_cli_bridge.merge_official_cli_defaults_for_disposable_database"):
+                    with patch("livesync_cli_bridge.subprocess.run",
+                               return_value=MagicMock(returncode=1, stderr=marker, stdout=b"")):
+                        with self.assertRaisesRegex(CLIUnavailable, "cli_preview_typeerror_null_property"):
+                            fetch_remote_to_disposable_database(cfg)
+
+
     def test_local_put_never_syncs(self):
         with tempfile.TemporaryDirectory() as temp:
             binary = Path(temp) / "index.cjs"
