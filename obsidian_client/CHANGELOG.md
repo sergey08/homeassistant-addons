@@ -1,5 +1,13 @@
 # Changelog / Historial de cambios
 
+## 0.1.0-dev89 (experimental / experimental)
+- EN: Improve safe CLI fetch diagnostics by classifying the first exception frame rather than the entire stack.
+- ES: Mejora el diagnóstico seguro de errores de fetch: identifica el primer punto de excepción y no toda la pila.
+- EN: Correct the remote-preview unit-test contract and verify official CLI, Docker build, Python tests and encrypted CouchDB roundtrip through GitHub Actions.
+- ES: Corrige el contrato del test de vista previa remota y valida CLI oficial, imagen Docker, pruebas Python y recuperación cifrada en CouchDB aislado.
+- EN: Remote writes remain disabled. No migration or write to the real vault.
+- ES: Las escrituras remotas continúan desactivadas. Sin migración ni escritura en la bóveda real.
+
 ## 0.1.0-dev82 (experimental / experimental)
 - EN: Explicit, read-only Markdown retrieval through an isolated LiveSync CLI fetch; an editor button loads the remote copy on demand.
 - ES: Recuperación explícita de Markdown en solo lectura mediante una copia temporal aislada de LiveSync CLI; botón de carga manual en el editor.
