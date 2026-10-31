@@ -125,7 +125,7 @@ class LocalSaveTests(unittest.TestCase):
         self.assertEqual(allowed.status_code, 200)
         self.assertEqual(allowed.json["paths"], ["Test.md"])
         self.assertFalse(allowed.json["persistent_local_modified"])
-        preview.assert_called_once_with(config)
+        preview.assert_called_once_with(config, note_path=None)
 
     def test_connection_check_never_writes_or_syncs(self):
         config = {
