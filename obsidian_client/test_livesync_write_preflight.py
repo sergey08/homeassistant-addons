@@ -1,6 +1,7 @@
 """Safety tests for write preflight; no database access."""
 import unittest
-from livesync_write_preflight import validate_write_request, UnsafeWrite
+import hashlib
+from livesync_write_preflight import validate_write_request, validate_update_snapshot, UnsafeWrite
 
 class TestWritePreflight(unittest.TestCase):
     def test_create(self):
@@ -34,6 +35,39 @@ class TestWritePreflight(unittest.TestCase):
     def test_create_does_not_accept_revision(self):
         with self.assertRaises(UnsafeWrite):
             validate_write_request("Nota.md", "texto", "1-" + "a" * 32, creating=True)
+
+class TestOptimisticSnapshot(unittest.TestCase):
+    def setUp(self):
+        self.rev = "4-" + "a" * 32
+        self.base = "# Nota\\nOriginal"
+        self.digest = hashlib.sha256(self.base.encode("utf-8")).hexdigest()
+
+    def check(self, **overrides):
+        args = dict(path="Viajes/Nota.md", proposed_content="# Nota\\nNuevo",
+                    expected_revision=self.rev, current_revision=self.rev,
+                    expected_content_sha256=self.digest, current_content=self.base)
+        args.update(overrides)
+        return validate_update_snapshot(**args)
+
+    def test_matching_snapshot(self):
+        self.assertEqual(self.check()["operation"], "update")
+
+    def test_revision_conflict(self):
+        with self.assertRaisesRegex(UnsafeWrite, "revision_conflict"):
+            self.check(current_revision="5-" + "b" * 32)
+
+    def test_content_conflict_even_if_revision_matches(self):
+        with self.assertRaisesRegex(UnsafeWrite, "content_conflict"):
+            self.check(current_content="# Edited elsewhere")
+
+    def test_invalid_hash_fails_closed(self):
+        with self.assertRaisesRegex(UnsafeWrite, "expected_hash_invalid"):
+            self.check(expected_content_sha256="INVALID")
+
+    def test_invalid_current_revision_fails_closed(self):
+        with self.assertRaisesRegex(UnsafeWrite, "current_revision_invalid"):
+            self.check(current_revision=None)
+
 
 if __name__ == "__main__":
     unittest.main()
