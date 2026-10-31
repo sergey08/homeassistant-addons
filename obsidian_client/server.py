@@ -1360,7 +1360,7 @@ def remote_edit_draft():
         'e.addEventListener("input",()=>{dirty=true;update()});'
         'fetch("../api/livesync-cli/local-note?path="+encodeURIComponent(note.path))'
         '.then(r=>r.ok?r.json():null).then(data=>{if(data){'
-        'localReady=true;const draft=e.value;original=data.content;e.value=data.content;'
+        'localReady=true;const draft=e.value;const local=data.content;if(draft!==local){if(confirm("Existe una copia local distinta de la nota abierta. ¿Cargar la copia local?"))e.value=local;}original=e.value;'
         'if((dirty||draft!==note.content)&&draft!==data.content&&confirm("Recuperar borrador?"))e.value=draft;'
         'else try{sessionStorage.removeItem(key)}catch(_){}'
         'document.getElementById("saveStatus").textContent="Copia local cargada, sin sincronizar";'
