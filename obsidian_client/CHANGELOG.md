@@ -1,5 +1,9 @@
 # Changelog / Historial de cambios
 
+## 0.1.0-dev91
+- Editor: asks before replacing a decrypted remote note with a different local copy; preserves the selected content and accurately reports the result.
+- Remote CouchDB writes remain disabled.
+
 ## 0.1.0-dev90 (experimental / experimental)
 - EN: Prefer specific, allowlisted fetch error details over the generic rebuilder origin.
 - ES: Prioriza detalles específicos y seguros de errores fetch frente al origen genérico rebuilder.
