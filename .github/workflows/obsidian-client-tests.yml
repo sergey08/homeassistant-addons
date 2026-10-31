@@ -60,10 +60,11 @@ jobs:
           set -euo pipefail
           DB="$(mktemp -d)"
           CLI="src/apps/cli/dist/index.cjs"
-          node "$CLI" "$DB" init-settings
-          printf '# Isolated test\\nHello LiveSync\\n' | node "$CLI" "$DB" put "Tests/isolated.md"
+          mkdir -p "$DB/.livesync"
+          node "$CLI" init-settings "$DB/.livesync/settings.json"
+          printf '# Isolated test\nHello LiveSync\n' | node "$CLI" "$DB" put "Tests/isolated.md"
           node "$CLI" "$DB" cat "Tests/isolated.md" > /tmp/livesync-note.md
-          printf '# Isolated test\\nHello LiveSync\\n' | cmp - /tmp/livesync-note.md
+          printf '# Isolated test\nHello LiveSync\n' | cmp - /tmp/livesync-note.md
           node "$CLI" "$DB" ls > /tmp/livesync-ls.txt
           grep -F 'Tests/isolated.md' /tmp/livesync-ls.txt
           cat /tmp/livesync-ls.txt
