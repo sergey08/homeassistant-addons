@@ -559,6 +559,17 @@ jobs:
                       "independent-ids-enabled":cli_settings.get("idDerivationVersion",0)==1,
                       "encryption-enabled":cli_settings.get("encrypt") is True,
                   }.items()))
+                  # Verify that the exact known note text is a single Chunk
+                  # and compare the full proper h:+ namespace. Also isolate
+                  # whether the historical passphrase mixing port differs.
+                  from livesync_chunk_identity import fallback_mixed_hash_each
+                  print("Pinned CLI legacy namespace match:", ("h:"+calculated_chunk_id)==official_chunk_id)
+                  print("Official parent chunk count:",len(official_parent["children"]))
+                  assert len(official_parent["children"])==1
+                  # This check compares against the *actual* official leaf ID
+                  # without logging credentials, derived hashes or ID values.
+                  print("Official parent refers to observed leaf:",
+                        official_parent["children"][0]==official_chunk_id)
                   # Content-addressing check: a second official note with
                   # identical plaintext should reuse the same chunk ID.
                   # This tests the pinned configuration rather than guessing
