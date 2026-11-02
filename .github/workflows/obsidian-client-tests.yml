@@ -669,6 +669,34 @@ jobs:
                           "Official LiveSync CLI cannot decode HA-generated document; "
                           "metadata or document-ID derivation still incompatible")
                   print("Independent CLI decoded HA-generated encrypted note")
+                  # Verify the actual offline builder against a fresh official
+                  # CLI reader, not just handcrafted synthetic dictionaries.
+                  from livesync_isolated_write_plan import prepare_isolated_note_create
+                  builder_path="Tests/builder-ci.md"
+                  builder_content="# Builder proof\\nLocal disposable integration\\n"
+                  plan=prepare_isolated_note_create(
+                      builder_path,builder_content,
+                      config["livesync_e2ee_passphrase"],remote_salt,
+                      created_millis=1730000000000)
+                  for kind in plan["write_order"]:
+                      document=plan[kind]
+                      request=urllib.request.Request(
+                          url+"/"+quote(document["_id"],safe=""),
+                          method="PUT",data=json.dumps(document).encode("utf-8"),
+                          headers={"Authorization":auth,"Content-Type":"application/json"})
+                      with urllib.request.urlopen(request,timeout=10) as response:
+                          assert response.status==201
+                  with tempfile.TemporaryDirectory() as builder_reader:
+                      install_official_cli_settings(config,builder_reader)
+                      register_remote(cli,builder_reader,config)
+                      synced=subprocess.run(["node",cli,builder_reader,"sync"],
+                                            capture_output=True,text=True,timeout=90)
+                      assert synced.returncode==0, "Official CLI failed builder sync"
+                      result=subprocess.run(["node",cli,builder_reader,"cat",builder_path],
+                                            capture_output=True,text=True,timeout=45)
+                      assert result.returncode==0 and result.stdout==builder_content, (
+                          "Builder output is not interoperable with official LiveSync")
+                  print("Official CLI decoded offline builder-created note")
                   print("Encrypted sync and fetch roundtrip verified in disposable database")
           finally:
               assert call("DELETE")==200
