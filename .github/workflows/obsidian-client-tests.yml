@@ -289,6 +289,33 @@ jobs:
                                             capture_output=True,text=True,timeout=45)
                       restored=vault/note
                       assert (result.returncode==0 and result.stdout==content) or (restored.is_file() and restored.read_text()==content), "Fetch did not restore expected Markdown note"
+                  # Compare only sanitized document-ID shapes from the official
+                  # client; never display IDs, paths, contents, or credentials.
+                  index_request=urllib.request.Request(
+                      url+"/_all_docs?include_docs=true&limit=500",
+                      headers={"Authorization":auth})
+                  with urllib.request.urlopen(index_request,timeout=10) as response:
+                      official_rows=json.load(response).get("rows",[])
+                  def classify_doc(doc):
+                      kind=doc.get("type")
+                      if kind not in ("plain","newnote","leaf","chunk"):
+                          return None
+                      identifier=doc.get("_id","")
+                      if not isinstance(identifier,str):
+                          return None
+                      return (kind,
+                              "hex" if len(identifier)>=32 and all(c in "0123456789abcdef" for c in identifier.lower()) else
+                              "prefixed" if ":" in identifier else "other",
+                              "short" if len(identifier)<33 else "medium" if len(identifier)<81 else "long")
+                  shapes={}
+                  for row in official_rows:
+                      doc=row.get("doc",{})
+                      if isinstance(doc,dict):
+                          shape=classify_doc(doc)
+                          if shape is not None:
+                              label="/".join(shape)
+                              shapes[label]=shapes.get(label,0)+1
+                  print("Official CLI document shape counts:",sorted(shapes.items()))
                   # Strict interoperability probe: our encrypted parent and leaf
                   # must be readable by an independent official CLI client.
                   # This deliberately fails if our synthetic document IDs or
