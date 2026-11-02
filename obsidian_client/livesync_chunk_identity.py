@@ -104,3 +104,46 @@ def legacy_xxhash64_digest(chunk_text: str, hashed_passphrase: str) -> str:
     """
     return base36_unsigned(xxhash64(
         legacy_xxhash64_input(chunk_text,hashed_passphrase)))
+
+
+def _js_uint32(value):
+    import math
+    if not math.isfinite(value) or value == 0:
+        return 0
+    return math.trunc(value) & 0xffffffff
+
+
+def _js_int32(value):
+    value = _js_uint32(value)
+    return value if value < (1 << 31) else value - (1 << 32)
+
+
+def fallback_mixed_hash_each(source: str) -> str:
+    """Port of octagonal-wheels/hash/purejs fallbackMixedHashEach.
+
+    Replicates JavaScript's signed bitwise operations and floating-point
+    multiplications. This is a non-cryptographic obfuscation hash.
+    """
+    if not isinstance(source, str):
+        raise TypeError("source must be text")
+    raw = f"{js_utf16_code_units(source)}{source}"
+    b = raw.encode("utf-16-le", errors="surrogatepass")
+    units = (int.from_bytes(b[i:i + 2], "little") for i in range(0, len(b), 2))
+    h = 1
+    fnv = 2166136261
+    count = js_utf16_code_units(raw)
+    for code in units:
+        fnv = ((fnv ^ code) * 0x01000193) & 0xffffffff
+        k = _js_uint32(float(code * 0xcc9e2d51))
+        k = _js_int32((k << 15) | (_js_int32(k) >> 17))
+        k = _js_int32(float(k * 0x1b873593))
+        h = _js_int32(_js_uint32(h) ^ k)
+        h = _js_int32((h << 13) | (_js_uint32(h) >> 19))
+        h = float(h * 5 + 0xe6546b64)
+    h = _js_int32(_js_uint32(h) ^ count)
+    h = _js_int32(h ^ (_js_uint32(h) >> 16))
+    h = _js_int32(h * 0x85ebca6b)
+    h = _js_int32(h ^ (_js_uint32(h) >> 13))
+    h = _js_int32(h * 0xc2b2ae35)
+    h = _js_int32(h ^ (_js_uint32(h) >> 16))
+    return base36_unsigned(_js_uint32(h)) + base36_unsigned(fnv)
