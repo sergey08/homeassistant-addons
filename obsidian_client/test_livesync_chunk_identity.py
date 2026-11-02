@@ -37,14 +37,14 @@ class ChunkIdentityInputTests(unittest.TestCase):
                          base36_unsigned(xxhash64("A🌍B-mock-4".encode())))
 
     def test_official_js_mixed_hash_vectors(self):
-        # Verified against octagonal-wheels/hash/purejs on Node.js.
+        # Verified with independent Node.js execution of upstream purejs.ts.
         vectors={
             "": "hydjuoepw9f3",
-            "test": "1ihuhu81uuv60n",
-            "abc": "5rr8gw1dynbs6",
-            "A🌍B": "11avwnl10jegkh",
-            "isolated-ci-encryption-only": "e7zqys1bdgwjj",
-            "e\u0301": "56qhy467lqrn",
+            "test": "otdts71uuv60n",
+            "abc": "18z6401dynbs6",
+            "A🌍B": "c0nay410jegkh",
+            "isolated-ci-encryption-only": "1a8gbjn1bdgwjj",
+            "e\u0301": "45u9aq67lqrn",
         }
         for source, expected in vectors.items():
             with self.subTest(source=source):
