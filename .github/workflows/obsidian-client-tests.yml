@@ -704,6 +704,24 @@ jobs:
                                             capture_output=True,text=True,timeout=45)
                       assert result.returncode==0 and result.stdout==builder_content, (
                           "Builder output is not interoperable with official LiveSync")
+                  # Independent-format fixture within the disposable CLI setup.
+                  # No CouchDB PUT: the obfuscated parent _id remains unverified.
+                  from livesync_encrypted_metadata_fixture import (
+                      encode_parent_metadata_fixture,decode_parent_metadata_fixture)
+                  encrypted_meta=encode_parent_metadata_fixture(
+                      builder_path,plan["parent"]["children"],
+                      config["livesync_e2ee_passphrase"],remote_salt,
+                      ctime=plan["parent"]["ctime"],mtime=plan["parent"]["mtime"],
+                      size=plan["parent"]["size"])
+                  recovered=decode_parent_metadata_fixture(
+                      encrypted_meta["path"],config["livesync_e2ee_passphrase"],
+                      remote_salt)
+                  assert recovered["path"]==builder_path
+                  assert recovered["children"]==plan["parent"]["children"]
+                  assert recovered["size"]==len(builder_content.encode())
+                  assert encrypted_meta["children"]==[]
+                  assert encrypted_meta["write_supported"] is False
+                  print("Encrypted metadata fixture roundtrip verified with CLI salt")
                   print("Official CLI decoded offline builder-created note")
                   # Update the same builder-created note using a verified
                   # revision, then check both CLI interoperability and CAS 409.
