@@ -147,3 +147,21 @@ def fallback_mixed_hash_each(source: str) -> str:
     h = _js_int32(h * 0xc2b2ae35)
     h = _js_int32(h ^ (_js_uint32(h) >> 16))
     return base36_unsigned(_js_uint32(h)) + base36_unsigned(fnv)
+
+
+_LEGACY_ID_SALT = "a83hrf7f\x03y7sa8g31"
+
+
+def legacy_chunk_id(chunk_text: str, passphrase: str) -> str:
+    """Legacy encrypted XXHash64 ID for verification, NOT a writer API.
+
+    Uses the observed Commonlib HashManagerCore derivation. Does not
+    support independently keyed IDs (idDerivationVersion=1).
+    """
+    if not isinstance(chunk_text, str) or not isinstance(passphrase, str):
+        raise TypeError("chunk and passphrase must be strings")
+    units=passphrase.encode("utf-16-le", errors="surrogatepass")
+    prefix_length=(js_utf16_code_units(passphrase)*3)//4
+    excerpt=units[:prefix_length*2].decode("utf-16-le",errors="surrogatepass")
+    passphrase_hash=fallback_mixed_hash_each(_LEGACY_ID_SALT+excerpt)
+    return "+"+legacy_xxhash64_digest(chunk_text,passphrase_hash)
