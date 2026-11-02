@@ -19,7 +19,13 @@ def prepare_isolated_note_update(path, proposed_content, existing_parent,
         raise UnsafeWrite("remote_writes_forbidden")
     if not isinstance(existing_parent, dict) or existing_parent.get("type")!="plain":
         raise UnsafeWrite("unsupported_parent")
-    if existing_parent.get("_id") != path.lower() or existing_parent.get("path") != path:
+    # Production LiveSync can store encrypted parent path metadata. The
+    # isolated builder only supports the verified plaintext parent format.
+    # Never infer an encrypted parent ID or try to write it with this plan.
+    stored_path = existing_parent.get("path")
+    if isinstance(stored_path, str) and stored_path.startswith("/\\:%="):
+        raise UnsafeWrite("encrypted_parent_write_not_supported")
+    if existing_parent.get("_id") != path.lower() or stored_path != path:
         raise UnsafeWrite("parent_identity_mismatch")
     if len(existing_parent.get("children", [])) != 1:
         raise UnsafeWrite("multichunk_update_not_supported")

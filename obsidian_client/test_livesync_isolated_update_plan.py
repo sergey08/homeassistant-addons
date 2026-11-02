@@ -52,6 +52,13 @@ class TestOfflineUpdate(unittest.TestCase):
             build(remote_writes_enabled=True)
         with self.assertRaises(UnsafeWrite):
             build(current_content=BEFORE,expected_content_sha256="0"*64)
+    def test_rejects_encrypted_production_parent_explicitly(self):
+        encrypted=parent()
+        encrypted["path"]="/\\:%=encrypted-metadata-fixture"
+        with self.assertRaisesRegex(
+                UnsafeWrite,"encrypted_parent_write_not_supported"):
+            build(existing_parent=encrypted)
+
     def test_rejects_multichunk(self):
         corrupted=parent()
         corrupted["children"]*=2
