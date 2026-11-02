@@ -128,5 +128,54 @@ class RealCouchDBIntegrationTests(unittest.TestCase):
                 self.assertEqual(call(base, "DELETE")[0], 200)
 
 
+    def test_encrypted_metadata_and_leaf_roundtrip_disposable(self):
+        """Synthetic encrypted parent and leaf; no production writes."""
+        from livesync_crypto import encrypt_hkdf_string, decrypt_hkdf_string
+        root = os.environ["TEST_COUCHDB_URL"].rstrip("/")
+        self.assertIn(root, ("http://127.0.0.1:5984", "http://localhost:5984"))
+        user = os.environ.get("TEST_COUCHDB_USER", "")
+        password = os.environ.get("TEST_COUCHDB_PASSWORD", "")
+        self.assertTrue(user and password)
+        auth = "Basic " + base64.b64encode(f"{user}:{password}".encode()).decode()
+        db = root + "/obsidian_encrypted_docs_ci_" + uuid.uuid4().hex
+
+        def call(url, method="GET", payload=None):
+            body = json.dumps(payload).encode() if payload is not None else None
+            req = Request(url, data=body, method=method,
+                          headers={"Authorization": auth, "Content-Type": "application/json"})
+            with urlopen(req, timeout=8) as resp:
+                return resp.status, json.load(resp)
+
+        phrase = "isolated-only-secret"
+        salt = base64.b64encode(b"synthetic-remote-pbkdf2-salt").decode()
+        markdown = "# Encrypted test\\nTexto de prueba 🌍\\n"
+        doc_id = "synthetic-parent"
+        leaf_id = "synthetic-leaf"
+        meta = {"path": "Tests/encrypted.md", "children": [leaf_id],
+                "size": len(markdown.encode("utf-8"))}
+        parent = {"_id": doc_id, "type": "plain",
+                  "path": "/\\:%=" + encrypt_hkdf_string(json.dumps(meta), phrase, salt)[2:],
+                  "children": [leaf_id], "size": meta["size"]}
+        leaf = {"_id": leaf_id, "type": "leaf",
+                "data": encrypt_hkdf_string(markdown, phrase, salt)}
+        created = False
+        try:
+            self.assertEqual(call(db, "PUT")[0], 201)
+            created = True
+            self.assertEqual(call(db + "/" + doc_id, "PUT", parent)[0], 201)
+            self.assertEqual(call(db + "/" + leaf_id, "PUT", leaf)[0], 201)
+            _, read_parent = call(db + "/" + doc_id)
+            _, read_leaf = call(db + "/" + leaf_id)
+            decoded_meta = json.loads(decrypt_hkdf_string(
+                read_parent["path"][3:], phrase, salt))
+            decoded_markdown = decrypt_hkdf_string(read_leaf["data"], phrase, salt)
+            self.assertEqual(decoded_meta, meta)
+            self.assertEqual(decoded_markdown, markdown)
+            self.assertEqual(len(decoded_markdown.encode("utf-8")), decoded_meta["size"])
+        finally:
+            if created:
+                self.assertEqual(call(db, "DELETE")[0], 200)
+
+
 if __name__ == "__main__":
     unittest.main()
