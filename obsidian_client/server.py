@@ -1167,6 +1167,80 @@ def render_wikilinks(content, current_path, known_notes):
     return safe
 
 
+@app.get("/api/remote/parent-revision")
+def remote_parent_revision():
+    """Read-only revision lookup for encrypted parent metadata.
+
+    Never expose remote document IDs, revisions, ciphertext or credentials to
+    the browser. A future write requires a fresh server-side snapshot.
+    """
+    from livesync_encrypted_parent_snapshot import validate_encrypted_parent_snapshot
+    from livesync_crypto import decrypt_hkdf_string, UnsupportedEncryption
+    from livesync_write_preflight import validate_write_request, UnsafeWrite
+    import base64
+    requested=request.args.get("path","")
+    try:
+        validate_write_request(requested,"",None,creating=True)
+    except (UnsafeWrite,ValueError):
+        return jsonify(error="invalid_path"),400
+    cfg=options()
+    if not cfg.get("livesync_encryption_enabled") or not cfg.get("livesync_e2ee_passphrase"):
+        return jsonify(error="encryption_not_configured"),409
+    endpoint=(cfg.get("couchdb_url") or "").rstrip("/")
+    database=cfg.get("couchdb_database") or ""
+    if endpoint!="http://db21ed7f-obsidian-syncserver-ssl:5984" or not re.fullmatch(r"[A-Za-z0-9_.-]+",database):
+        return jsonify(error="unsupported_connection"),403
+    user=cfg.get("couchdb_username") or ""
+    headers={"Accept":"application/json"}
+    if user:
+        headers["Authorization"]="Basic "+base64.b64encode(
+            (user+":"+(cfg.get("couchdb_password") or "")).encode()).decode()
+    class NoRedirect(HTTPRedirectHandler):
+        def redirect_request(self,req,fp,code,msg,headers,newurl):
+            return None
+    opener=build_opener(NoRedirect())
+    base=endpoint+"/"+quote(database,safe="")
+    def fetch(suffix,limit):
+        with opener.open(Request(base+suffix,headers=headers),timeout=12) as response:
+            raw=response.read(limit+1)
+        if len(raw)>limit:
+            raise ValueError("oversized")
+        return json.loads(raw)
+    try:
+        salt=fetch("/_local/obsidian_livesync_sync_parameters",100000).get("pbkdf2salt")
+        if not isinstance(salt,str) or not salt:
+            raise ValueError("missing_salt")
+        rows=fetch("/_all_docs?include_docs=true&limit=1200",5000000).get("rows",[])
+        matches=[]
+        for row in rows:
+            stored=row.get("doc") if isinstance(row,dict) else None
+            if not isinstance(stored,dict) or stored.get("type") not in ("plain","newnote"):
+                continue
+            ciphertext=stored.get("path")
+            if not isinstance(ciphertext,str) or not ciphertext.startswith("/\\:%="):
+                continue
+            try:
+                decoded=json.loads(decrypt_hkdf_string(
+                    ciphertext[3:],cfg["livesync_e2ee_passphrase"],salt))
+            except (UnsupportedEncryption,ValueError,TypeError):
+                continue
+            if isinstance(decoded,dict) and decoded.get("path")==requested:
+                matches.append((stored,decoded))
+        if len(matches)!=1:
+            return jsonify(error="missing_or_ambiguous_parent",write_supported=False),409
+        stored,decoded=matches[0]
+        result=validate_encrypted_parent_snapshot(
+            stored,decoded,requested,stored.get("_rev"))
+        response=jsonify(status="verified_read_only",path=requested,
+                         revision_available=bool(result["_rev"]),
+                         encrypted_parent=True,write_supported=False,
+                         child_count=len(result["children"]))
+        response.headers["Cache-Control"]="no-store"
+        return response
+    except (HTTPError,URLError,OSError,ValueError,TypeError,UnsafeWrite,UnsupportedEncryption):
+        return jsonify(error="revision_inspection_failed",write_supported=False),409
+
+
 @app.get("/api/remote/note-content")
 def remote_note_content():
     """Read-only plaintext for an editor; no CouchDB writes until LiveSync encoding is validated."""
