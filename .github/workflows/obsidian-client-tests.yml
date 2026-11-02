@@ -494,9 +494,7 @@ jobs:
                        "data":encrypt_hkdf_string(test_content,
                            config["livesync_e2ee_passphrase"],remote_salt)},
                       {"_id":parent_id,"type":"plain",
-                       "path":"/\\\\:%="+encrypt_hkdf_string(
-                           json.dumps(metadata),config["livesync_e2ee_passphrase"],
-                           remote_salt)[2:],
+                       "path":test_path,
                        "children":[leaf_id],"size":metadata["size"],
                        "ctime":1730000000000,"mtime":1730000000000,"eden":{}},
                   ]
