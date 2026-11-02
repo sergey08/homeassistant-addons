@@ -365,6 +365,19 @@ jobs:
                       "Official LiveSync document schema changed; review the "
                       "encrypted-write implementation before enabling writes")
 
+                  # Describe nested metadata schema without exposing values.
+                  eden_shapes={}
+                  for row in official_rows:
+                      doc=row.get("doc",{})
+                      if not isinstance(doc,dict) or doc.get("type")!="plain":
+                          continue
+                      eden=doc.get("eden")
+                      if not isinstance(eden,dict):
+                          continue
+                      shape=tuple(sorted((key,safe_type(val)) for key,val in eden.items()))
+                      eden_shapes[shape]=eden_shapes.get(shape,0)+1
+                  print("Official CLI eden field type shapes:",
+                        sorted((list(shape),count) for shape,count in eden_shapes.items()))
                   # Strict interoperability probe: our encrypted parent and leaf
                   # must be readable by an independent official CLI client.
                   # This deliberately fails if our synthetic document IDs or
