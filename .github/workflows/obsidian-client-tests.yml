@@ -523,6 +523,25 @@ jobs:
                       "h-colon-prefixed":("h:"+calculated_chunk_id)==official_chunk_id,
                       "digest-only":calculated_chunk_id[1:]==official_chunk_id,
                   }.items()))
+                  # Diagnose actual legacy hash mode without exposing IDs.
+                  from livesync_chunk_identity import xxhash64,base36_unsigned,js_utf16_code_units
+                  direct_plain=base36_unsigned(xxhash64(
+                      f"{content}-{js_utf16_code_units(content)}".encode("utf-8")))
+                  print("Official hash algorithm representation probes:", sorted({
+                      "plain-base36":direct_plain==official_chunk_id,
+                      "plain-h-colon":("h:"+direct_plain)==official_chunk_id,
+                      "plain-plus":("+"+direct_plain)==official_chunk_id,
+                      "encrypted-plus":calculated_chunk_id==official_chunk_id,
+                      "encrypted-h-colon":("h:"+calculated_chunk_id[1:])==official_chunk_id,
+                      "encrypted-h-colon-plus":("h:"+calculated_chunk_id)==official_chunk_id,
+                  }.items()))
+                  print("Official chunk ID shape checks:",sorted({
+                      "starts-h-colon":official_chunk_id.startswith("h:"),
+                      "starts-plus":official_chunk_id.startswith("+"),
+                      "starts-plus-h-colon":official_chunk_id.startswith("+h:"),
+                      "base36-tail":all(c in "0123456789abcdefghijklmnopqrstuvwxyz"
+                                         for c in official_chunk_id.split(":")[-1]),
+                  }.items()))
                   # Content-addressing check: a second official note with
                   # identical plaintext should reuse the same chunk ID.
                   # This tests the pinned configuration rather than guessing
