@@ -542,6 +542,23 @@ jobs:
                       "base36-tail":all(c in "0123456789abcdefghijklmnopqrstuvwxyz"
                                          for c in official_chunk_id.split(":")[-1]),
                   }.items()))
+                  # Upstream Commonlib defines EncryptedChunk as "h:+",
+                  # not plain "h:". Diagnose actual CI settings as well.
+                  print("Pinned CLI chunk namespace checks:",sorted({
+                      "encrypted-prefix":official_chunk_id.startswith("h:+"),
+                      "encrypted-base36-suffix":(
+                          official_chunk_id.startswith("h:+") and
+                          all(ch in "0123456789abcdefghijklmnopqrstuvwxyz"
+                              for ch in official_chunk_id[3:])),
+                      "legacy-full-match":("h:"+calculated_chunk_id)==official_chunk_id,
+                  }.items()))
+                  cli_settings=json.loads(
+                      (pathlib.Path(temp)/".livesync"/"settings.json").read_text())
+                  print("Pinned CLI hash settings checks:",sorted({
+                      "hash-xxhash64":cli_settings.get("hashAlg")=="xxhash64",
+                      "independent-ids-enabled":cli_settings.get("idDerivationVersion",0)==1,
+                      "encryption-enabled":cli_settings.get("encrypt") is True,
+                  }.items()))
                   # Content-addressing check: a second official note with
                   # identical plaintext should reuse the same chunk ID.
                   # This tests the pinned configuration rather than guessing
