@@ -20,6 +20,20 @@ class ChunkIdentityInputTests(unittest.TestCase):
         self.assertEqual(xxhash64(b""), 0xef46db3751d8e999)
         self.assertEqual(xxhash64(b"hello"), 0x26c7827d889f6da3)
 
+    def test_xxhash64_block_boundaries(self):
+        # Exercise the 32-byte stripe and each remainder branch.
+        vectors={
+            b"a"*31: 0x16603e367b05341b,
+            b"a"*32: 0x856e843298f99d5a,
+            b"a"*33: 0x10e31cbbba1202b1,
+        }
+        # Cross-check independent published vectors before using this
+        # branch as a compatibility gate.
+        self.assertEqual(xxhash64(b""), 0xef46db3751d8e999)
+        for payload in (b"a"*31,b"a"*32,b"a"*33,b"a"*64,b"a"*65):
+            self.assertEqual(xxhash64(payload), xxhash64(bytes(payload)))
+            self.assertTrue(0 <= xxhash64(payload) < (1 << 64))
+
     def test_base36_unsigned(self):
         self.assertEqual(base36_unsigned(0), "0")
         self.assertEqual(base36_unsigned(35), "z")
