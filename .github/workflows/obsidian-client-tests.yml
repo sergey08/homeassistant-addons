@@ -782,9 +782,17 @@ jobs:
                   print("Official CLI decoded CAS-updated note; stale revision rejected")
                   # Create a separate official-client fixture with explicit
                   # path obfuscation enabled. Never show secrets or document IDs.
-                  with tempfile.TemporaryDirectory() as obfuscated_cli:
-                      install_official_cli_settings(config,obfuscated_cli)
-                      register_remote(cli,obfuscated_cli,config)
+                  obfuscated_db_name=name+"_obfuscated"
+                  obfuscated_url=root+"/"+obfuscated_db_name
+                  obfuscated_create=urllib.request.Request(
+                      obfuscated_url,method="PUT",headers={"Authorization":auth})
+                  with urllib.request.urlopen(obfuscated_create,timeout=10) as response:
+                      assert response.status==201
+                  try:
+                    obfuscated_config={**config,"couchdb_database":obfuscated_db_name}
+                    with tempfile.TemporaryDirectory() as obfuscated_cli:
+                      install_official_cli_settings(obfuscated_config,obfuscated_cli)
+                      register_remote(cli,obfuscated_cli,obfuscated_config)
                       settings_path=pathlib.Path(obfuscated_cli)/".livesync"/"settings.json"
                       obfuscated_settings=json.loads(settings_path.read_text())
                       obfuscated_settings["usePathObfuscation"]=True
@@ -796,8 +804,11 @@ jobs:
                       assert put.returncode==0,"CLI failed generating obfuscated fixture"
                       sync=subprocess.run(["node",cli,obfuscated_cli,"sync"],
                           capture_output=True,text=True,timeout=90)
-                      assert sync.returncode==0,"CLI failed syncing obfuscated fixture"
-                      with urllib.request.urlopen(index_request,timeout=10) as response:
+                      assert sync.returncode==0, "CLI failed syncing obfuscated fixture"
+                      isolated_index=urllib.request.Request(
+                          obfuscated_url+"/_all_docs?include_docs=true&limit=500",
+                          headers={"Authorization":auth})
+                      with urllib.request.urlopen(isolated_index,timeout=10) as response:
                           obfuscated_rows=json.load(response).get("rows",[])
                       derived=legacy_obfuscated_parent_id(
                           obfuscated_note,config["livesync_e2ee_passphrase"])
@@ -807,6 +818,11 @@ jobs:
                       print("Official obfuscated parent ID matches Python:",
                             len(candidates)==1)
                       assert len(candidates)==1,"Official CLI obfuscated ID differs from Python"
+                  finally:
+                    cleanup=urllib.request.Request(
+                        obfuscated_url,method="DELETE",headers={"Authorization":auth})
+                    with urllib.request.urlopen(cleanup,timeout=10) as response:
+                        assert response.status==200
                   print("Encrypted sync and fetch roundtrip verified in disposable database")
           finally:
               assert call("DELETE")==200
