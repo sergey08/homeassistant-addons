@@ -896,12 +896,17 @@ jobs:
                                   return response.status,json.load(response)
                           except urllib.error.HTTPError as error:
                               return error.code,{"error":"conflict"}
-                      from livesync_isolated_commit import commit_isolated_plan
-                      result=commit_isolated_plan(
-                          {"leaf":updated_leaf,"parent":updated_parent,
-                           "write_order":("leaf","parent")},
-                          put_test_document,isolated_test=True)
-                      assert result["status"]=="committed_in_disposable_test_only"
+                      # Encrypted metadata intentionally keeps outer children=[].
+                      # The legacy isolated helper requires visible children,
+                      # so do not weaken its safeguards for this CI-only fixture.
+                      assert updated_parent["_id"]==python_parent["_id"]
+                      assert updated_parent["_rev"]==old_rev
+                      assert updated_parent["path"].startswith("/\\\\:")
+                      assert updated_parent["children"]==[]
+                      leaf_status,_=put_test_document(updated_leaf)
+                      assert leaf_status==201,"Disposable encrypted leaf PUT failed"
+                      parent_status,_=put_test_document(updated_parent)
+                      assert parent_status==201,"Disposable encrypted CAS parent PUT failed"
                       stale_status,_=put_test_document(updated_parent)
                       assert stale_status==409,"CouchDB accepted stale encrypted parent"
                       with tempfile.TemporaryDirectory() as updated_obfuscated_reader:
