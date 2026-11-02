@@ -511,6 +511,18 @@ jobs:
                           "Official CLI cannot read independently created Python parent "
                           "even when its leaf is official")
                   print("Official CLI decoded Python-created parent with original official leaf")
+                  # Compare the complete Python legacy ID with the official
+                  # fixture, reporting booleans only (never IDs or secrets).
+                  from livesync_chunk_identity import legacy_chunk_id
+                  calculated_chunk_id=legacy_chunk_id(
+                      content,config["livesync_e2ee_passphrase"])
+                  official_chunk_id=official_leaves[0]["_id"]
+                  print("Legacy Python vs official chunk identity probes:",sorted({
+                      "direct":calculated_chunk_id==official_chunk_id,
+                      "h-colon-digest":("h:"+calculated_chunk_id[1:])==official_chunk_id,
+                      "h-colon-prefixed":("h:"+calculated_chunk_id)==official_chunk_id,
+                      "digest-only":calculated_chunk_id[1:]==official_chunk_id,
+                  }.items()))
                   # Content-addressing check: a second official note with
                   # identical plaintext should reuse the same chunk ID.
                   # This tests the pinned configuration rather than guessing
