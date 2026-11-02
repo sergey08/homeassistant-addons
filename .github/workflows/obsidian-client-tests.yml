@@ -329,6 +329,26 @@ jobs:
                   print("Official CLI extra metadata field names:",
                         sorted((kind,list(names),count) for kind,groups in field_sets.items()
                                for names,count in groups.items()))
+                  # Only compare the data types and envelope prefixes; never
+                  # print real field values, IDs, paths or decrypted contents.
+                  def safe_type(value):
+                      if value is None: return "null"
+                      if isinstance(value,bool): return "bool"
+                      if isinstance(value,int): return "int"
+                      if isinstance(value,str): return "str"
+                      if isinstance(value,list): return "list"
+                      if isinstance(value,dict): return "object"
+                      return "other"
+                  observed_types={}
+                  for row in official_rows:
+                      doc=row.get("doc",{})
+                      if not isinstance(doc,dict) or doc.get("type") not in ("plain","newnote","leaf"):
+                          continue
+                      for key in ("e_","eden","ctime","mtime","size","children","path","data"):
+                          if key in doc:
+                              marker=(doc["type"],key,safe_type(doc[key]))
+                              observed_types[marker]=observed_types.get(marker,0)+1
+                  print("Official CLI typed field counts:",sorted(observed_types.items()))
                   # Strict interoperability probe: our encrypted parent and leaf
                   # must be readable by an independent official CLI client.
                   # This deliberately fails if our synthetic document IDs or
