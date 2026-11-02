@@ -58,3 +58,18 @@ synthetic parent/leaf. To determine root cause, compare the pinned
 upstream `path2id_base` path transformation and official chunk-ID
 derivation, then test a new note using those algorithms. Do not
 enable production writes or silently bypass the failing assertion.
+
+## Content-addressed IDs verified (CI run 41470968252)
+
+Two distinct notes containing *identical plaintext*, created by the
+pinned official CLI, referenced exactly the same Chunk ID. This
+confirms deterministic content-derived IDs for the active CI settings.
+A copied official encrypted Chunk given an arbitrary new ID was not
+readable by a fresh official client. Therefore random IDs are not
+interoperable, even when the ciphertext and document shape are retained.
+
+Next implementation task: identify the **pinned Commonlib HashManager**
+algorithm and settings used by the CLI to compute IDs, compare Python
+output to a known official fixture without logging source content or
+identifiers, and only then re-run independent note creation. Keep the
+existing failure assertion as a gate.
