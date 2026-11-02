@@ -135,7 +135,7 @@ def fallback_mixed_hash_each(source: str) -> str:
     for code in units:
         fnv = ((fnv ^ code) * 0x01000193) & 0xffffffff
         k = _js_uint32(float(code * 0xcc9e2d51))
-        k = _js_int32((k << 15) | (_js_int32(k) >> 17))
+        k = _js_int32((k << 15) | (_js_uint32(k) >> 17))
         k = _js_int32(float(k * 0x1b873593))
         h = _js_int32(_js_uint32(h) ^ k)
         h = _js_int32((h << 13) | (_js_uint32(h) >> 19))
