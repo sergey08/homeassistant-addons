@@ -511,6 +511,24 @@ jobs:
                           "Official CLI cannot read independently created Python parent "
                           "even when its leaf is official")
                   print("Official CLI decoded Python-created parent with original official leaf")
+                  # Content-addressing check: a second official note with
+                  # identical plaintext should reuse the same chunk ID.
+                  # This tests the pinned configuration rather than guessing
+                  # a hash function from the textual ID prefix.
+                  same_note="Tests/identical-content.md"
+                  subprocess.run(["node",cli,temp,"put",same_note],
+                                 input=content,text=True,check=True,timeout=45)
+                  subprocess.run(["node",cli,temp,"sync"],check=True,timeout=90)
+                  same_parent_req=urllib.request.Request(
+                      url+"/"+quote(same_note.lower(),safe=""),
+                      headers={"Authorization":auth})
+                  with urllib.request.urlopen(same_parent_req,timeout=10) as response:
+                      same_parent=json.load(response)
+                  assert same_parent["type"]=="plain"
+                  assert same_parent["children"]==official_parent["children"], (
+                      "Identical text did not reuse identical content-derived chunk IDs; "
+                      "review the active chunk hash settings")
+                  print("Official CLI reuses chunk ID for identical plaintext")
                   # A new parent with an official leaf works. Now isolate an
                   # independently created leaf referenced by a new parent,
                   # retaining the exact official metadata envelope and path.
