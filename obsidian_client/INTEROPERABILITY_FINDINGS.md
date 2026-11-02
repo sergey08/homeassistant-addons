@@ -73,3 +73,31 @@ algorithm and settings used by the CLI to compute IDs, compare Python
 output to a known official fixture without logging source content or
 identifiers, and only then re-run independent note creation. Keep the
 existing failure assertion as a gate.
+
+## Pinned Commonlib legacy encrypted xxHash64 algorithm located
+
+Source: `vrtmrz/livesync-commonlib`,
+`src/managers/HashManager/XXHashHashManager.ts` and
+`src/managers/HashManager/HashManagerCore.ts`.
+The legacy encrypted XXHash64 digest, when no independent ID key is active,
+is generated from:
+
+```text
+hashedPassphrase = fallbackMixedHashEach(
+    SALT_OF_ID + passphrase.substring(0, ~~(passphrase.length / 4 * 3)))
+chunkHash = xxhash64_utf8(chunkText + "-" + hashedPassphrase + "-" + chunkText.length)
+chunkId = "+" + base36(chunkHash)
+```
+
+`chunkText.length` is **JavaScript UTF-16 code-unit length**, not the
+Python UTF-8 byte length. This matters for non-BMP characters. The
+Commonlib `HashManager` additionally supports independently keyed IDs,
+so CI must first assert that that mode is disabled; don't assume the
+legacy algorithm applies universally. Replicate `fallbackMixedHashEach`
+and `SALT_OF_ID` from the exact pinned dependencies, and use fixture
+comparisons against the CLI before trusting a Python implementation.
+Avoid leaking passphrases, secret-derived values or full identifiers.
+
+The earlier random ID beginning `h:` is **not justified** by the
+observed colon alone; don't interpret an ID-shape check as the actual
+hash algorithm or namespace.
