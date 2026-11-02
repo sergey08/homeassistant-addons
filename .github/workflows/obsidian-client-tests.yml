@@ -678,14 +678,22 @@ jobs:
                       builder_path,builder_content,
                       config["livesync_e2ee_passphrase"],remote_salt,
                       created_millis=1730000000000)
-                  for kind in plan["write_order"]:
-                      document=plan[kind]
+                  # Exercise the isolated-only commit protocol with the
+                  # real disposable CouchDB transport, never production.
+                  from livesync_isolated_commit import commit_isolated_plan
+                  def disposable_put(document):
                       request=urllib.request.Request(
                           url+"/"+quote(document["_id"],safe=""),
                           method="PUT",data=json.dumps(document).encode("utf-8"),
                           headers={"Authorization":auth,"Content-Type":"application/json"})
-                      with urllib.request.urlopen(request,timeout=10) as response:
-                          assert response.status==201
+                      try:
+                          with urllib.request.urlopen(request,timeout=10) as response:
+                              return response.status,json.load(response)
+                      except urllib.error.HTTPError as error:
+                          return error.code,{"error":"conflict"}
+                  committed=commit_isolated_plan(
+                      plan,disposable_put,isolated_test=True)
+                  assert committed["status"]=="committed_in_disposable_test_only"
                   with tempfile.TemporaryDirectory() as builder_reader:
                       install_official_cli_settings(config,builder_reader)
                       register_remote(cli,builder_reader,config)
