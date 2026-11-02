@@ -22,3 +22,21 @@ The missing fields are differences, not proof that adding placeholders would mak
 ## Next diagnostic
 
 Compare **types and presence** of official `e_`, `eden`, `ctime`, `mtime`, child references and encrypted path envelope without logging any source values; then derive compatible IDs from the pinned upstream implementation and confirm independent CLI `sync` + `cat` in the disposable database.
+
+## Confirmed cross-client ciphertext interoperability
+
+CI run 41436825443, isolated CouchDB: the official CLI successfully
+decoded **Python-encrypted Markdown data** when the original official
+leaf document ID, parent metadata and revision were retained. The
+independent reader returned exactly the replacement content. This is a
+positive integration test, not merely a Python self-roundtrip.
+
+A *separately created* Python parent/leaf pair still fails the official
+CLI's sync/cat compatibility assertion in the same job. The remaining
+work is compatible parent/leaf identity and document metadata. Do not
+claim end-to-end writer interoperability until the second assertion
+passes.
+
+The official client's example plain document contained an empty
+`eden` object; its leaf's `e_` field is boolean. An empty `eden`
+alone is not sufficient evidence for arbitrary-file compatibility.
