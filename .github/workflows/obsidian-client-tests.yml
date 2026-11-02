@@ -289,6 +289,386 @@ jobs:
                                             capture_output=True,text=True,timeout=45)
                       restored=vault/note
                       assert (result.returncode==0 and result.stdout==content) or (restored.is_file() and restored.read_text()==content), "Fetch did not restore expected Markdown note"
+                  # Compare only sanitized document-ID shapes from the official
+                  # client; never display IDs, paths, contents, or credentials.
+                  index_request=urllib.request.Request(
+                      url+"/_all_docs?include_docs=true&limit=500",
+                      headers={"Authorization":auth})
+                  with urllib.request.urlopen(index_request,timeout=10) as response:
+                      official_rows=json.load(response).get("rows",[])
+                  def classify_doc(doc):
+                      kind=doc.get("type")
+                      if kind not in ("plain","newnote","leaf","chunk"):
+                          return None
+                      identifier=doc.get("_id","")
+                      if not isinstance(identifier,str):
+                          return None
+                      return (kind,
+                              "hex" if len(identifier)>=32 and all(c in "0123456789abcdef" for c in identifier.lower()) else
+                              "prefixed" if ":" in identifier else "other",
+                              "short" if len(identifier)<33 else "medium" if len(identifier)<81 else "long")
+                  shapes={}
+                  for row in official_rows:
+                      doc=row.get("doc",{})
+                      if isinstance(doc,dict):
+                          shape=classify_doc(doc)
+                          if shape is not None:
+                              label="/".join(shape)
+                              shapes[label]=shapes.get(label,0)+1
+                  print("Official CLI document shape counts:",sorted(shapes.items()))
+                  # Compare public schema field names only (no values).
+                  field_sets={}
+                  for row in official_rows:
+                      doc=row.get("doc",{})
+                      if isinstance(doc,dict) and doc.get("type") in ("plain","newnote","leaf"):
+                          kind=doc["type"]
+                          names=tuple(sorted(k for k in doc if k not in
+                              ("_id","_rev","data","path","children")))
+                          field_sets.setdefault(kind,{})
+                          field_sets[kind][names]=field_sets[kind].get(names,0)+1
+                  print("Official CLI extra metadata field names:",
+                        sorted((kind,list(names),count) for kind,groups in field_sets.items()
+                               for names,count in groups.items()))
+                  # Only compare the data types and envelope prefixes; never
+                  # print real field values, IDs, paths or decrypted contents.
+                  def safe_type(value):
+                      if value is None: return "null"
+                      if isinstance(value,bool): return "bool"
+                      if isinstance(value,int): return "int"
+                      if isinstance(value,str): return "str"
+                      if isinstance(value,list): return "list"
+                      if isinstance(value,dict): return "object"
+                      return "other"
+                  observed_types={}
+                  for row in official_rows:
+                      doc=row.get("doc",{})
+                      if not isinstance(doc,dict) or doc.get("type") not in ("plain","newnote","leaf"):
+                          continue
+                      for key in ("e_","eden","ctime","mtime","size","children","path","data"):
+                          if key in doc:
+                              marker=(doc["type"],key,safe_type(doc[key]))
+                              observed_types[marker]=observed_types.get(marker,0)+1
+                  print("Official CLI typed field counts:",sorted(observed_types.items()))
+                  # Pin the *observed* structural contract from the upstream
+                  # CLI. No assumptions are made about private field values.
+                  expected_types={
+                      ("leaf","data","str"),
+                      ("leaf","e_","bool"),
+                      ("plain","children","list"),
+                      ("plain","ctime","int"),
+                      ("plain","eden","object"),
+                      ("plain","mtime","int"),
+                      ("plain","path","str"),
+                      ("plain","size","int"),
+                  }
+                  assert expected_types.issubset(set(observed_types)), (
+                      "Official LiveSync document schema changed; review the "
+                      "encrypted-write implementation before enabling writes")
+
+                  # Describe nested metadata schema without exposing values.
+                  eden_shapes={}
+                  for row in official_rows:
+                      doc=row.get("doc",{})
+                      if not isinstance(doc,dict) or doc.get("type")!="plain":
+                          continue
+                      eden=doc.get("eden")
+                      if not isinstance(eden,dict):
+                          continue
+                      shape=tuple(sorted((key,safe_type(val)) for key,val in eden.items()))
+                      eden_shapes[shape]=eden_shapes.get(shape,0)+1
+                  print("Official CLI eden field type shapes:",
+                        sorted((list(shape),count) for shape,count in eden_shapes.items()))
+                  # Strict interoperability probe: our encrypted parent and leaf
+                  # must be readable by an independent official CLI client.
+                  # This deliberately fails if our synthetic document IDs or
+                  # metadata are not interoperable; do not loosen the assertion.
+                  from livesync_crypto import encrypt_hkdf_string
+                  import urllib.error
+                  salt_request=urllib.request.Request(
+                      url+"/_local/obsidian_livesync_sync_parameters",
+                      headers={"Authorization":auth})
+                  with urllib.request.urlopen(salt_request,timeout=10) as response:
+                      remote_salt=json.load(response)["pbkdf2salt"]
+                  # Isolate encryption compatibility from metadata and ID derivation:
+                  # preserve official IDs, parent metadata, revision, and leaf
+                  # flags; replace only ciphertext in this disposable database.
+                  official_leaves=[row["doc"] for row in official_rows
+                                   if isinstance(row.get("doc"),dict)
+                                   and row["doc"].get("type")=="leaf"]
+                  assert len(official_leaves)==1, "Expected one official test leaf"
+                  encrypted_leaf=official_leaves[0].copy()
+                  replacement=content.replace("Never production","Offline isolated")
+                  assert replacement!=content
+                  assert len(replacement.encode("utf-8"))==len(content.encode("utf-8"))
+                  encrypted_leaf["data"]=encrypt_hkdf_string(
+                      replacement,config["livesync_e2ee_passphrase"],remote_salt)
+                  put_request=urllib.request.Request(
+                      url+"/"+quote(encrypted_leaf["_id"],safe=""),
+                      method="PUT",data=json.dumps(encrypted_leaf).encode("utf-8"),
+                      headers={"Authorization":auth,"Content-Type":"application/json"})
+                  with urllib.request.urlopen(put_request,timeout=10) as response:
+                      assert response.status==201
+                  with tempfile.TemporaryDirectory() as replacement_reader:
+                      install_official_cli_settings(config,replacement_reader)
+                      register_remote(cli,replacement_reader,config)
+                      synced=subprocess.run(
+                          ["node",cli,replacement_reader,"sync"],
+                          capture_output=True,text=True,timeout=90)
+                      assert synced.returncode==0, "CLI sync failed with Python ciphertext"
+                      decoded=subprocess.run(
+                          ["node",cli,replacement_reader,"cat",note],
+                          capture_output=True,text=True,timeout=45)
+                      assert decoded.returncode==0 and decoded.stdout==replacement, (
+                          "Official CLI could not read Python-encrypted leaf with official IDs")
+                  print("Official CLI decoded Python-encrypted leaf with original IDs")
+
+                  # Independently rewrite the *parent* metadata through CouchDB
+                  # using the official document shape and optimistic _rev.
+                  official_parents=[row["doc"] for row in official_rows
+                                    if isinstance(row.get("doc"),dict)
+                                    and row["doc"].get("type")=="plain"]
+                  assert len(official_parents)==1, "Expected one official parent"
+                  parent=official_parents[0].copy()
+                  assert isinstance(parent.get("eden"),dict)
+                  assert isinstance(parent.get("ctime"),int)
+                  assert isinstance(parent.get("mtime"),int)
+                  assert isinstance(parent.get("children"),list)
+                  parent["mtime"]+=1
+                  parent_request=urllib.request.Request(
+                      url+"/"+quote(parent["_id"],safe=""),
+                      method="PUT",data=json.dumps(parent).encode("utf-8"),
+                      headers={"Authorization":auth,"Content-Type":"application/json"})
+                  with urllib.request.urlopen(parent_request,timeout=10) as response:
+                      assert response.status==201, "Python parent metadata update failed"
+                  with tempfile.TemporaryDirectory() as parent_reader:
+                      install_official_cli_settings(config,parent_reader)
+                      register_remote(cli,parent_reader,config)
+                      synced=subprocess.run(["node",cli,parent_reader,"sync"],
+                                          capture_output=True,text=True,timeout=90)
+                      assert synced.returncode==0, "CLI sync failed after Python parent update"
+                      recovered=subprocess.run(["node",cli,parent_reader,"cat",note],
+                                            capture_output=True,text=True,timeout=45)
+                      assert recovered.returncode==0 and recovered.stdout==replacement, (
+                          "Official CLI cannot recover note after Python metadata rewrite")
+                  print("Official CLI decoded Python-updated parent and encrypted leaf")
+
+                  # Determine an actual path-to-ID relationship from a
+                  # fresh official CLI fixture. Do not print identifiers.
+                  official_parent=official_parents[0]
+                  official_id=official_parent["_id"]
+                  official_path=note
+                  identity_probes={
+                      "literal-path":official_id==official_path,
+                      "literal-prefixed":official_id==("f:"+official_path),
+                      "lowercase-path":official_id==official_path.lower(),
+                      "lowercase-prefixed":official_id==("f:"+official_path.lower()),
+                  }
+                  print("Official CLI path identity probes:",sorted(identity_probes.items()))
+                  assert identity_probes["lowercase-path"], "Official CLI path ID convention changed"
+                  assert isinstance(official_id,str) and bool(official_id)
+                  official_leaf_id=official_leaves[0]["_id"]
+                  official_stored_path=official_parent.get("path","")
+                  assert isinstance(official_stored_path,str)
+                  print("Official document envelope probes:",sorted({
+                      "parent-path-literal":official_stored_path==note,
+                      "parent-path-lowercase":official_stored_path==note.lower(),
+                      "parent-path-encrypted-marker":official_stored_path.startswith("/\\\\:%="),
+                      "parent-path-percent-marker":official_stored_path.startswith("%="),
+                      "leaf-id-colon-prefix":official_leaf_id.startswith("h:"),
+                      "leaf-id-underscore-prefix":official_leaf_id.startswith("h_"),
+                      "leaf-id-slash-prefix":official_leaf_id.startswith("/"),
+                  }.items()))
+                  print("Official document envelope sizes:",{
+                      "parent_path_length":len(official_stored_path),
+                      "leaf_id_length":len(official_leaf_id),
+                      "leaf_id_has_colon":":" in official_leaf_id,
+                  })
+                  # Isolate creation of a new metadata document from Chunk ID
+                  # derivation. Reuse a real, already validated official leaf,
+                  # but create an independent path/parent through Python.
+                  clone_path="Tests/python-created-parent.md"
+                  clone_parent=official_parent.copy()
+                  clone_parent.pop("_rev",None)
+                  clone_parent["_id"]=clone_path.lower()
+                  clone_parent["path"]=clone_path
+                  clone_parent["children"]=[official_leaf_id]
+                  clone_parent["mtime"]=clone_parent["mtime"]+1000
+                  clone_request=urllib.request.Request(
+                      url+"/"+quote(clone_parent["_id"],safe=""),
+                      method="PUT",data=json.dumps(clone_parent).encode("utf-8"),
+                      headers={"Authorization":auth,"Content-Type":"application/json"})
+                  with urllib.request.urlopen(clone_request,timeout=10) as response:
+                      assert response.status==201
+                  with tempfile.TemporaryDirectory() as clone_reader:
+                      install_official_cli_settings(config,clone_reader)
+                      register_remote(cli,clone_reader,config)
+                      cloned_sync=subprocess.run(["node",cli,clone_reader,"sync"],
+                                                capture_output=True,text=True,timeout=90)
+                      assert cloned_sync.returncode==0, "CLI failed to sync new Python parent"
+                      cloned_cat=subprocess.run(["node",cli,clone_reader,"cat",clone_path],
+                                               capture_output=True,text=True,timeout=45)
+                      assert cloned_cat.returncode==0 and cloned_cat.stdout==replacement, (
+                          "Official CLI cannot read independently created Python parent "
+                          "even when its leaf is official")
+                  print("Official CLI decoded Python-created parent with original official leaf")
+                  # Compare the complete Python legacy ID with the official
+                  # fixture, reporting booleans only (never IDs or secrets).
+                  from livesync_chunk_identity import legacy_chunk_id
+                  calculated_chunk_id=legacy_chunk_id(
+                      content,config["livesync_e2ee_passphrase"])
+                  official_chunk_id=official_leaves[0]["_id"]
+                  print("Legacy Python vs official chunk identity probes:",sorted({
+                      "direct":calculated_chunk_id==official_chunk_id,
+                      "h-colon-digest":("h:"+calculated_chunk_id[1:])==official_chunk_id,
+                      "h-colon-prefixed":("h:"+calculated_chunk_id)==official_chunk_id,
+                      "digest-only":calculated_chunk_id[1:]==official_chunk_id,
+                  }.items()))
+                  # Diagnose actual legacy hash mode without exposing IDs.
+                  from livesync_chunk_identity import xxhash64,base36_unsigned,js_utf16_code_units
+                  direct_plain=base36_unsigned(xxhash64(
+                      f"{content}-{js_utf16_code_units(content)}".encode("utf-8")))
+                  print("Official hash algorithm representation probes:", sorted({
+                      "plain-base36":direct_plain==official_chunk_id,
+                      "plain-h-colon":("h:"+direct_plain)==official_chunk_id,
+                      "plain-plus":("+"+direct_plain)==official_chunk_id,
+                      "encrypted-plus":calculated_chunk_id==official_chunk_id,
+                      "encrypted-h-colon":("h:"+calculated_chunk_id[1:])==official_chunk_id,
+                      "encrypted-h-colon-plus":("h:"+calculated_chunk_id)==official_chunk_id,
+                  }.items()))
+                  print("Official chunk ID shape checks:",sorted({
+                      "starts-h-colon":official_chunk_id.startswith("h:"),
+                      "starts-plus":official_chunk_id.startswith("+"),
+                      "starts-plus-h-colon":official_chunk_id.startswith("+h:"),
+                      "base36-tail":all(c in "0123456789abcdefghijklmnopqrstuvwxyz"
+                                         for c in official_chunk_id.split(":")[-1]),
+                  }.items()))
+                  # Upstream Commonlib defines EncryptedChunk as "h:+",
+                  # not plain "h:". Diagnose actual CI settings as well.
+                  print("Pinned CLI chunk namespace checks:",sorted({
+                      "encrypted-prefix":official_chunk_id.startswith("h:+"),
+                      "encrypted-base36-suffix":(
+                          official_chunk_id.startswith("h:+") and
+                          all(ch in "0123456789abcdefghijklmnopqrstuvwxyz"
+                              for ch in official_chunk_id[3:])),
+                      "legacy-full-match":("h:"+calculated_chunk_id)==official_chunk_id,
+                  }.items()))
+                  cli_settings=json.loads(
+                      (pathlib.Path(temp)/".livesync"/"settings.json").read_text())
+                  print("Pinned CLI hash settings checks:",sorted({
+                      "hash-xxhash64":cli_settings.get("hashAlg")=="xxhash64",
+                      "independent-ids-enabled":cli_settings.get("idDerivationVersion",0)==1,
+                      "encryption-enabled":cli_settings.get("encrypt") is True,
+                  }.items()))
+                  # Verify that the exact known note text is a single Chunk
+                  # and compare the full proper h:+ namespace. Also isolate
+                  # whether the historical passphrase mixing port differs.
+                  from livesync_chunk_identity import fallback_mixed_hash_each
+                  print("Pinned CLI legacy namespace match:", ("h:"+calculated_chunk_id)==official_chunk_id)
+                  print("Official parent chunk count:",len(official_parent["children"]))
+                  assert len(official_parent["children"])==1
+                  # This check compares against the *actual* official leaf ID
+                  # without logging credentials, derived hashes or ID values.
+                  print("Official parent refers to observed leaf:",
+                        official_parent["children"][0]==official_chunk_id)
+                  # Content-addressing check: a second official note with
+                  # identical plaintext should reuse the same chunk ID.
+                  # This tests the pinned configuration rather than guessing
+                  # a hash function from the textual ID prefix.
+                  same_note="Tests/identical-content.md"
+                  subprocess.run(["node",cli,temp,"put",same_note],
+                                 input=content,text=True,check=True,timeout=45)
+                  subprocess.run(["node",cli,temp,"sync"],check=True,timeout=90)
+                  same_parent_req=urllib.request.Request(
+                      url+"/"+quote(same_note.lower(),safe=""),
+                      headers={"Authorization":auth})
+                  with urllib.request.urlopen(same_parent_req,timeout=10) as response:
+                      same_parent=json.load(response)
+                  assert same_parent["type"]=="plain"
+                  assert same_parent["children"]==official_parent["children"], (
+                      "Identical text did not reuse identical content-derived chunk IDs; "
+                      "review the active chunk hash settings")
+                  print("Official CLI reuses chunk ID for identical plaintext")
+                  # A new parent with an official leaf works. Now isolate an
+                  # independently created leaf referenced by a new parent,
+                  # retaining the exact official metadata envelope and path.
+                  python_leaf_id="h:"+uuid.uuid4().hex[:13]
+                  python_leaf=official_leaves[0].copy()
+                  python_leaf.pop("_rev",None)
+                  python_leaf["_id"]=python_leaf_id
+                  # Keep original official ciphertext in this probe: change
+                  # only the leaf ID. This separates ID validation from codec.
+                  assert python_leaf["data"]==official_leaves[0]["data"]
+                  python_leaf_request=urllib.request.Request(
+                      url+"/"+quote(python_leaf_id,safe=""),
+                      method="PUT",data=json.dumps(python_leaf).encode("utf-8"),
+                      headers={"Authorization":auth,"Content-Type":"application/json"})
+                  with urllib.request.urlopen(python_leaf_request,timeout=10) as response:
+                      assert response.status==201
+                  new_chunk_path="Tests/python-created-leaf.md"
+                  new_chunk_parent=official_parent.copy()
+                  new_chunk_parent.pop("_rev",None)
+                  new_chunk_parent["_id"]=new_chunk_path.lower()
+                  new_chunk_parent["path"]=new_chunk_path
+                  new_chunk_parent["children"]=[python_leaf_id]
+                  new_chunk_parent["mtime"]+=2000
+                  create_parent=urllib.request.Request(
+                      url+"/"+quote(new_chunk_parent["_id"],safe=""),
+                      method="PUT",data=json.dumps(new_chunk_parent).encode("utf-8"),
+                      headers={"Authorization":auth,"Content-Type":"application/json"})
+                  with urllib.request.urlopen(create_parent,timeout=10) as response:
+                      assert response.status==201
+                  with tempfile.TemporaryDirectory() as new_leaf_reader:
+                      install_official_cli_settings(config,new_leaf_reader)
+                      register_remote(cli,new_leaf_reader,config)
+                      synced=subprocess.run(["node",cli,new_leaf_reader,"sync"],
+                                          capture_output=True,text=True,timeout=90)
+                      assert synced.returncode==0, "CLI failed to sync Python-created leaf"
+                      cat=subprocess.run(["node",cli,new_leaf_reader,"cat",new_chunk_path],
+                                         capture_output=True,text=True,timeout=45)
+                      assert cat.returncode!=0 or cat.stdout!=replacement, (
+                          "Official CLI unexpectedly accepted a chunk with a deliberately invalid ID")
+                  print("Official CLI rejected deliberately invalid chunk identity")
+                  test_path="Tests/generated-by-ha.md"
+                  test_content="# Generated by HA\\nInteroperability check\\n"
+                  leaf_id=legacy_chunk_id(test_content,config["livesync_e2ee_passphrase"])
+                  leaf_id="h:"+leaf_id
+                  parent_id=test_path.lower()
+                  metadata={"path":test_path,"children":[leaf_id],
+                            "size":len(test_content.encode("utf-8"))}
+                  generated_docs=[
+                      {"_id":leaf_id,"type":"leaf","e_":True,
+                       "data":encrypt_hkdf_string(test_content,
+                           config["livesync_e2ee_passphrase"],remote_salt)},
+                      {"_id":parent_id,"type":"plain",
+                       "path":test_path,
+                       "children":[leaf_id],"size":metadata["size"],
+                       "ctime":1730000000000,"mtime":1730000000000,"eden":{}},
+                  ]
+                  print("HA generated extra metadata field names:",
+                        sorted((doc["type"],sorted(k for k in doc if k not in
+                               ("_id","_rev","data","path","children")))
+                               for doc in generated_docs))
+
+                  for generated in generated_docs:
+                      request=urllib.request.Request(
+                          url+"/"+quote(generated["_id"],safe=""),
+                          method="PUT",
+                          data=json.dumps(generated).encode("utf-8"),
+                          headers={"Authorization":auth,"Content-Type":"application/json"})
+                      with urllib.request.urlopen(request,timeout=10) as response:
+                          assert response.status==201
+                  with tempfile.TemporaryDirectory() as reader:
+                      install_official_cli_settings(config,reader)
+                      register_remote(cli,reader,config)
+                      sync=subprocess.run(["node",cli,reader,"sync"],
+                                          capture_output=True,text=True,timeout=90)
+                      assert sync.returncode==0, "Official CLI sync failed reading HA documents"
+                      cat=subprocess.run(["node",cli,reader,"cat",test_path],
+                                         capture_output=True,text=True,timeout=45)
+                      assert cat.returncode==0 and cat.stdout==test_content, (
+                          "Official LiveSync CLI cannot decode HA-generated document; "
+                          "metadata or document-ID derivation still incompatible")
+                  print("Independent CLI decoded HA-generated encrypted note")
                   print("Encrypted sync and fetch roundtrip verified in disposable database")
           finally:
               assert call("DELETE")==200
