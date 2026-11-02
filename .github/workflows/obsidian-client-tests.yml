@@ -697,6 +697,50 @@ jobs:
                       assert result.returncode==0 and result.stdout==builder_content, (
                           "Builder output is not interoperable with official LiveSync")
                   print("Official CLI decoded offline builder-created note")
+                  # Update the same builder-created note using a verified
+                  # revision, then check both CLI interoperability and CAS 409.
+                  import hashlib
+                  from livesync_isolated_update_plan import prepare_isolated_note_update
+                  parent_url=url+"/"+quote(plan["parent"]["_id"],safe="")
+                  with urllib.request.urlopen(urllib.request.Request(
+                          parent_url,headers={"Authorization":auth}),timeout=10) as response:
+                      current_parent=json.load(response)
+                  revision=current_parent["_rev"]
+                  changed_content="# Builder proof\\nUpdated safely via CAS\\n"
+                  update=prepare_isolated_note_update(
+                      builder_path,changed_content,current_parent,builder_content,
+                      revision,hashlib.sha256(builder_content.encode()).hexdigest(),
+                      config["livesync_e2ee_passphrase"],remote_salt,
+                      modified_millis=1730000001000)
+                  for kind in update["write_order"]:
+                      doc=update[kind]
+                      req=urllib.request.Request(
+                          url+"/"+quote(doc["_id"],safe=""),method="PUT",
+                          data=json.dumps(doc).encode(),
+                          headers={"Authorization":auth,"Content-Type":"application/json"})
+                      with urllib.request.urlopen(req,timeout=10) as response:
+                          assert response.status in (201,202)
+                  # A repeat parent update with the stale _rev must conflict.
+                  stale=urllib.request.Request(
+                      parent_url,method="PUT",
+                      data=json.dumps(update["parent"]).encode(),
+                      headers={"Authorization":auth,"Content-Type":"application/json"})
+                  try:
+                      urllib.request.urlopen(stale,timeout=10)
+                      raise AssertionError("Stale update unexpectedly succeeded")
+                  except urllib.error.HTTPError as error:
+                      assert error.code==409, "Expected CouchDB 409 on stale revision"
+                  with tempfile.TemporaryDirectory() as updated_reader:
+                      install_official_cli_settings(config,updated_reader)
+                      register_remote(cli,updated_reader,config)
+                      synced=subprocess.run(["node",cli,updated_reader,"sync"],
+                                            capture_output=True,text=True,timeout=90)
+                      assert synced.returncode==0,"CLI could not sync updated note"
+                      result=subprocess.run(["node",cli,updated_reader,"cat",builder_path],
+                                            capture_output=True,text=True,timeout=45)
+                      assert result.returncode==0 and result.stdout==changed_content, (
+                          "Official LiveSync could not read CAS-updated note")
+                  print("Official CLI decoded CAS-updated note; stale revision rejected")
                   print("Encrypted sync and fetch roundtrip verified in disposable database")
           finally:
               assert call("DELETE")==200
