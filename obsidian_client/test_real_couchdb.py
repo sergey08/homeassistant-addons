@@ -79,5 +79,54 @@ class RealCouchDBIntegrationTests(unittest.TestCase):
                 self.assertTrue(call(base, "DELETE").get("ok"))
 
 
+    def test_disposable_revision_conflict(self):
+        """CouchDB must atomically reject a stale revision without losing a write."""
+        from livesync_revision_contract import (
+            RevisionConflict, prepare_conditional_document, require_successful_put,
+        )
+        root = os.environ["TEST_COUCHDB_URL"].rstrip("/")
+        self.assertIn(root, ("http://127.0.0.1:5984", "http://localhost:5984"))
+        username = os.environ.get("TEST_COUCHDB_USER", "")
+        password = os.environ.get("TEST_COUCHDB_PASSWORD", "")
+        self.assertTrue(username and password)
+        auth = "Basic " + base64.b64encode(f"{username}:{password}".encode()).decode()
+        base = root + "/obsidian_cas_ci_" + uuid.uuid4().hex
+
+        def call(url, method="GET", payload=None):
+            body = json.dumps(payload).encode() if payload is not None else None
+            req = Request(url, data=body, method=method,
+                          headers={"Authorization": auth, "Content-Type": "application/json"})
+            with urlopen(req, timeout=8) as response:
+                return response.status, json.load(response)
+
+        created = False
+        try:
+            self.assertEqual(call(base, "PUT")[0], 201)
+            created = True
+            doc_url = base + "/synthetic-note"
+            initial = {"_id": "synthetic-note", "type": "plain", "data": "initial"}
+            status, inserted = call(doc_url, "PUT", initial)
+            self.assertTrue(require_successful_put(status, inserted))
+            _, old = call(doc_url)
+            rev = old["_rev"]
+            first = prepare_conditional_document(
+                old, {**old, "data": "first-writer"}, rev)
+            status, saved = call(doc_url, "PUT", first)
+            self.assertTrue(require_successful_put(status, saved))
+            stale = prepare_conditional_document(
+                old, {**old, "data": "stale-writer"}, rev)
+            with self.assertRaises(HTTPError) as rejected:
+                call(doc_url, "PUT", stale)
+            self.assertEqual(rejected.exception.code, 409)
+            with self.assertRaisesRegex(RevisionConflict, "remote_revision_conflict"):
+                require_successful_put(409, {"error": "conflict"})
+            _, latest = call(doc_url)
+            self.assertEqual(latest["data"], "first-writer")
+            self.assertEqual(latest["_rev"], saved["rev"])
+        finally:
+            if created:
+                self.assertEqual(call(base, "DELETE")[0], 200)
+
+
 if __name__ == "__main__":
     unittest.main()
