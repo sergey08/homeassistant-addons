@@ -1,6 +1,6 @@
 """Regression tests for LiveSync's JavaScript chunk framing semantics."""
 import unittest
-from livesync_chunk_identity import (js_utf16_code_units, legacy_xxhash64_input, xxhash64, base36_unsigned, legacy_xxhash64_digest)
+from livesync_chunk_identity import (js_utf16_code_units, legacy_xxhash64_input, xxhash64, base36_unsigned, legacy_xxhash64_digest, fallback_mixed_hash_each)
 
 
 class ChunkIdentityInputTests(unittest.TestCase):
@@ -35,6 +35,20 @@ class ChunkIdentityInputTests(unittest.TestCase):
     def test_digest_framing(self):
         self.assertEqual(legacy_xxhash64_digest("A🌍B", "mock"),
                          base36_unsigned(xxhash64("A🌍B-mock-4".encode())))
+
+    def test_official_js_mixed_hash_vectors(self):
+        # Verified against octagonal-wheels/hash/purejs on Node.js.
+        vectors={
+            "": "hydjuoepw9f3",
+            "test": "1ihuhu81uuv60n",
+            "abc": "5rr8gw1dynbs6",
+            "A🌍B": "11avwnl10jegkh",
+            "isolated-ci-encryption-only": "e7zqys1bdgwjj",
+            "e\u0301": "56qhy467lqrn",
+        }
+        for source, expected in vectors.items():
+            with self.subTest(source=source):
+                self.assertEqual(fallback_mixed_hash_each(source), expected)
 
     def test_reject_nonstrings(self):
         with self.assertRaises(TypeError):
