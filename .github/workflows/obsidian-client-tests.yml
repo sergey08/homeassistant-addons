@@ -780,6 +780,33 @@ jobs:
                       assert result.returncode==0 and result.stdout==changed_content, (
                           "Official LiveSync could not read CAS-updated note")
                   print("Official CLI decoded CAS-updated note; stale revision rejected")
+                  # Create a separate official-client fixture with explicit
+                  # path obfuscation enabled. Never show secrets or document IDs.
+                  with tempfile.TemporaryDirectory() as obfuscated_cli:
+                      install_official_cli_settings(config,obfuscated_cli)
+                      register_remote(cli,obfuscated_cli,config)
+                      settings_path=pathlib.Path(obfuscated_cli)/".livesync"/"settings.json"
+                      obfuscated_settings=json.loads(settings_path.read_text())
+                      obfuscated_settings["usePathObfuscation"]=True
+                      obfuscated_settings["handleFilenameCaseSensitive"]=False
+                      settings_path.write_text(json.dumps(obfuscated_settings))
+                      obfuscated_note="Tests/official-obfuscated-id.md"
+                      put=subprocess.run(["node",cli,obfuscated_cli,"put",obfuscated_note],
+                          input="# Obfuscated fixture\\n",capture_output=True,text=True,timeout=45)
+                      assert put.returncode==0,"CLI failed generating obfuscated fixture"
+                      sync=subprocess.run(["node",cli,obfuscated_cli,"sync"],
+                          capture_output=True,text=True,timeout=90)
+                      assert sync.returncode==0,"CLI failed syncing obfuscated fixture"
+                      with urllib.request.urlopen(index_request,timeout=10) as response:
+                          obfuscated_rows=json.load(response).get("rows",[])
+                      derived=legacy_obfuscated_parent_id(
+                          obfuscated_note,config["livesync_e2ee_passphrase"])
+                      candidates=[row["doc"] for row in obfuscated_rows if
+                          isinstance(row.get("doc"),dict) and
+                          row["doc"].get("_id")==derived]
+                      print("Official obfuscated parent ID matches Python:",
+                            len(candidates)==1)
+                      assert len(candidates)==1,"Official CLI obfuscated ID differs from Python"
                   print("Encrypted sync and fetch roundtrip verified in disposable database")
           finally:
               assert call("DELETE")==200
