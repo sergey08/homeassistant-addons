@@ -818,6 +818,56 @@ jobs:
                       print("Official obfuscated parent ID matches Python:",
                             len(candidates)==1)
                       assert len(candidates)==1,"Official CLI obfuscated ID differs from Python"
+                      # Full Python-generated *obfuscated* envelope in the
+                      # separate disposable database. Never production.
+                      from livesync_encrypted_metadata_fixture import encode_parent_metadata_fixture
+                      from livesync_chunk_identity import legacy_chunk_id
+                      from livesync_crypto import encrypt_hkdf_string
+                      salt_req=urllib.request.Request(
+                          obfuscated_url+"/_local/obsidian_livesync_sync_parameters",
+                          headers={"Authorization":auth})
+                      with urllib.request.urlopen(salt_req,timeout=10) as response:
+                          obfuscated_salt=json.load(response)["pbkdf2salt"]
+                      python_path="Tests/python-obfuscated-envelope.md"
+                      python_text="# Python obfuscated envelope\\nVerified only in disposable CI\\n"
+                      python_chunk="h:"+legacy_chunk_id(
+                          python_text,config["livesync_e2ee_passphrase"])
+                      python_leaf={"_id":python_chunk,"type":"leaf","e_":True,
+                          "data":encrypt_hkdf_string(
+                              python_text,config["livesync_e2ee_passphrase"],obfuscated_salt)}
+                      encrypted_parent=encode_parent_metadata_fixture(
+                          python_path,[python_chunk],config["livesync_e2ee_passphrase"],
+                          obfuscated_salt,ctime=1730000000000,mtime=1730000000000,
+                          size=len(python_text.encode("utf-8")))
+                      python_parent={"_id":legacy_obfuscated_parent_id(
+                          python_path,config["livesync_e2ee_passphrase"]),
+                          "type":"plain","eden":{},
+                          "path":encrypted_parent["path"],"children":[],
+                          "ctime":0,"mtime":0,"size":0}
+                      for generated in (python_leaf,python_parent):
+                          req=urllib.request.Request(
+                              obfuscated_url+"/"+quote(generated["_id"],safe=""),
+                              method="PUT",data=json.dumps(generated).encode("utf-8"),
+                              headers={"Authorization":auth,"Content-Type":"application/json"})
+                          with urllib.request.urlopen(req,timeout=10) as response:
+                              assert response.status==201
+                      with tempfile.TemporaryDirectory() as obfuscated_reader:
+                          install_official_cli_settings(obfuscated_config,obfuscated_reader)
+                          register_remote(cli,obfuscated_reader,obfuscated_config)
+                          reader_settings_path=pathlib.Path(obfuscated_reader)/".livesync"/"settings.json"
+                          reader_settings=json.loads(reader_settings_path.read_text())
+                          reader_settings["usePathObfuscation"]=True
+                          reader_settings["handleFilenameCaseSensitive"]=False
+                          reader_settings_path.write_text(json.dumps(reader_settings))
+                          synced=subprocess.run(["node",cli,obfuscated_reader,"sync"],
+                              capture_output=True,text=True,timeout=90)
+                          assert synced.returncode==0,"Official CLI rejected Python encrypted envelope sync"
+                          recovered=subprocess.run(["node",cli,obfuscated_reader,"cat",python_path],
+                              capture_output=True,text=True,timeout=45)
+                          assert recovered.returncode==0 and recovered.stdout==python_text, (
+                              "Official CLI could not decode Python obfuscated encrypted envelope")
+                      print("Official CLI decoded fully Python-generated obfuscated encrypted note")
+
                   finally:
                     cleanup=urllib.request.Request(
                         obfuscated_url,method="DELETE",headers={"Authorization":auth})
