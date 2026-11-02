@@ -40,3 +40,21 @@ passes.
 The official client's example plain document contained an empty
 `eden` object; its leaf's `e_` field is boolean. An empty `eden`
 alone is not sufficient evidence for arbitrary-file compatibility.
+
+## Confirmed independent read after Python parent update
+
+CI job 125252712537 (run 41438061484) printed both:
+- `Official CLI decoded Python-encrypted leaf with original IDs`
+- `Official CLI decoded Python-updated parent and encrypted leaf`
+
+The Python test changed the existing official parent document's `mtime`
+using CouchDB's current `_rev`, while retaining its original identity,
+and a fresh independent CLI `sync` + `cat` returned exactly the
+Python-replacement content. This establishes compatibility for this
+specific parent metadata update, **not** creation of independent notes.
+
+The next assertion still fails for the independently generated
+synthetic parent/leaf. To determine root cause, compare the pinned
+upstream `path2id_base` path transformation and official chunk-ID
+derivation, then test a new note using those algorithms. Do not
+enable production writes or silently bypass the failing assertion.
