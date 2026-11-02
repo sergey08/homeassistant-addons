@@ -1317,6 +1317,44 @@ def remote_new_draft():
     )
 
 
+@app.post("/api/remote/write-preview")
+def remote_write_preview():
+    """Read-only preview of an intended edit. NEVER submits a CouchDB write.
+
+    An actual remote save still requires independently verified _rev and
+    document identity, and is intentionally not implemented in this endpoint.
+    """
+    import hashlib
+    from livesync_write_preflight import validate_write_request, UnsafeWrite
+    if request.headers.get("X-Obsidian-Client-Action") != "write-preview":
+        return jsonify(error="missing_action_header"), 403
+    if request.headers.get("Sec-Fetch-Site") not in (None, "same-origin"):
+        return jsonify(error="cross_origin_blocked"), 403
+    if request.headers.get("Origin") and request.headers.get("Sec-Fetch-Site") != "same-origin":
+        return jsonify(error="cross_origin_blocked"), 403
+    if request.mimetype != "application/json" or request.content_length is None or request.content_length > 2_100_000:
+        return jsonify(error="invalid_request"), 400
+    payload=request.get_json(silent=True)
+    if not isinstance(payload,dict) or set(payload)!={"path","content","expected_content"}:
+        return jsonify(error="invalid_request"), 400
+    path,content,expected=payload["path"],payload["content"],payload["expected_content"]
+    if not isinstance(expected,str):
+        return jsonify(error="expected_content_required"), 400
+    try:
+        result=validate_write_request(path,content,None,creating=True)
+    except (UnsafeWrite,ValueError,UnicodeError):
+        return jsonify(error="invalid_note"), 400
+    current,error=read_encrypted_note(path)
+    if error:
+        return jsonify(error="remote_read_failed", remote_write_enabled=False), 409
+    if hashlib.sha256(current.encode("utf-8")).digest()!=hashlib.sha256(expected.encode("utf-8")).digest():
+        return jsonify(error="remote_content_conflict", remote_write_enabled=False), 409
+    return jsonify(path=path, bytes=result["bytes"], operation="update",
+                   content_changed=content!=current,
+                   status="preview_only", remote_write_enabled=False,
+                   revision_verified=False, save_supported=False)
+
+
 @app.get("/remote/edit")
 def remote_edit_draft():
     """Edit a temporary browser draft without writing to LiveSync."""
@@ -1343,13 +1381,14 @@ def remote_edit_draft():
         '<button type="button" id="discardDraft">Descartar borrador</button> '
         '<button type="button" id="exportDraft">Exportar .md</button> '
         '<button id="saveLocal" type="button">Guardar localmente (sin sincronizar)</button> '
-        '<button id="loadRemote" type="button">Recargar desde CouchDB (solo lectura)</button></p>'
+        '<button id="loadRemote" type="button">Recargar desde CouchDB (solo lectura)</button> '
+        '<button id="previewRemote" type="button">Comprobar guardado remoto (sin escribir)</button></p>'
         '<p id="saveStatus" role="status"></p>'
         '<h3>Vista previa de texto</h3><pre id="preview" style="white-space:pre-wrap"></pre>'
         '<script>const note=' + script_data + ';'
         'const e=document.getElementById("editor");e.value=note.content;'
         'let remoteLoaded=!note.needs_remote_load;'
-        'let original=note.content;let saving=false;let localReady=false;let localLoading=true;let dirty=false;'
+        'let original=note.content;let remoteSnapshot=note.content;let saving=false;let localReady=false;let localLoading=true;let dirty=false;'
         'const key="obsidian-draft:"+location.pathname+":"+note.path;'
         'try{const saved=sessionStorage.getItem(key);if(saved!==null&&saved!==original){'
         'if(confirm("Se encontró un borrador. ¿Recuperarlo?"))e.value=saved;'
@@ -1377,10 +1416,23 @@ def remote_edit_draft():
         'if(e.value!==data.content&&!confirm("¿Reemplazar el texto del editor por la copia de LiveSync? '
         'Se perderán los cambios no guardados que no hayas exportado."))'
         '{status.textContent="Lectura completada. Borrador conservado.";return;}'
-        'e.value=data.content;remoteLoaded=true;original=data.content;dirty=false;update();'
+        'e.value=data.content;remoteLoaded=true;remoteSnapshot=data.content;original=data.content;dirty=false;update();'
         'status.textContent="Nota remota recargada correctamente (solo lectura). '
         'Sin cambios pendientes en el editor; guardar localmente no sincroniza con CouchDB.";'
         '}catch(err){status.textContent="Lectura fallida: "+err.message}'
+        'finally{button.disabled=false}};'
+        'document.getElementById("previewRemote").onclick=async()=>{'
+        'const status=document.getElementById("saveStatus");'
+        'if(!remoteLoaded){status.textContent="Carga primero la nota remota.";return;}'
+        'const button=document.getElementById("previewRemote");button.disabled=true;'
+        'status.textContent="Comprobando cambios (sin escribir)...";'
+        'try{const res=await fetch("../api/remote/write-preview",{method:"POST",'
+        'headers:{"Content-Type":"application/json","X-Obsidian-Client-Action":"write-preview"},'
+        'body:JSON.stringify({path:note.path,content:e.value,expected_content:remoteSnapshot})});'
+        'const data=await res.json();if(!res.ok)throw Error(data.error||"preview_failed");'
+        'status.textContent=data.content_changed?"Cambios detectados. Solo previsualización; '
+        'guardado remoto desactivado.":"Sin cambios remotos pendientes. Guardado remoto desactivado.";'
+        '}catch(err){status.textContent="Comprobación fallida: "+err.message}'
         'finally{button.disabled=false}};'
         'document.getElementById("copyDraft").onclick=()=>navigator.clipboard.writeText(e.value);'
         'document.getElementById("exportDraft").onclick=()=>{'
