@@ -349,6 +349,22 @@ jobs:
                               marker=(doc["type"],key,safe_type(doc[key]))
                               observed_types[marker]=observed_types.get(marker,0)+1
                   print("Official CLI typed field counts:",sorted(observed_types.items()))
+                  # Pin the *observed* structural contract from the upstream
+                  # CLI. No assumptions are made about private field values.
+                  expected_types={
+                      ("leaf","data","str"),
+                      ("leaf","e_","bool"),
+                      ("plain","children","list"),
+                      ("plain","ctime","int"),
+                      ("plain","eden","object"),
+                      ("plain","mtime","int"),
+                      ("plain","path","str"),
+                      ("plain","size","int"),
+                  }
+                  assert expected_types.issubset(set(observed_types)), (
+                      "Official LiveSync document schema changed; review the "
+                      "encrypted-write implementation before enabling writes")
+
                   # Strict interoperability probe: our encrypted parent and leaf
                   # must be readable by an independent official CLI client.
                   # This deliberately fails if our synthetic document IDs or
