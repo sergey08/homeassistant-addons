@@ -329,11 +329,6 @@ jobs:
                   print("Official CLI extra metadata field names:",
                         sorted((kind,list(names),count) for kind,groups in field_sets.items()
                                for names,count in groups.items()))
-                  print("HA generated extra metadata field names:",
-                        sorted((doc["type"],sorted(k for k in doc if k not in
-                               ("_id","_rev","data","path","children")))
-                               for doc in generated_docs))
-
                   # Strict interoperability probe: our encrypted parent and leaf
                   # must be readable by an independent official CLI client.
                   # This deliberately fails if our synthetic document IDs or
@@ -361,6 +356,11 @@ jobs:
                            remote_salt)[2:],
                        "children":[leaf_id],"size":metadata["size"]},
                   ]
+                  print("HA generated extra metadata field names:",
+                        sorted((doc["type"],sorted(k for k in doc if k not in
+                               ("_id","_rev","data","path","children")))
+                               for doc in generated_docs))
+
                   for generated in generated_docs:
                       request=urllib.request.Request(
                           url+"/"+quote(generated["_id"],safe=""),
