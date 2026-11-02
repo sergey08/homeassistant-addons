@@ -901,7 +901,7 @@ jobs:
                       # so do not weaken its safeguards for this CI-only fixture.
                       assert updated_parent["_id"]==python_parent["_id"]
                       assert updated_parent["_rev"]==old_rev
-                      assert updated_parent["path"].startswith("/\\\\:")
+                      assert updated_parent["path"]==updated_meta["path"]
                       assert updated_parent["children"]==[]
                       leaf_status,_=put_test_document(updated_leaf)
                       assert leaf_status==201,"Disposable encrypted leaf PUT failed"
