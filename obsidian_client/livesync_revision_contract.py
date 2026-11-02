@@ -6,7 +6,7 @@ a conflict; never retry with a newly fetched revision automatically.
 """
 import re
 
-_REV = re.compile(r"[1-9][0-9]*-[0-9a-fA-F]{32}\\Z")
+_REV = re.compile(r"[1-9][0-9]*-[0-9a-fA-F]{32}\Z")
 
 class RevisionConflict(ValueError):
     pass
