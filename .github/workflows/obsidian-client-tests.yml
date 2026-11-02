@@ -466,6 +466,19 @@ jobs:
                   print("Official CLI path identity probes:",sorted(identity_probes.items()))
                   assert identity_probes["lowercase-path"], "Official CLI path ID convention changed"
                   assert isinstance(official_id,str) and bool(official_id)
+                  # Official CLI currently uses un-obfuscated IDs by default.
+                  # Independently derive the obfuscated variant from the same
+                  # synthetic path/password, without claiming CLI equivalence.
+                  from livesync_obfuscated_parent_identity import legacy_obfuscated_parent_id
+                  derived_obfuscated_id=legacy_obfuscated_parent_id(
+                      official_path,config["livesync_e2ee_passphrase"])
+                  print("Legacy obfuscated parent identity shape:",sorted({
+                      "prefix-f":derived_obfuscated_id.startswith("f:"),
+                      "sha256-hex-length":len(derived_obfuscated_id)==66,
+                      "distinct-from-unobfuscated":derived_obfuscated_id!=official_id,
+                  }.items()))
+                  assert derived_obfuscated_id.startswith("f:")
+                  assert len(derived_obfuscated_id)==66
                   official_leaf_id=official_leaves[0]["_id"]
                   official_stored_path=official_parent.get("path","")
                   assert isinstance(official_stored_path,str)
