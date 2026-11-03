@@ -94,6 +94,16 @@ def check_message(message, allowed):
         if len(json.dumps(arguments).encode("utf-8")) > MAX_TOOL_ARGUMENTS:
             raise PolicyError("Tool arguments too large")
         authorize_call(params.get("name"), allowed)
+        name = params.get("name")
+        if name in LOCAL_FILE_TOOLS:
+            schema = LOCAL_FILE_TOOLS[name]["inputSchema"]
+            required = set(schema.get("required", []))
+            permitted = set(schema.get("properties", {}))
+            if set(arguments) != required or not set(arguments).issubset(permitted):
+                raise PolicyError("Invalid file tool arguments")
+            for key in required:
+                if not isinstance(arguments[key], str):
+                    raise PolicyError("Invalid file tool argument type")
     return method
 
 
