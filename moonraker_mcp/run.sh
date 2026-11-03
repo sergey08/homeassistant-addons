@@ -12,6 +12,7 @@ if [ -z "$MCP_HTTP_TOKEN" ]; then
   echo "Configure a nonempty MCP HTTP token" >&2
   exit 1
 fi
+export MCP_ALLOWED_PROFILES="$(jq -cr '[["history", .enable_history // false], ["sensors", .enable_sensors // false], ["spoolman", .enable_spoolman // false], ["power", .enable_power // false]] | map(select(.[1] == true) | .[0])' "$OPTIONS")"
 export MCP_HTTP_HOST=127.0.0.1
 export MCP_HTTP_PORT=8766
 export MOONRAKER_ENABLE_ADMIN=false
