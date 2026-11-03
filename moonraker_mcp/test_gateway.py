@@ -110,6 +110,17 @@ class GatewayTests(unittest.TestCase):
                                       "arguments": {"objects": {"x": ["a" * 17000]}}}},
                           self.allowed)
 
+    def test_duplicate_and_malformed_upstream_tools_rejected(self):
+        from tool_policy import filter_tools
+        for tools in (
+            [{"name": "moonraker_printer_info"}, {"name": "moonraker_printer_info"}],
+            [{"name": "moonraker_printer_info"}, {"name": "moonraker_gcode_script"},
+             {"name": "moonraker_gcode_script"}],
+            [{"name": "moonraker_printer_info"}, {"description": "no name"}],
+        ):
+            with self.subTest(tools=tools), self.assertRaises(PolicyError):
+                filter_tools(tools, self.allowed)
+
     def test_pagination_rejected(self):
         with self.assertRaises(PolicyError):
             filter_reply("tools/list", {"result": {"tools": [], "nextCursor": "x"}},
