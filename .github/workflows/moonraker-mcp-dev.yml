@@ -144,6 +144,20 @@ jobs:
                       else:
                           raise AssertionError("Forbidden tool reached upstream: "+name)
                   print("Docker HTTP gateway blocked",len(forbidden),"forbidden tool calls")
+                  # Verify disabled-by-default privacy groups in the actual container.
+                  excluded=("moonraker_history_list","moonraker_history_job",
+                            "moonraker_history_totals","moonraker_power_status",
+                            "moonraker_sensors_info","moonraker_sensors_list",
+                            "moonraker_sensors_measurements","moonraker_spoolman_status",
+                            "moonraker_spoolman_get_spool")
+                  for index,name in enumerate(excluded,start=200):
+                      try:
+                          request("tools/call",{"name":name,"arguments":{}},index,session)
+                      except urllib.error.HTTPError as error:
+                          assert error.code==403,(name,error.code)
+                      else:
+                          raise AssertionError("Privacy-disabled tool accepted: "+name)
+                  print("Docker HTTP gateway rejected all",len(excluded),"privacy-disabled tools")
                   # The raw upstream port must only bind loopback inside Docker.
                   # Inspect the listening socket through /proc without installing netstat.
                   inspection=subprocess.run(
