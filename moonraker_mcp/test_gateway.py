@@ -1,5 +1,5 @@
 import unittest
-from gateway import check_message, filter_reply, validate_reply
+from gateway import check_message, filter_reply, validate_reply, validate_mcp_header
 from tool_policy import PolicyError, load_allowed, extend_allowed
 
 
@@ -153,6 +153,14 @@ class GatewayTests(unittest.TestCase):
         for invalid in (["admin"], ["history", "admin"], "history", [None]):
             with self.subTest(invalid=invalid), self.assertRaises(PolicyError):
                 extend_allowed(self.allowed, invalid)
+
+    def test_session_header_validation(self):
+        self.assertEqual(validate_mcp_header("session_123-abc.def"), "session_123-abc.def")
+        self.assertEqual(validate_mcp_header("2025-06-18"), "2025-06-18")
+        for invalid in ("", "a" * 129, "line\r\nInjected: yes",
+                        "has space", "semi;colon", "\\u2603", None):
+            with self.subTest(value=invalid), self.assertRaises(PolicyError):
+                validate_mcp_header(invalid)
 
     def test_pagination_rejected(self):
         with self.assertRaises(PolicyError):
