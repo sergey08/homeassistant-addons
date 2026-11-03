@@ -289,6 +289,13 @@ class Handler(BaseHTTPRequestHandler):
                     return self.reply(200, parsed, extra)
             except urllib.error.HTTPError as exc:
                 return self.reply(502, {"error": "Upstream MCP error", "status": exc.code})
+        except urllib.error.HTTPError as exc:
+            # File API errors must not reveal Moonraker URLs, API keys or bodies.
+            if exc.code == 404:
+                return self.reply(404, {"error": "Moonraker file not found"})
+            return self.reply(502, {"error": "Moonraker file service unavailable"})
+        except (urllib.error.URLError, TimeoutError):
+            return self.reply(502, {"error": "Moonraker file service unavailable"})
         except (PolicyError, FileAccessError, ValueError, TypeError, UnicodeError) as exc:
             return self.reply(403, {"error": str(exc)})
         except Exception:
