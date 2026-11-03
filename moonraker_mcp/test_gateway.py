@@ -114,7 +114,7 @@ class GatewayTests(unittest.TestCase):
     def test_unexpected_method_params_blocked(self):
         for method, params, has_id in (
             ("ping", {"command": "restart"}, True),
-            ("tools/list", {"cursor": "unexpected"}, True),
+            ("tools/list", {"cursor": 123}, True),
             ("notifications/initialized", {"command": "restart"}, False),
         ):
             message = {"jsonrpc": "2.0", "method": method, "params": params}
@@ -257,10 +257,27 @@ class GatewayTests(unittest.TestCase):
         self.assertEqual(strict_json_loads('{"id":1,"params":{"ok":true}}'),
                          {"id":1,"params":{"ok":True}})
 
-    def test_pagination_rejected(self):
-        with self.assertRaises(PolicyError):
-            filter_reply("tools/list", {"result": {"tools": [], "nextCursor": "x"}},
-                         self.allowed)
+    def test_pagination_preserves_cursor_and_filters_every_page(self):
+        response = {"result": {"tools": [{"name": "moonraker_printer_info"},
+                                          {"name": "moonraker_gcode_script"}],
+                               "nextCursor": "page-2"}}
+        filtered = filter_reply("tools/list", response, self.allowed)
+        self.assertEqual(filtered["result"]["nextCursor"], "page-2")
+        self.assertEqual([tool["name"] for tool in filtered["result"]["tools"]],
+                         ["moonraker_printer_info"])
+        enabled = extend_allowed(self.allowed, ["files"])
+        first = filter_reply("tools/list", response, enabled)
+        later = filter_reply("tools/list", response, enabled, cursor="page-2")
+        self.assertEqual(len(first["result"]["tools"]), 4)
+        self.assertEqual(len(later["result"]["tools"]), 1)
+        for cursor in ("", 3, "a" * 513):
+            with self.subTest(cursor=cursor), self.assertRaises(PolicyError):
+                check_message({"jsonrpc": "2.0", "id": 1, "method": "tools/list",
+                               "params": {"cursor": cursor}}, self.allowed)
+        for cursor in ("", 3, "a" * 513):
+            with self.subTest(nextCursor=cursor), self.assertRaises(PolicyError):
+                filter_reply("tools/list", {"result": {"tools": [], "nextCursor": cursor}},
+                             self.allowed)
 
 
 if __name__ == "__main__":
