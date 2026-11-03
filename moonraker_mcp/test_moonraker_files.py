@@ -2,7 +2,9 @@
 import io
 import json
 import unittest
-from moonraker_files import FileAccessError, validate_filename, validate_root, list_gcodes, gcode_metadata
+import urllib.request
+import urllib.error
+from moonraker_files import _NoRedirect, FileAccessError, validate_filename, validate_root, list_gcodes, gcode_metadata
 
 
 class FakeResponse:
@@ -51,6 +53,22 @@ class FileApiTests(unittest.TestCase):
             return FakeResponse({"size": 123})
         self.assertEqual(gcode_metadata("http://printer.local:7125", "my parts/a & b.gcode", opener=fake)["size"], 123)
         self.assertIn("filename=my+parts%2Fa+%26+b.gcode", calls[0])
+
+    def test_redirects_are_blocked_to_protect_api_key(self):
+        req = urllib.request.Request("http://printer.local:7125/server/files/list",
+                                     headers={"X-Api-Key": "secret"})
+        with self.assertRaises(FileAccessError):
+            _NoRedirect().redirect_request(req, None, 302, "Found",
+                                           {"Location": "https://untrusted.example/"},
+                                           "https://untrusted.example/")
+
+    def test_invalid_json_is_rejected(self):
+        class BrokenResponse:
+            def __enter__(self): return self
+            def __exit__(self, *args): return False
+            def read(self, size): return b"not json"
+        with self.assertRaises(FileAccessError):
+            list_gcodes("http://printer.local:7125", opener=lambda req, timeout: BrokenResponse())
 
     def test_reject_oversized_reply(self):
         def fake(req, timeout):
