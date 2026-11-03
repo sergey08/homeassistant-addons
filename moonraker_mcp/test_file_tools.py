@@ -1,0 +1,39 @@
+"""Opt-in MCP file tools tests; no printer required."""
+import unittest
+from unittest.mock import patch
+from gateway import LOCAL_FILE_TOOLS, check_message, filter_reply
+from tool_policy import PolicyError, extend_allowed, load_allowed
+
+
+class FileToolPolicyTests(unittest.TestCase):
+    def setUp(self):
+        self.base = load_allowed()
+
+    def test_files_are_not_enabled_by_default(self):
+        for name in LOCAL_FILE_TOOLS:
+            with self.assertRaises(PolicyError):
+                check_message({"jsonrpc": "2.0", "id": 1, "method": "tools/call",
+                               "params": {"name": name, "arguments": {}}}, self.base)
+
+    def test_files_opt_in_exposes_two_tools(self):
+        allowed = extend_allowed(self.base, ["files"])
+        reply = filter_reply("tools/list", {"jsonrpc": "2.0", "id": 1,
+                            "result": {"tools": []}}, allowed)
+        self.assertEqual({x["name"] for x in reply["result"]["tools"]}, set(LOCAL_FILE_TOOLS))
+        for name in LOCAL_FILE_TOOLS:
+            self.assertEqual(check_message({"jsonrpc": "2.0", "id": 1, "method": "tools/call",
+                             "params": {"name": name, "arguments": {}}}, allowed), "tools/call")
+
+    def test_files_profile_does_not_enable_other_profiles(self):
+        allowed = extend_allowed(self.base, ["files"])
+        with self.assertRaises(PolicyError):
+            check_message({"jsonrpc": "2.0", "id": 1, "method": "tools/call",
+                           "params": {"name": "moonraker_objects_query", "arguments": {}}}, allowed)
+
+    def test_file_tools_have_restrictive_schemas(self):
+        for tool in LOCAL_FILE_TOOLS.values():
+            self.assertFalse(tool["inputSchema"]["additionalProperties"])
+
+
+if __name__ == "__main__":
+    unittest.main()
