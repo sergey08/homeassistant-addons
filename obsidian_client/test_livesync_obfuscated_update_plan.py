@@ -68,6 +68,43 @@ class TestOfflineObfuscatedUpdate(unittest.TestCase):
         p["path"]=alt["path"]
         with self.assertRaises(UnsafeWrite):
             prepare(p)
+    def test_malformed_update_inputs_rejected(self):
+        for change in (
+            {"current_content": ""},
+            {"proposed_content": ""},
+            {"proposed_content": "x" * 1001},
+            {"current_content": "x" * 1001},
+            {"modified_millis": -1},
+            {"modified_millis": True},
+            {"expected_content_sha256": "0" * 64},
+            {"expected_content_sha256": "not-a-hash"},
+        ):
+            with self.subTest(change=change):
+                with self.assertRaises(UnsafeWrite):
+                    prepare(**change)
+
+    def test_parent_deletion_and_invalid_metadata_rejected(self):
+        for field, value in (
+            ("_deleted", True),
+            ("deleted", True),
+            ("_conflicts", ["2-" + "b" * 32]),
+            ("path", "not-encrypted"),
+            ("_rev", "wrong-revision"),
+        ):
+            with self.subTest(field=field):
+                parent = fixture()
+                parent[field] = value
+                with self.assertRaises(UnsafeWrite):
+                    prepare(parent)
+
+    def test_planning_does_not_mutate_existing_parent(self):
+        parent = fixture()
+        before = dict(parent)
+        plan = prepare(parent)
+        self.assertEqual(parent, before)
+        self.assertIsNot(plan["parent"], parent)
+        self.assertFalse(plan["write_supported"])
+
     def test_production_flag_rejected(self):
         with self.assertRaises(UnsafeWrite):
             prepare(remote_writes_enabled=True)
