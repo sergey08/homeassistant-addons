@@ -44,6 +44,24 @@ class GatewayTests(unittest.TestCase):
             with self.subTest(invalid=invalid), self.assertRaises(PolicyError):
                 validate_reply(request, invalid)
 
+    def test_upstream_jsonrpc_errors_require_valid_structure(self):
+        request = {"jsonrpc": "2.0", "id": 9, "method": "ping"}
+        self.assertEqual(validate_reply(request, {
+            "jsonrpc": "2.0", "id": 9,
+            "error": {"code": -32601, "message": "Method not found"}
+        })["error"]["code"], -32601)
+        for error in (None, [], {}, {"code": True, "message": "invalid"},
+                      {"code": "404", "message": "invalid"},
+                      {"code": -32601}, {"code": -32601, "message": 5}):
+            with self.subTest(error=error), self.assertRaises(PolicyError):
+                validate_reply(request, {"jsonrpc": "2.0", "id": 9, "error": error})
+
+    def test_upstream_tool_list_rejects_unknown_result_fields(self):
+        response = {"jsonrpc": "2.0", "id": 9,
+                    "result": {"tools": [], "extra": "unexpected"}}
+        with self.assertRaises(PolicyError):
+            filter_reply("tools/list", response, self.allowed)
+
     def test_notification_and_request_ids(self):
         self.assertEqual(
             check_message({"jsonrpc": "2.0", "method": "notifications/initialized"},
