@@ -7,7 +7,7 @@ import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from gateway import Handler
-from tool_policy import load_allowed
+from tool_policy import load_allowed, extend_allowed
 
 
 class FakeUpstream(BaseHTTPRequestHandler):
@@ -114,6 +114,31 @@ class HTTPGatewayTests(unittest.TestCase):
                     "name": name, "arguments": {}})
                 self.assertEqual(status, 403)
                 self.assertEqual(len(FakeUpstream.calls), before)
+
+    def test_optional_profiles_enforced_at_http_boundary(self):
+        original = Handler.allowed
+        try:
+            for profile, permitted in (
+                ("history", "moonraker_history_list"),
+                ("sensors", "moonraker_sensors_info"),
+                ("spoolman", "moonraker_spoolman_status"),
+                ("power", "moonraker_power_status"),
+            ):
+                with self.subTest(profile=profile):
+                    Handler.allowed = extend_allowed(load_allowed(), [profile])
+                    before = len(FakeUpstream.calls)
+                    status, _ = self.request("tools/call", {
+                        "name": permitted, "arguments": {}})
+                    self.assertEqual(status, 200)
+                    self.assertEqual(len(FakeUpstream.calls), before + 1)
+                    other = "moonraker_history_list" if profile != "history" else "moonraker_spoolman_status"
+                    before = len(FakeUpstream.calls)
+                    status, _ = self.request("tools/call", {
+                        "name": other, "arguments": {}})
+                    self.assertEqual(status, 403)
+                    self.assertEqual(len(FakeUpstream.calls), before)
+        finally:
+            Handler.allowed = original
 
     def test_allowed_call_reaches_fake_upstream(self):
         before = len(FakeUpstream.calls)
