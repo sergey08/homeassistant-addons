@@ -4,6 +4,7 @@ Moonraker API: GET /server/files/list and /server/files/metadata.
 Only G-code listing and metadata are supported in this first stage.
 """
 import json
+import unicodedata
 import urllib.parse
 import urllib.request
 
@@ -31,8 +32,15 @@ def validate_filename(filename):
         raise FileAccessError("Percent-encoded filenames are not permitted")
     if any(part in ("", ".", "..") for part in filename.split("/")):
         raise FileAccessError("Invalid filename")
-    if any(ord(char) < 32 or ord(char) == 127 for char in filename):
+    if any(ord(char) < 32 or ord(char) == 127 or
+           unicodedata.category(char) in ("Cf", "Cs") for char in filename):
         raise FileAccessError("Invalid filename")
+    # Unicode compatibility characters can normalize into separators or dot
+    # segments after an intermediate filesystem or proxy transformation.
+    for part in filename.split("/"):
+        normalized = unicodedata.normalize("NFKC", part)
+        if normalized in ("", ".", "..") or "/" in normalized or "\\" in normalized:
+            raise FileAccessError("Ambiguous Unicode filename")
     return filename
 
 
