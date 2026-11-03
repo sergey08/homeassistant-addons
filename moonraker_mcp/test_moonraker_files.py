@@ -4,7 +4,7 @@ import json
 import unittest
 import urllib.request
 import urllib.error
-from moonraker_files import _NoRedirect, FileAccessError, validate_filename, validate_root, list_gcodes, gcode_metadata
+from moonraker_files import _NoRedirect, FileAccessError, validate_filename, validate_root, list_gcodes, gcode_metadata, gcode_preview
 
 
 class FakeResponse:
@@ -53,6 +53,27 @@ class FileApiTests(unittest.TestCase):
             return FakeResponse({"size": 123})
         self.assertEqual(gcode_metadata("http://printer.local:7125", "my parts/a & b.gcode", opener=fake)["size"], 123)
         self.assertIn("filename=my+parts%2Fa+%26+b.gcode", calls[0])
+
+    def test_gcode_preview_only_and_bounded(self):
+        class RawResponse:
+            def __init__(self, payload): self.payload = payload
+            def __enter__(self): return self
+            def __exit__(self, *args): return False
+            def read(self, size): return self.payload[:size]
+        calls = []
+        def fake(req, timeout):
+            calls.append((req.full_url, req.get_header("Range"), req.get_method()))
+            return RawResponse(b"; sample\\nG1 X1\\n")
+        result = gcode_preview("http://printer.local:7125", "parts/test.gcode", opener=fake)
+        self.assertEqual(result["preview"], "; sample\\nG1 X1\\n")
+        self.assertEqual(calls[0][1], "bytes=0-16383")
+        self.assertEqual(calls[0][2], "GET")
+        for name in ("printer.cfg", "../secret.gcode", "/tmp/test.gcode", "secret.txt"):
+            with self.subTest(name=name), self.assertRaises(FileAccessError):
+                gcode_preview("http://printer.local:7125", name, opener=fake)
+        with self.assertRaises(FileAccessError):
+            gcode_preview("http://printer.local:7125", "test.gcode",
+                          opener=lambda req, timeout: RawResponse(b"x" * 16385))
 
     def test_redirects_are_blocked_to_protect_api_key(self):
         req = urllib.request.Request("http://printer.local:7125/server/files/list",
