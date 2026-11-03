@@ -1,4 +1,4 @@
-"""Read-only Moonraker file API helpers. Not exposed as MCP tools yet.
+"""Read-only Moonraker file API helpers used by the MCP gateway.
 
 Moonraker API: GET /server/files/list and /server/files/metadata.
 Only G-code listing and metadata are supported in this first stage.
@@ -33,6 +33,12 @@ def validate_filename(filename):
     return filename
 
 
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    """Do not forward Moonraker credentials to a redirect destination."""
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        raise FileAccessError("Moonraker redirect refused")
+
+
 def _read_json(url, api_key="", opener=None):
     parsed = urllib.parse.urlsplit(url)
     if parsed.scheme not in ("http", "https") or not parsed.hostname or parsed.username or parsed.password:
@@ -42,12 +48,15 @@ def _read_json(url, api_key="", opener=None):
         headers["X-Api-Key"] = api_key
     req = urllib.request.Request(url, headers=headers, method="GET")
     if opener is None:
-        opener = urllib.request.urlopen
+        opener = urllib.request.build_opener(_NoRedirect()).open
     with opener(req, timeout=10) as response:
         raw = response.read(MAX_RESPONSE_BYTES + 1)
     if len(raw) > MAX_RESPONSE_BYTES:
         raise FileAccessError("Moonraker response too large")
-    data = json.loads(raw)
+    try:
+        data = json.loads(raw)
+    except (ValueError, UnicodeError) as exc:
+        raise FileAccessError("Invalid Moonraker JSON response") from exc
     if not isinstance(data, dict) or "result" not in data:
         raise FileAccessError("Unexpected Moonraker response")
     return data["result"]
