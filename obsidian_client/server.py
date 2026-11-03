@@ -1150,7 +1150,7 @@ def read_encrypted_note(requested, *, verify_revision=False):
             # Check the same parent's revision again after reading its chunks.
             # An actual write must still perform CouchDB conditional CAS.
             fresh=fetch("/"+quote(selected_parent["_id"],safe=""),500000)
-            if (fresh.get("_id")!=selected_parent["_id"]
+            if (not isinstance(fresh,dict)\n                    or fresh.get("_id")!=selected_parent["_id"]
                     or fresh.get("_rev")!=selected_parent["_rev"]
                     or fresh.get("path")!=selected_parent["path"]
                     or fresh.get("_deleted") or fresh.get("_conflicts")):
