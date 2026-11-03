@@ -8,6 +8,26 @@ class GatewayTests(unittest.TestCase):
     def setUpClass(cls):
         cls.allowed = load_allowed()
 
+    def test_upstream_redirect_does_not_forward_bearer_token(self):
+        import urllib.error
+        import urllib.request
+        from gateway import NoRedirect, UPSTREAM_OPENER
+        request = urllib.request.Request(
+            "http://127.0.0.1:8766/",
+            headers={"Authorization": "Bearer confidential-token"},
+            data=b'{"jsonrpc":"2.0","id":1,"method":"ping"}',
+        )
+        redirect = NoRedirect()
+        for code in (301, 302, 303, 307, 308):
+            with self.subTest(code=code):
+                self.assertIsNone(redirect.redirect_request(
+                    request, None, code, "Redirect",
+                    {"Location": "https://untrusted.example/collect"},
+                    "https://untrusted.example/collect",
+                ))
+        self.assertTrue(any(isinstance(handler, NoRedirect)
+                            for handler in UPSTREAM_OPENER.handlers))
+
     def test_upstream_reply_validation(self):
         request = {"jsonrpc": "2.0", "id": 9, "method": "ping"}
         valid = {"jsonrpc": "2.0", "id": 9, "result": {}}
