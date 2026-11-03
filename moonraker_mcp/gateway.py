@@ -20,6 +20,10 @@ FORWARD_HEADERS = ("Mcp-Session-Id", "MCP-Protocol-Version")
 def check_message(message, allowed):
     if not isinstance(message, dict) or message.get("jsonrpc") != "2.0":
         raise PolicyError("Invalid JSON-RPC request")
+    if any(key not in ("jsonrpc", "id", "method", "params") for key in message):
+        raise PolicyError("Unexpected JSON-RPC request fields")
+    if "id" in message and (isinstance(message["id"], bool) or not isinstance(message["id"], (str, int))):
+        raise PolicyError("Invalid JSON-RPC id")
     method = message.get("method")
     if method not in ALLOWED_METHODS:
         raise PolicyError("MCP method is not permitted")
@@ -27,6 +31,10 @@ def check_message(message, allowed):
         params = message.get("params")
         if not isinstance(params, dict):
             raise PolicyError("Missing tool arguments")
+        if any(key not in ("name", "arguments", "_meta") for key in params):
+            raise PolicyError("Unexpected tools/call parameters")
+        if "arguments" in params and not isinstance(params["arguments"], dict):
+            raise PolicyError("Tool arguments must be an object")
         authorize_call(params.get("name"), allowed)
     return method
 
