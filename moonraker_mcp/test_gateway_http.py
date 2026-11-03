@@ -134,6 +134,22 @@ class HTTPGatewayTests(unittest.TestCase):
                 urllib.request.urlopen(req, timeout=5)
             self.assertEqual(ctx.exception.code, 401)
 
+    def test_mcp_post_rejects_non_json_content_types(self):
+        payload = b'{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
+        for content_type in ("text/plain", "application/x-www-form-urlencoded",
+                             "application/jsonp", "application/octet-stream"):
+            with self.subTest(content_type=content_type):
+                before = len(FakeUpstream.calls)
+                req = urllib.request.Request(
+                    "http://127.0.0.1:%s/mcp" % self.gateway.server_port,
+                    data=payload,
+                    headers={"Authorization": "Bearer ci-secret",
+                             "Content-Type": content_type})
+                with self.assertRaises(urllib.error.HTTPError) as ctx:
+                    urllib.request.urlopen(req, timeout=5)
+                self.assertEqual(ctx.exception.code, 415)
+                self.assertEqual(len(FakeUpstream.calls), before)
+
     def test_unsupported_session_methods_are_rejected(self):
         for method in ("GET", "DELETE"):
             req = urllib.request.Request(
