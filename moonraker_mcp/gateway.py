@@ -117,6 +117,10 @@ def validate_reply(request, response):
         raise PolicyError("Unexpected upstream JSON-RPC response fields")
     if ("result" in response) == ("error" in response):
         raise PolicyError("Invalid upstream JSON-RPC result/error")
+    if "error" in response:
+        error = response["error"]
+        if not isinstance(error, dict) or isinstance(error.get("code"), bool) or not isinstance(error.get("code"), int) or not isinstance(error.get("message"), str):
+            raise PolicyError("Invalid upstream JSON-RPC error")
     return response
 
 
@@ -126,6 +130,8 @@ def filter_reply(method, response, allowed):
     if not isinstance(response, dict) or not isinstance(response.get("result"), dict):
         raise PolicyError("Invalid tools/list response")
     result = response["result"]
+    if any(key not in ("tools", "nextCursor") for key in result):
+        raise PolicyError("Unexpected tools/list result fields")
     if "nextCursor" in result:
         raise PolicyError("Paginated tool listings not supported")
     response = dict(response)
