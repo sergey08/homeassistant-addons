@@ -33,3 +33,17 @@ The HTTP gateway enforces an explicit allowlist of 16 names, and rejects calls t
 6. The gateway is intentionally limited to a subset of MCP Streamable HTTP; remote HTTPS and secure network access are not yet implemented.
 
 **Do not deploy or publish this DEV add-on.**
+
+### Data exposure review / Revisión de datos expuestos
+
+The gateway currently forwards tool results without field-level redaction. The bearer token therefore grants access to **all returned fields** of each permitted tool. The classifications below are conservative and must be validated with representative Moonraker responses before deployment.
+
+| Exposure category | Tools | Data to inspect before deployment |
+| --- | --- | --- |
+| Low / operational | `moonraker_mcp_version`, `moonraker_printer_info`, `moonraker_temperature_store`, `moonraker_jobqueue_status` | Software version, printer state, temperatures, queued filenames |
+| Medium / environment | `moonraker_server_info`, `moonraker_objects_list`, `moonraker_objects_query`, `moonraker_power_status`, `moonraker_sensors_info`, `moonraker_sensors_list`, `moonraker_sensors_measurements` | Host and device metadata, configured object names, sensor/device identifiers, possible paths |
+| Medium / personal or business context | `moonraker_history_list`, `moonraker_history_job`, `moonraker_history_totals`, `moonraker_spoolman_status`, `moonraker_spoolman_get_spool` | Print filenames, job timing, inventory IDs and spool metadata |
+
+**Deployment gate:** do not expose this add-on beyond a trusted network or configure it as a ChatGPT connector until the user approves the information that may be disclosed. Consider a smaller default allowlist and optional feature groups (history, sensors, Spoolman) after inspecting actual payloads. HTTP read-only behavior does not guarantee privacy.
+
+**Testing note:** the 1 MiB upstream-response cap is a transport limit, not a data-redaction mechanism. Authentication, logs and remote TLS configuration need independent review.
