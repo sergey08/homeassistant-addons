@@ -105,6 +105,16 @@ class HTTPGatewayTests(unittest.TestCase):
         self.assertEqual(status, 403)
         self.assertEqual(len(FakeUpstream.calls), before)
 
+    def test_privacy_excluded_tool_never_reaches_upstream(self):
+        for name in ("moonraker_history_list", "moonraker_spoolman_get_spool",
+                     "moonraker_sensors_measurements", "moonraker_power_status"):
+            with self.subTest(name=name):
+                before = len(FakeUpstream.calls)
+                status, _ = self.request("tools/call", {
+                    "name": name, "arguments": {}})
+                self.assertEqual(status, 403)
+                self.assertEqual(len(FakeUpstream.calls), before)
+
     def test_allowed_call_reaches_fake_upstream(self):
         before = len(FakeUpstream.calls)
         status, _ = self.request("tools/call", {
