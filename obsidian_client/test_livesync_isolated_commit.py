@@ -17,7 +17,8 @@ class TestIsolatedCommit(unittest.TestCase):
         calls=[]
         def fake_put(doc):
             calls.append(doc["_id"])
-            return 201,{"ok":True}
+            return 201,{"ok":True,"id":doc["_id"],
+                        "rev":("2-"+"b"*32) if doc["type"]=="plain" else "1-"+"c"*32}
         result=commit_isolated_plan(plan(),fake_put,isolated_test=True)
         self.assertEqual(calls,["h:+abc","notes/example.md"])
         self.assertEqual(result["status"],"committed_in_disposable_test_only")
@@ -38,6 +39,26 @@ class TestIsolatedCommit(unittest.TestCase):
                 return 409,{"error":"conflict"}
             return 201,{"ok":True}
         with self.assertRaises(RevisionConflict):
+            commit_isolated_plan(plan(),fake_put,isolated_test=True)
+        self.assertEqual(calls,["h:+abc","notes/example.md"])
+
+    def test_leaf_ack_identity_mismatch_stops_before_parent(self):
+        calls=[]
+        def fake_put(doc):
+            calls.append(doc["_id"])
+            return 201,{"ok":True,"id":"other","rev":"1-"+"b"*32}
+        with self.assertRaisesRegex(RevisionConflict,"remote_document_identity_mismatch"):
+            commit_isolated_plan(plan(),fake_put,isolated_test=True)
+        self.assertEqual(calls,["h:+abc"])
+
+    def test_parent_ack_revision_mismatch_is_rejected_without_retry(self):
+        calls=[]
+        def fake_put(doc):
+            calls.append(doc["_id"])
+            if doc["type"]=="plain":
+                return 201,{"ok":True,"id":doc["_id"],"rev":"3-"+"c"*32}
+            return 201,{"ok":True,"id":doc["_id"],"rev":"1-"+"c"*32}
+        with self.assertRaisesRegex(RevisionConflict,"unexpected_revision_generation"):
             commit_isolated_plan(plan(),fake_put,isolated_test=True)
         self.assertEqual(calls,["h:+abc","notes/example.md"])
 
