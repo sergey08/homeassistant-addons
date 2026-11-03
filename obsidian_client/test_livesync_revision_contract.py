@@ -2,6 +2,7 @@
 import unittest
 from livesync_revision_contract import (
     RevisionConflict, prepare_conditional_document, require_successful_put,
+    require_confirmed_put_response,
 )
 
 class TestConditionalRevisionContract(unittest.TestCase):
@@ -42,6 +43,57 @@ class TestConditionalRevisionContract(unittest.TestCase):
             require_successful_put(201, {"ok": False})
         with self.assertRaises(RevisionConflict):
             require_successful_put(500, {"ok": True})
+
+class TestCouchDbPutAcknowledgement(unittest.TestCase):
+    def setUp(self):
+        self.doc_id = "f:synthetic-parent"
+        self.rev = "7-" + "a" * 32
+        self.new_rev = "8-" + "b" * 32
+        self.ack = {"ok": True, "id": self.doc_id, "rev": self.new_rev}
+
+    def test_valid_ack_returns_new_revision(self):
+        self.assertEqual(
+            require_confirmed_put_response(201, self.ack, self.doc_id, self.rev),
+            self.new_rev)
+        self.assertEqual(
+            require_confirmed_put_response(202, self.ack, self.doc_id, self.rev),
+            self.new_rev)
+
+    def test_conflict_is_never_accepted(self):
+        with self.assertRaisesRegex(RevisionConflict, "remote_revision_conflict"):
+            require_confirmed_put_response(
+                409, {"error": "conflict"}, self.doc_id, self.rev)
+
+    def test_incorrect_identity_or_revision_rejected(self):
+        cases = [
+            ({"ok": True, "id": "other", "rev": self.new_rev},
+             "remote_document_identity_mismatch"),
+            ({"ok": True, "id": self.doc_id}, "invalid_remote_revision"),
+            ({"ok": True, "id": self.doc_id, "rev": self.rev},
+             "unexpected_revision_generation"),
+            ({"ok": True, "id": self.doc_id, "rev": "9-" + "c" * 32},
+             "unexpected_revision_generation"),
+            ({"ok": True, "id": self.doc_id, "rev": "8-invalid"},
+             "invalid_remote_revision"),
+        ]
+        for ack, reason in cases:
+            with self.subTest(ack=ack), self.assertRaisesRegex(RevisionConflict, reason):
+                require_confirmed_put_response(201, ack, self.doc_id, self.rev)
+
+    def test_malformed_ack_fails_closed(self):
+        for status, ack in [
+            (200, self.ack), (500, self.ack), (201, None),
+            (201, {"ok": False, "id": self.doc_id, "rev": self.new_rev}),
+            (201, ["not", "a", "document"]),
+        ]:
+            with self.subTest(status=status, ack=ack), self.assertRaises(RevisionConflict):
+                require_confirmed_put_response(status, ack, self.doc_id, self.rev)
+
+    def test_invalid_expected_id_or_previous_revision(self):
+        with self.assertRaises(RevisionConflict):
+            require_confirmed_put_response(201, self.ack, "", self.rev)
+        with self.assertRaises(RevisionConflict):
+            require_confirmed_put_response(201, self.ack, self.doc_id, "invalid")
 
 if __name__ == "__main__":
     unittest.main()
