@@ -80,10 +80,12 @@ jobs:
           base={"moonraker_url":"http://127.0.0.1:7125","moonraker_api_key":"","mcp_http_token":"ci-test-token"}
           invalid=[
               ("mcp_http_token", 123),
+              ("mcp_http_token", False),
               ("mcp_http_token", {"token":"secret"}),
               ("mcp_http_token", ""),
               ("moonraker_api_key", ["not-a-key"]),
               ("moonraker_api_key", 42),
+              ("moonraker_api_key", False),
               ("enable_files", "true"),
               ("enable_files", 1),
           ]
