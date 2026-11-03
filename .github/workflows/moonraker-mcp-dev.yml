@@ -63,6 +63,7 @@ jobs:
           with tempfile.TemporaryDirectory() as tmp:
               with open(os.path.join(tmp, "options.json"), "w") as f:
                   json.dump({"moonraker_url":"http://127.0.0.1:7125","moonraker_api_key":"","mcp_http_token":"ci-test-token"}, f)
+              os.chmod(tmp, 0o755)  # container runs as uid 65534; TemporaryDirectory defaults to 0700
               subprocess.run(["docker","run","-i","-d","--name","moonraker-mcp-protocol","-p","127.0.0.1:18765:8765","-v",tmp+":/data:ro","moonraker-mcp:dev"], check=True, capture_output=True)
               try:
                   time.sleep(2)
