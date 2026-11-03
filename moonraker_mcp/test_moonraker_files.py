@@ -4,7 +4,7 @@ import json
 import unittest
 import urllib.request
 import urllib.error
-from moonraker_files import _NoRedirect, FileAccessError, validate_filename, validate_root, list_gcodes, gcode_metadata, gcode_preview
+from moonraker_files import _NoRedirect, FileAccessError, validate_filename, validate_root, validate_base_url, list_gcodes, gcode_metadata, gcode_preview
 
 
 class FakeResponse:
@@ -22,6 +22,14 @@ class FakeResponse:
 
 
 class FileApiTests(unittest.TestCase):
+    def test_base_url_is_fixed_origin(self):
+        self.assertEqual(validate_base_url("http://printer.local:7125/"), "http://printer.local:7125")
+        for url in ("http://user:pass@printer.local:7125", "http://printer.local:7125/evil",
+                    "http://printer.local:7125?key=secret", "http://printer.local:7125/#frag",
+                    "file:///etc/passwd", "http://printer.local:invalid", ""):
+            with self.subTest(url=url), self.assertRaises(FileAccessError):
+                validate_base_url(url)
+
     def test_roots_are_restricted(self):
         self.assertEqual(validate_root("gcodes"), "gcodes")
         for root in ("config", "logs", "../gcodes", ""):
