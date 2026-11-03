@@ -126,6 +126,22 @@ jobs:
                       else:
                           raise AssertionError("Forbidden tool reached upstream: "+name)
                   print("Docker HTTP gateway blocked",len(forbidden),"forbidden tool calls")
+                  # The raw upstream port must only bind loopback inside Docker.
+                  # Inspect the listening socket through /proc without installing netstat.
+                  inspection=subprocess.run(
+                      ["docker","exec","moonraker-mcp-protocol","python3","-c",
+                       "import socket;print('\\n'.join(open('/proc/net/tcp').read().splitlines()[1:]))"],
+                      capture_output=True,text=True,check=True)
+                  sockets=inspection.stdout.splitlines()
+                  upstream_port=format(8766,"04X")
+                  upstream_sockets=[line.split() for line in sockets
+                                    if len(line.split())>3 and line.split()[1].endswith(":"+upstream_port)
+                                    and line.split()[3]=="0A"]
+                  assert upstream_sockets, "Upstream HTTP port 8766 is not listening"
+                  assert all(parts[1].startswith("0100007F:") for parts in upstream_sockets), (
+                      "DANGEROUS: upstream MCP HTTP is listening on a non-loopback address",
+                      upstream_sockets)
+                  print("Upstream MCP 8766 confirmed loopback-only inside Docker")
               finally:
                   subprocess.run(["docker","rm","-f","moonraker-mcp-protocol"],capture_output=True)
           PY
