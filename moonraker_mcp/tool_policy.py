@@ -7,6 +7,23 @@ import json
 from pathlib import Path
 
 POLICY_PATH = Path(__file__).with_name("read_only_allowlist.json")
+OPTIONAL_PROFILES = {
+    "history": frozenset(("moonraker_history_list", "moonraker_history_job", "moonraker_history_totals")),
+    "sensors": frozenset(("moonraker_sensors_info", "moonraker_sensors_list", "moonraker_sensors_measurements")),
+    "spoolman": frozenset(("moonraker_spoolman_status", "moonraker_spoolman_get_spool")),
+    "power": frozenset(("moonraker_power_status",)),
+}
+
+
+def extend_allowed(base, profiles):
+    """Explicit opt-in only; unknown profiles fail closed."""
+    if not isinstance(profiles, list) or any(not isinstance(p, str) or p not in OPTIONAL_PROFILES for p in profiles):
+        raise PolicyError("Unknown optional read-only profile")
+    allowed = set(base)
+    for profile in profiles:
+        allowed.update(OPTIONAL_PROFILES[profile])
+    return frozenset(allowed)
+
 
 
 class PolicyError(ValueError):
