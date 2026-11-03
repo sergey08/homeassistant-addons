@@ -15,6 +15,8 @@ class GatewayTests(unittest.TestCase):
         for invalid in (
             [{"jsonrpc": "2.0", "id": 9, "result": {}}],
             {"jsonrpc": "2.0", "id": 8, "result": {}},
+            {"jsonrpc": "2.0", "id": 9.0, "result": {}},
+            {"jsonrpc": "2.0", "id": 9, "result": {}, "extra": "unexpected"},
             {"jsonrpc": "1.0", "id": 9, "result": {}},
             {"jsonrpc": "2.0", "id": 9, "result": {}, "error": {}},
             {"jsonrpc": "2.0", "id": 9},
