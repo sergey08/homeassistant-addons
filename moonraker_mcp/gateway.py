@@ -9,7 +9,7 @@ import re
 import urllib.error
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from moonraker_files import FileAccessError, list_gcodes, gcode_metadata
+from moonraker_files import FileAccessError, list_gcodes, gcode_metadata, gcode_preview
 from tool_policy import PolicyError, authorize_call, extend_allowed, filter_tools, load_allowed
 
 ALLOWED_METHODS = frozenset((
@@ -23,6 +23,12 @@ LOCAL_FILE_TOOLS = {
         "name": "moonraker_files_list",
         "description": "List G-code files on Moonraker (read only, opt-in).",
         "inputSchema": {"type": "object", "properties": {}, "additionalProperties": False},
+    },
+    "moonraker_files_preview": {
+        "name": "moonraker_files_preview",
+        "description": "Read up to 16 KiB from the start of a G-code file (read only, opt-in).",
+        "inputSchema": {"type": "object", "properties": {
+            "filename": {"type": "string"}}, "required": ["filename"], "additionalProperties": False},
     },
     "moonraker_files_metadata": {
         "name": "moonraker_files_metadata",
@@ -154,8 +160,12 @@ class Handler(BaseHTTPRequestHandler):
                 else:
                     if set(args) != {"filename"}:
                         raise PolicyError("Expected only filename")
-                    result = gcode_metadata(os.environ["MOONRAKER_URL"], args["filename"],
-                                            os.environ.get("MOONRAKER_API_KEY", ""))
+                    if name == "moonraker_files_preview":
+                        result = gcode_preview(os.environ["MOONRAKER_URL"], args["filename"],
+                                               os.environ.get("MOONRAKER_API_KEY", ""))
+                    else:
+                        result = gcode_metadata(os.environ["MOONRAKER_URL"], args["filename"],
+                                                os.environ.get("MOONRAKER_API_KEY", ""))
                 return self.reply(200, {"jsonrpc": "2.0", "id": message["id"],
                                         "result": {"content": [{"type": "text",
                                                                "text": json.dumps(result)}]}})
