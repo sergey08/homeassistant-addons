@@ -104,6 +104,54 @@ class RemotePreviewRevisionTests(unittest.TestCase):
         self.assertEqual(error, "remote_revision_changed")
         self.assertEqual(opener.open.call_count, 4)
 
+    def test_parent_changes_during_chunk_read_are_detected(self):
+        # Drive the actual encrypted reader rather than mocking its verdict.
+        import io
+        import json
+        from unittest.mock import Mock
+
+        original = {"_id": "f:opaque", "_rev": "1-" + "a" * 32,
+                    "type": "plain", "path": "/\\:%=ciphertext"}
+        cfg = {"livesync_encryption_enabled": True,
+               "livesync_e2ee_passphrase": "fixture-only",
+               "couchdb_url": "http://db21ed7f-obsidian-syncserver-ssl:5984",
+               "couchdb_database": "disposable"}
+        changed = [
+            ("revision_changed", {"_rev": "2-" + "b" * 32}),
+            ("path_changed", {"path": "/\\:%=another"}),
+            ("deleted", {"_deleted": True}),
+            ("conflicted", {"_conflicts": ["2-" + "c" * 32]}),
+            ("id_changed", {"_id": "f:other"}),
+        ]
+        for label, mutations in changed:
+            with self.subTest(case=label):
+                refreshed = {**original, **mutations}
+                responses = [
+                    {"pbkdf2salt": "fixture-salt"},
+                    {"rows": [{"doc": original}]},
+                    {"type": "leaf", "data": "%=encrypted-leaf"},
+                    refreshed,
+                ]
+                opener = Mock()
+                opener.open.side_effect = [
+                    io.BytesIO(json.dumps(item).encode()) for item in responses
+                ]
+                decrypted = [
+                    json.dumps({"path": BODY["path"], "size": 4}), "body"
+                ]
+                with (patch.object(server, "options", return_value=cfg),
+                      patch.object(server, "build_opener", return_value=opener),
+                      patch("livesync_crypto.decrypt_hkdf_string",
+                            side_effect=decrypted),
+                      patch("livesync_metadata.validate_encrypted_parent",
+                            return_value=["h:chunk"]),
+                      patch("livesync_encrypted_parent_snapshot.validate_encrypted_parent_snapshot")):
+                    content, error = server.read_encrypted_note(
+                        BODY["path"], verify_revision=True)
+                self.assertIsNone(content)
+                self.assertEqual(error, "remote_revision_changed")
+                self.assertEqual(opener.open.call_count, 4)
+
     def test_cross_origin_header_rejected(self):
         r=self.client.post("/api/remote/write-preview",json=BODY,
              headers={**HEADERS,"Origin":"https://untrusted.example"})
