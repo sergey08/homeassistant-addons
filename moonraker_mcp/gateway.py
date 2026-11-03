@@ -43,6 +43,17 @@ def check_message(message, allowed):
     return method
 
 
+def validate_reply(request, response):
+    """Reject malformed or unrelated JSON-RPC replies from upstream."""
+    if not isinstance(response, dict) or response.get("jsonrpc") != "2.0":
+        raise PolicyError("Invalid upstream JSON-RPC response")
+    if "id" not in response or response["id"] != request.get("id"):
+        raise PolicyError("Upstream JSON-RPC response id mismatch")
+    if ("result" in response) == ("error" in response):
+        raise PolicyError("Invalid upstream JSON-RPC result/error")
+    return response
+
+
 def filter_reply(method, response, allowed):
     if method != "tools/list":
         return response
@@ -122,7 +133,7 @@ class Handler(BaseHTTPRequestHandler):
                         self.send_header("Content-Length", "0")
                         self.end_headers()
                         return
-                    parsed = filter_reply(method, json.loads(raw), self.allowed)
+                    parsed = filter_reply(method, validate_reply(message, json.loads(raw)), self.allowed)
                     extra = {}
                     session = upstream.headers.get("Mcp-Session-Id")
                     if session:
