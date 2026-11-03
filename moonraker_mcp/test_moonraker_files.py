@@ -122,6 +122,38 @@ class FileApiTests(unittest.TestCase):
                                            {"Location": "https://untrusted.example/"},
                                            "https://untrusted.example/")
 
+    def test_real_http_redirect_is_not_followed_with_api_key(self):
+        import http.server
+        import threading
+        class RedirectServer(http.server.BaseHTTPRequestHandler):
+            requests = []
+            def do_GET(self):
+                self.requests.append((self.path, self.headers.get("X-Api-Key")))
+                self.send_response(302)
+                self.send_header("Location", "/unexpected-target")
+                self.end_headers()
+            def log_message(self, *args):
+                pass
+        server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), RedirectServer)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        base = f"http://127.0.0.1:{server.server_port}"
+        try:
+            for operation in (
+                lambda: list_gcodes(base, "secret"),
+                lambda: gcode_metadata(base, "test.gcode", "secret"),
+                lambda: gcode_preview(base, "test.gcode", "secret"),
+            ):
+                with self.subTest(operation=operation), self.assertRaises(FileAccessError):
+                    operation()
+            self.assertEqual(len(RedirectServer.requests), 3)
+            self.assertTrue(all(path != "/unexpected-target" and key == "secret"
+                                for path, key in RedirectServer.requests))
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=2)
+
     def test_invalid_json_is_rejected(self):
         class BrokenResponse:
             def __enter__(self): return self
