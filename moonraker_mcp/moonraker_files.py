@@ -26,6 +26,9 @@ def validate_filename(filename):
         raise FileAccessError("Invalid filename")
     if filename.startswith(("/", "\\")) or "\\" in filename or "\x00" in filename:
         raise FileAccessError("Invalid filename")
+    # Reject percent escapes to prevent ambiguous double-decoding by proxies.
+    if "%" in filename:
+        raise FileAccessError("Percent-encoded filenames are not permitted")
     if any(part in ("", ".", "..") for part in filename.split("/")):
         raise FileAccessError("Invalid filename")
     if any(ord(char) < 32 or ord(char) == 127 for char in filename):
