@@ -140,6 +140,24 @@ class HTTPGatewayTests(unittest.TestCase):
         finally:
             Handler.allowed = original
 
+    def test_malformed_json_never_reaches_upstream(self):
+        for payload in (
+            b'{"jsonrpc":"2.0","id":1,"method":"tools/list","method":"tools/call"}',
+            b'{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"moonraker_printer_info","name":"moonraker_gcode_script"}}',
+            b'{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{"cursor":NaN}}',
+        ):
+            with self.subTest(payload=payload):
+                before = len(FakeUpstream.calls)
+                req = urllib.request.Request(
+                    "http://127.0.0.1:%s/" % self.gateway.server_port,
+                    data=payload,
+                    headers={"Authorization": "Bearer ci-secret",
+                             "Content-Type": "application/json"})
+                with self.assertRaises(urllib.error.HTTPError) as raised:
+                    urllib.request.urlopen(req, timeout=5)
+                self.assertEqual(raised.exception.code, 403)
+                self.assertEqual(len(FakeUpstream.calls), before)
+
     def test_allowed_call_reaches_fake_upstream(self):
         before = len(FakeUpstream.calls)
         status, _ = self.request("tools/call", {
