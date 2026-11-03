@@ -100,6 +100,12 @@ class Handler(BaseHTTPRequestHandler):
                     raw = upstream.read(MAX_BODY + 1)
                     if len(raw) > MAX_BODY:
                         raise PolicyError("Upstream response too large")
+                    if upstream.status == 202 and not raw and method == "notifications/initialized":
+                        self.send_response(202)
+                        self.send_header("Content-Length", "0")
+                        self.send_header("Cache-Control", "no-store")
+                        self.end_headers()
+                        return
                     content_type = upstream.headers.get("Content-Type", "")
                     if "text/event-stream" in content_type:
                         events = [
