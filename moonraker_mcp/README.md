@@ -1,27 +1,34 @@
-# Moonraker MCP for Home Assistant (DEV)
+# Moonraker MCP for Home Assistant — DEV
 
-Experimental Home Assistant OS add-on wrapping [lexfrei/mcp-raker](https://github.com/lexfrei/mcp-raker), BSD-3-Clause.
+Experimental Home Assistant add-on wrapping [lexfrei/mcp-raker](https://github.com/lexfrei/mcp-raker) (upstream BSD-3-Clause).
 
-## Packaging
-The upstream `Containerfile` uses a **scratch** final stage, with the binary at `/mcp-raker` and **no shell or jq**. This add-on therefore copies that binary into an Alpine runtime with shell, jq and CA certificates. The runtime script reads Home Assistant options from `/data/options.json`.
+## Current architecture / Arquitectura actual
 
-**Not yet tested or ready to install.** Upstream image is pinned to digest `sha256:cdfbb9b4ead2b3f8a253eb55c1996a69cfdbc17088cc111b7d265d8b71f7090e` (identified in successful CI run #8). Revalidate the pinned image in CI after this change. The Home Assistant build and runtime still require testing.
+- Upstream `mcp-raker` runs on **127.0.0.1:8766 inside the container**, never on the published interface.
+- A Python HTTP gateway listens on port **8765** and checks a bearer token.
+- `tools/list` is filtered using `read_only_allowlist.json` (33 candidate tools).
+- `tools/call` is independently checked against the same explicit allowlist; unknown tools and unsupported MCP methods fail closed.
+- The upstream image is pinned to `sha256:cdfbb9b4ead2b3f8a253eb55c1996a69cfdbc17088cc111b7d265d8b71f7090e`.
+- The Alpine runtime contains Python, jq, CA certificates and the upstream Go executable. It runs as UID 65534.
 
-## Security
-- Configure a strong `mcp_http_token` before starting; the add-on refuses to start without it.
-- `MOONRAKER_ENABLE_ADMIN=false` blocks upstream's *admin* tool group only.
-- **Core tools still include start/cancel prints, G-code execution, firmware restart and emergency stop. This is NOT a read-only server.**
-- Do not publish port 8765 to the internet; it is unbound on the host by default (`null` port mapping).
-- For ChatGPT remote access, design a separate HTTPS authenticated gateway with explicit tool allowlisting, or fork upstream to implement server-side read-only controls. No such gateway exists yet.
-- Do not put API keys or MCP tokens in GitHub.
+## Security / Seguridad
 
-## Roadmap / Próximos pasos
-1. Pin upstream release/digest and verify license notices.
-2. Build the Docker image in CI and check startup with a mock Moonraker endpoint.
-3. Confirm Supervisor compatibility on amd64.
-4. Implement genuine server-side read-only mode before exposing to AI.
-5. Validate remote ChatGPT MCP compatibility and secure HTTPS access.
-6. Add ES/EN installation docs and release only after testing.
+**DEV ONLY — DO NOT INSTALL OR EXPOSE TO THE INTERNET YET.**
+
+The HTTP gateway is a prototype. Docker CI validates MCP initialization, tool listing, authentication and denied operations without connecting to a real printer. **A successful test does not certify that all 33 allowed operations are side-effect free.** Review each tool's implementation and parameters before deployment.
+
+The gateway currently supports a subset of MCP Streamable HTTP (POST requests and JSON/SSE single-response conversion). It does not support GET event streams, DELETE session termination, streaming/multiple SSE events or paginated tool lists. Test compatibility with the intended ChatGPT client before deployment.
+
+A strong `mcp_http_token` is required. Home Assistant's add-on port mapping defaults to `null`. Never place credentials in GitHub. Do not use the raw upstream MCP endpoint from outside the container.
+
+## Next / Próximos pasos
+
+1. Pass end-to-end Docker HTTP rejection tests.
+2. Audit each allowed tool for side effects and sensitive data disclosure.
+3. Test Home Assistant Supervisor installation on amd64 and actual Moonraker connectivity, using only safe status queries.
+4. Verify client protocol compatibility and secure HTTPS access.
+5. Document installation and release notes in Spanish and English before publishing.
 
 ## Español
-Complemento experimental que reutiliza el MCP original de Moonraker. La imagen original no contiene shell, por lo que empaquetamos su ejecutable en Alpine. **No instalar ni publicar todavía:** falta compilar y verificar el arranque y la seguridad. Desactivar las herramientas administrativas no impide ejecutar G-code u otras acciones de impresión.
+
+El complemento usa el servidor original `mcp-raker` aislado en el puerto local 8766 y un intermediario HTTP con autenticación y lista explícita de 33 herramientas en el puerto 8765. Las órdenes no permitidas se rechazan antes de llegar al servidor original. **Aún no debe instalarse:** faltan la auditoría funcional de las herramientas autorizadas y las pruebas reales con Home Assistant y la Snapmaker U1.
