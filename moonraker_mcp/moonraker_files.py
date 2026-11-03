@@ -39,6 +39,22 @@ class _NoRedirect(urllib.request.HTTPRedirectHandler):
         raise FileAccessError("Moonraker redirect refused")
 
 
+def validate_base_url(base_url):
+    """Require a fixed Moonraker origin; never accept embedded credentials or paths."""
+    if not isinstance(base_url, str):
+        raise FileAccessError("Invalid Moonraker base URL")
+    parsed = urllib.parse.urlsplit(base_url)
+    if (parsed.scheme not in ("http", "https") or not parsed.hostname
+            or parsed.username or parsed.password or parsed.query or parsed.fragment
+            or parsed.path not in ("", "/")):
+        raise FileAccessError("Invalid Moonraker base URL")
+    try:
+        parsed.port
+    except ValueError as exc:
+        raise FileAccessError("Invalid Moonraker port") from exc
+    return base_url.rstrip("/")
+
+
 def _read_json(url, api_key="", opener=None):
     parsed = urllib.parse.urlsplit(url)
     if parsed.scheme not in ("http", "https") or not parsed.hostname or parsed.username or parsed.password:
@@ -63,13 +79,13 @@ def _read_json(url, api_key="", opener=None):
 
 
 def list_gcodes(base_url, api_key="", opener=None):
-    url = base_url.rstrip("/") + "/server/files/list?" + urllib.parse.urlencode({"root": validate_root("gcodes")})
+    url = validate_base_url(base_url) + "/server/files/list?" + urllib.parse.urlencode({"root": validate_root("gcodes")})
     return _read_json(url, api_key, opener)
 
 
 def gcode_metadata(base_url, filename, api_key="", opener=None):
     filename = validate_filename(filename)
-    url = base_url.rstrip("/") + "/server/files/metadata?" + urllib.parse.urlencode({"filename": filename})
+    url = validate_base_url(base_url) + "/server/files/metadata?" + urllib.parse.urlencode({"filename": filename})
     return _read_json(url, api_key, opener)
 
 
@@ -85,11 +101,7 @@ def gcode_preview(base_url, filename, api_key="", opener=None):
     filename = validate_filename(filename)
     if not filename.lower().endswith((".gcode", ".gco")):
         raise FileAccessError("Only G-code previews are permitted")
-    parsed = urllib.parse.urlsplit(base_url)
-    if parsed.scheme not in ("http", "https") or not parsed.hostname or parsed.username or parsed.password:
-        raise FileAccessError("Invalid Moonraker URL")
-    if parsed.query or parsed.fragment or parsed.path not in ("", "/"):
-        raise FileAccessError("Moonraker base URL must not include path, query or fragment")
+    base_url = validate_base_url(base_url)
     encoded = "/".join(urllib.parse.quote(part, safe="") for part in filename.split("/"))
     url = base_url.rstrip("/") + "/server/files/gcodes/" + encoded
     headers = {"Accept": "application/octet-stream", "Range": f"bytes=0-{MAX_GCODE_PREVIEW_BYTES - 1}"}
