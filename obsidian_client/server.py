@@ -1074,7 +1074,7 @@ def chunk_preflight():
         return jsonify(status="chunk_probe_failed",read_only=True),502
 
 
-def read_encrypted_note(requested):
+def read_encrypted_note(requested, *, verify_revision=False):
     """One LiveSync note, complete authenticated chunks, strictly read-only."""
     from livesync_crypto import decrypt_hkdf_string, UnsupportedEncryption
     import base64
@@ -1106,6 +1106,8 @@ def read_encrypted_note(requested):
         if not isinstance(salt,str) or not salt: return None,"salt_missing"
         rows=fetch("/_all_docs?include_docs=true&limit=1200",5000000).get("rows",[])
         candidate=None
+        selected_parent=None
+        match_count=0
         for row in rows:
             doc=row.get("doc") if isinstance(row,dict) else None
             if not isinstance(doc,dict) or doc.get("type") not in ("plain","newnote") or doc.get("deleted") or doc.get("_deleted") or doc.get("_conflicts"): continue
@@ -1114,9 +1116,22 @@ def read_encrypted_note(requested):
             try: meta=json.loads(decrypt_hkdf_string(ciphertext[3:],cfg["livesync_e2ee_passphrase"],salt))
             except (UnsupportedEncryption,ValueError): continue
             if isinstance(meta,dict) and meta.get("path")==requested:
+                match_count+=1
+                if match_count>1 and verify_revision:
+                    return None,"ambiguous_parent"
                 candidate=meta
-                break
+                selected_parent=doc
+                if not verify_revision:
+                    break
         if candidate is None: return None,"not_found"
+        if verify_revision:
+            from livesync_encrypted_parent_snapshot import validate_encrypted_parent_snapshot
+            from livesync_write_preflight import UnsafeWrite
+            try:
+                validate_encrypted_parent_snapshot(selected_parent,candidate,requested,
+                                                   selected_parent.get("_rev"))
+            except UnsafeWrite:
+                return None,"invalid_parent_snapshot"
         from livesync_metadata import validate_encrypted_parent, UnsupportedMetadata
         try:
             children = validate_encrypted_parent(candidate, requested)
@@ -1131,6 +1146,16 @@ def read_encrypted_note(requested):
         if len(content.encode("utf-8"))>2000000: return None,"too_large"
         expected=candidate.get("size")
         if type(expected) is int and len(content.encode("utf-8"))!=expected: return None,"size_mismatch"
+        if verify_revision:
+            # Check the same parent's revision again after reading its chunks.
+            # An actual write must still perform CouchDB conditional CAS.
+            fresh=fetch("/"+quote(selected_parent["_id"],safe=""),500000)
+            if (not isinstance(fresh,dict)
+                    or fresh.get("_id")!=selected_parent["_id"]
+                    or fresh.get("_rev")!=selected_parent["_rev"]
+                    or fresh.get("path")!=selected_parent["path"]
+                    or fresh.get("_deleted") or fresh.get("_conflicts")):
+                return None,"remote_revision_changed"
         return content,None
     except (HTTPError,URLError,OSError,ValueError,TypeError,UnsupportedEncryption):
         return None,"read_failed"
@@ -1418,21 +1443,13 @@ def remote_write_preview():
         result=validate_write_request(path,content,None,creating=True)
     except (UnsafeWrite,ValueError,UnicodeError):
         return jsonify(error="invalid_note"), 400
-    current,error=read_encrypted_note(path)
+    # Verify plaintext against a parent whose revision is re-read after chunks.
+    current,error=read_encrypted_note(path,verify_revision=True)
     if error:
-        return jsonify(error="remote_read_failed", remote_write_enabled=False), 409
+        return jsonify(error="remote_snapshot_not_verified",
+                       remote_write_enabled=False,save_supported=False),409
     if hashlib.sha256(current.encode("utf-8")).digest()!=hashlib.sha256(expected.encode("utf-8")).digest():
-        return jsonify(error="remote_content_conflict", remote_write_enabled=False), 409
-    # Perform revision inspection server-side in the same preview request.
-    # This remains READ-ONLY; validation is not an authorization to write.
-    inspected=remote_parent_revision(path)
-    revision_response,revision_status=inspected if isinstance(inspected,tuple) else (inspected,200)
-    inspection=revision_response.get_json()
-    if (revision_status!=200 or not isinstance(inspection,dict)
-            or inspection.get("revision_available") is not True
-            or inspection.get("encrypted_parent") is not True
-            or inspection.get("write_supported") is not False):
-        return jsonify(error="remote_revision_not_verified",
+        return jsonify(error="remote_content_conflict",
                        remote_write_enabled=False,save_supported=False),409
     response=jsonify(path=path, bytes=result["bytes"], operation="update",
                    content_changed=content!=current,
