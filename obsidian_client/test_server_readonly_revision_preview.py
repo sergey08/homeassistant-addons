@@ -27,7 +27,7 @@ class RemotePreviewRevisionTests(unittest.TestCase):
             self.assertFalse(r.json["save_supported"])
             self.assertFalse(r.json["remote_write_enabled"])
             self.assertEqual(r.headers["Cache-Control"],"no-store")
-            inspect.assert_called_once_with(BODY["path"])
+            inspect.assert_not_called()
 
     def test_changed_remote_content_rejects_before_revision_lookup(self):
         with patch.object(server,"read_encrypted_note",
@@ -39,25 +39,19 @@ class RemotePreviewRevisionTests(unittest.TestCase):
             self.assertEqual(r.json["error"],"remote_content_conflict")
             inspect.assert_not_called()
 
-    def test_revision_failure_blocks_preview(self):
+    def test_inconsistent_remote_snapshot_blocks_preview(self):
         with patch.object(server,"read_encrypted_note",
-                          return_value=("# Original\\n",None)),patch.object(
-                server,"remote_parent_revision") as inspect:
-            inspect.side_effect=lambda path: (
-                jsonify(error="missing_or_ambiguous_parent",write_supported=False),409)
+                          return_value=(None,"remote_revision_changed")) as reader:
             r=self.client.post("/api/remote/write-preview",
                                json=BODY,headers=HEADERS)
             self.assertEqual(r.status_code,409)
             self.assertFalse(r.json["save_supported"])
-            self.assertEqual(r.json["error"],"remote_revision_not_verified")
+            self.assertEqual(r.json["error"],"remote_snapshot_not_verified")
+            reader.assert_called_once_with(BODY["path"],verify_revision=True)
 
-    def test_revision_missing_blocks_preview(self):
+    def test_ambiguous_parent_blocks_preview(self):
         with patch.object(server,"read_encrypted_note",
-                          return_value=("# Original\\n",None)),patch.object(
-                server,"remote_parent_revision") as inspect:
-            inspect.side_effect=lambda path: jsonify(
-                revision_available=False,encrypted_parent=True,
-                write_supported=False)
+                          return_value=(None,"ambiguous_parent")):
             r=self.client.post("/api/remote/write-preview",
                                json=BODY,headers=HEADERS)
             self.assertEqual(r.status_code,409)
