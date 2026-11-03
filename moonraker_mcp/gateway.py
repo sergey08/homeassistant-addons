@@ -47,8 +47,10 @@ def validate_reply(request, response):
     """Reject malformed or unrelated JSON-RPC replies from upstream."""
     if not isinstance(response, dict) or response.get("jsonrpc") != "2.0":
         raise PolicyError("Invalid upstream JSON-RPC response")
-    if "id" not in response or response["id"] != request.get("id"):
+    if "id" not in response or type(response["id"]) is not type(request.get("id")) or response["id"] != request.get("id"):
         raise PolicyError("Upstream JSON-RPC response id mismatch")
+    if any(key not in ("jsonrpc", "id", "result", "error") for key in response):
+        raise PolicyError("Unexpected upstream JSON-RPC response fields")
     if ("result" in response) == ("error" in response):
         raise PolicyError("Invalid upstream JSON-RPC result/error")
     return response
