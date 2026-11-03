@@ -23,11 +23,11 @@ A strong `mcp_http_token` is required. Home Assistant's add-on port mapping defa
 
 ## Next / Próximos pasos
 
-1. Pass end-to-end Docker HTTP rejection tests.
-2. Audit each allowed tool for side effects and sensitive data disclosure.
-3. Test Home Assistant Supervisor installation on amd64 and actual Moonraker connectivity, using only safe status queries.
-4. Verify client protocol compatibility and secure HTTPS access.
-5. Document installation and release notes in Spanish and English before publishing.
+1. **Completed in isolated Docker CI:** authenticated MCP initialization, tool listing, forbidden calls, five-tool default, and explicit history/objects profiles. No printer connection was used.
+2. **Source reviewed:** all sixteen permitted upstream handlers are GET-only or local; OCI revision is checked in CI. This is not a binary provenance attestation.
+3. **Pending:** inspect representative responses for sensitive information, especially server metadata, queued filenames, and optional object queries.
+4. **Pending user approval:** Home Assistant Supervisor installation on amd64 and actual Moonraker connectivity using only safe status queries.
+5. **Pending:** intended ChatGPT client compatibility, secure HTTPS access, and release documentation before publishing.
 
 ## Español
 
