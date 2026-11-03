@@ -24,6 +24,24 @@ class FileToolPolicyTests(unittest.TestCase):
             self.assertEqual(check_message({"jsonrpc": "2.0", "id": 1, "method": "tools/call",
                              "params": {"name": name, "arguments": {}}}, allowed), "tools/call")
 
+    def test_file_arguments_are_strictly_validated(self):
+        allowed = extend_allowed(self.base, ["files"])
+        invalid = (
+            ("moonraker_files_list", {"filename": "x.gcode"}),
+            ("moonraker_files_metadata", {}),
+            ("moonraker_files_metadata", {"filename": 42}),
+            ("moonraker_files_preview", {"filename": None}),
+            ("moonraker_files_preview", {"filename": "x.gcode", "root": "config"}),
+        )
+        for name, arguments in invalid:
+            with self.subTest(name=name, arguments=arguments), self.assertRaises(PolicyError):
+                check_message({"jsonrpc": "2.0", "id": 1, "method": "tools/call",
+                               "params": {"name": name, "arguments": arguments}}, allowed)
+        for name in ("moonraker_files_preview", "moonraker_files_metadata"):
+            self.assertEqual(check_message({"jsonrpc": "2.0", "id": 1, "method": "tools/call",
+                             "params": {"name": name, "arguments": {"filename": "x.gcode"}}}, allowed),
+                             "tools/call")
+
     def test_files_profile_does_not_enable_other_profiles(self):
         allowed = extend_allowed(self.base, ["files"])
         with self.assertRaises(PolicyError):
