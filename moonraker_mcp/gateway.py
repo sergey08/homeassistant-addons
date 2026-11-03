@@ -9,6 +9,7 @@ import re
 import urllib.error
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from moonraker_files import FileAccessError, list_gcodes, gcode_metadata
 from tool_policy import PolicyError, authorize_call, extend_allowed, filter_tools, load_allowed
 
 ALLOWED_METHODS = frozenset((
@@ -17,6 +18,19 @@ ALLOWED_METHODS = frozenset((
 MAX_BODY = 1024 * 1024
 MAX_TOOL_ARGUMENTS = 16 * 1024
 FORWARD_HEADERS = ("Mcp-Session-Id", "MCP-Protocol-Version")
+LOCAL_FILE_TOOLS = {
+    "moonraker_files_list": {
+        "name": "moonraker_files_list",
+        "description": "List G-code files on Moonraker (read only, opt-in).",
+        "inputSchema": {"type": "object", "properties": {}, "additionalProperties": False},
+    },
+    "moonraker_files_metadata": {
+        "name": "moonraker_files_metadata",
+        "description": "Get metadata of one G-code file (read only, opt-in).",
+        "inputSchema": {"type": "object", "properties": {
+            "filename": {"type": "string"}}, "required": ["filename"], "additionalProperties": False},
+    },
+}
 SAFE_HEADER_VALUE = re.compile(r"^[A-Za-z0-9._-]{1,128}$")
 
 
@@ -99,7 +113,7 @@ def filter_reply(method, response, allowed):
     if "nextCursor" in result:
         raise PolicyError("Paginated tool listings not supported")
     response = dict(response)
-    response["result"] = dict(result, tools=filter_tools(result.get("tools"), allowed))
+    response["result"] = dict(result, tools=filter_tools(result.get("tools"), allowed) + [tool for name, tool in LOCAL_FILE_TOOLS.items() if name in allowed])
     return response
 
 
@@ -130,6 +144,21 @@ class Handler(BaseHTTPRequestHandler):
                 return self.reply(413, {"error": "Invalid request size"})
             message = strict_json_loads(self.rfile.read(length))
             method = check_message(message, self.allowed)
+            if method == "tools/call" and message["params"]["name"] in LOCAL_FILE_TOOLS:
+                name = message["params"]["name"]
+                args = message["params"].get("arguments", {})
+                if name == "moonraker_files_list":
+                    if args:
+                        raise PolicyError("Unexpected file list arguments")
+                    result = list_gcodes(os.environ["MOONRAKER_URL"], os.environ.get("MOONRAKER_API_KEY", ""))
+                else:
+                    if set(args) != {"filename"}:
+                        raise PolicyError("Expected only filename")
+                    result = gcode_metadata(os.environ["MOONRAKER_URL"], args["filename"],
+                                            os.environ.get("MOONRAKER_API_KEY", ""))
+                return self.reply(200, {"jsonrpc": "2.0", "id": message["id"],
+                                        "result": {"content": [{"type": "text",
+                                                               "text": json.dumps(result)}]}})
             headers = {
                 "Authorization": "Bearer " + self.token,
                 "Content-Type": "application/json",
@@ -177,7 +206,7 @@ class Handler(BaseHTTPRequestHandler):
                     return self.reply(200, parsed, extra)
             except urllib.error.HTTPError as exc:
                 return self.reply(502, {"error": "Upstream MCP error", "status": exc.code})
-        except (PolicyError, ValueError, TypeError, UnicodeError) as exc:
+        except (PolicyError, FileAccessError, ValueError, TypeError, UnicodeError) as exc:
             return self.reply(403, {"error": str(exc)})
         except Exception:
             self.log_error("MCP upstream communication failed")
