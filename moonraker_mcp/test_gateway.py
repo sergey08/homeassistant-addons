@@ -257,6 +257,15 @@ class GatewayTests(unittest.TestCase):
         self.assertEqual(strict_json_loads('{"id":1,"params":{"ok":true}}'),
                          {"id":1,"params":{"ok":True}})
 
+    def test_upstream_cannot_impersonate_local_file_tools(self):
+        for name in ("moonraker_files_list", "moonraker_files_metadata",
+                     "moonraker_files_preview"):
+            with self.subTest(name=name):
+                response = {"result": {"tools": [{"name": name}]}}
+                for allowed in (self.allowed, extend_allowed(self.allowed, ["files"])):
+                    with self.assertRaises(PolicyError):
+                        filter_reply("tools/list", response, allowed)
+
     def test_pagination_preserves_cursor_and_filters_every_page(self):
         response = {"result": {"tools": [{"name": "moonraker_printer_info"},
                                           {"name": "moonraker_gcode_script"}],
