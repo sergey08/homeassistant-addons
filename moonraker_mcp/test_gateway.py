@@ -61,6 +61,13 @@ class GatewayTests(unittest.TestCase):
                 with self.assertRaises(PolicyError):
                     check_message(request, self.allowed)
 
+    def test_oversized_tool_arguments_blocked(self):
+        with self.assertRaises(PolicyError):
+            check_message({"jsonrpc": "2.0", "id": 1, "method": "tools/call",
+                           "params": {"name": "moonraker_objects_query",
+                                      "arguments": {"objects": {"x": ["a" * 17000]}}}},
+                          self.allowed)
+
     def test_pagination_rejected(self):
         with self.assertRaises(PolicyError):
             filter_reply("tools/list", {"result": {"tools": [], "nextCursor": "x"}},
