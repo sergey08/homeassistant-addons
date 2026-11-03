@@ -121,6 +121,25 @@ class GatewayTests(unittest.TestCase):
             with self.subTest(tools=tools), self.assertRaises(PolicyError):
                 filter_tools(tools, self.allowed)
 
+    def test_privacy_sensitive_tools_disabled_by_default(self):
+        excluded = (
+            "moonraker_history_list", "moonraker_history_job",
+            "moonraker_history_totals", "moonraker_power_status",
+            "moonraker_sensors_info", "moonraker_sensors_list",
+            "moonraker_sensors_measurements", "moonraker_spoolman_status",
+            "moonraker_spoolman_get_spool",
+        )
+        self.assertEqual(len(self.allowed), 7)
+        for name in excluded:
+            with self.subTest(name=name), self.assertRaises(PolicyError):
+                check_message({"jsonrpc": "2.0", "id": 1, "method": "tools/call",
+                               "params": {"name": name, "arguments": {}}},
+                              self.allowed)
+        listed = [{"name": name} for name in excluded]
+        self.assertEqual(filter_reply(
+            "tools/list", {"result": {"tools": listed}}, self.allowed
+        )["result"]["tools"], [])
+
     def test_pagination_rejected(self):
         with self.assertRaises(PolicyError):
             filter_reply("tools/list", {"result": {"tools": [], "nextCursor": "x"}},
