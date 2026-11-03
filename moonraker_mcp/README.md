@@ -5,7 +5,7 @@ Experimental Home Assistant OS add-on wrapping [lexfrei/mcp-raker](https://githu
 ## Packaging
 The upstream `Containerfile` uses a **scratch** final stage, with the binary at `/mcp-raker` and **no shell or jq**. This add-on therefore copies that binary into an Alpine runtime with shell, jq and CA certificates. The runtime script reads Home Assistant options from `/data/options.json`.
 
-**Not yet tested or ready to install.** Upstream is currently referenced by the mutable `latest` tag; pin a reviewed digest before release. The Home Assistant build and runtime still require testing.
+**Not yet tested or ready to install.** Upstream image is pinned to digest `sha256:cdfbb9b4ead2b3f8a253eb55c1996a69cfdbc17088cc111b7d265d8b71f7090e` (identified in successful CI run #8). Revalidate the pinned image in CI after this change. The Home Assistant build and runtime still require testing.
 
 ## Security
 - Configure a strong `mcp_http_token` before starting; the add-on refuses to start without it.
