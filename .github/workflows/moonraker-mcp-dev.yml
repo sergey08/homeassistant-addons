@@ -34,6 +34,16 @@ jobs:
       - name: Test fail-closed tool policy
         run: python3 -m unittest discover -s moonraker_mcp -p 'test_*.py' -v
 
+      - name: Record pinned upstream image provenance (informational)
+        run: |
+          set -eu
+          upstream='ghcr.io/lexfrei/mcp-raker@sha256:cdfbb9b4ead2b3f8a253eb55c1996a69cfdbc17088cc111b7d265d8b71f7090e'
+          docker pull "$upstream"
+          docker image inspect "$upstream" --format 'Pinned image: {{.Id}}'
+          docker image inspect "$upstream" --format 'OCI source: {{index .Config.Labels "org.opencontainers.image.source"}}'
+          docker image inspect "$upstream" --format 'OCI revision: {{index .Config.Labels "org.opencontainers.image.revision"}}'
+          docker image inspect "$upstream" --format 'OCI version: {{index .Config.Labels "org.opencontainers.image.version"}}'
+          echo 'Provenance labels are informational; matching them to audited source remains a separate verification gate.'
       - name: Build DEV container (no deployment)
         run: docker build --pull --tag moonraker-mcp:dev ./moonraker_mcp
       - name: Verify startup rejects invalid permission settings
