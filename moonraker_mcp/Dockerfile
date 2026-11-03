@@ -5,7 +5,7 @@ FROM alpine:3.22
 RUN apk add --no-cache ca-certificates jq python3
 COPY --from=upstream /mcp-raker /usr/local/bin/mcp-raker
 COPY run.sh /run.sh
-COPY gateway.py tool_policy.py read_only_allowlist.json /opt/moonraker-mcp/
+COPY gateway.py tool_policy.py moonraker_files.py read_only_allowlist.json /opt/moonraker-mcp/
 RUN chmod 755 /run.sh && mkdir -p /data && chown 65534:65534 /data
 USER 65534:65534
 ENTRYPOINT ["/run.sh"]
