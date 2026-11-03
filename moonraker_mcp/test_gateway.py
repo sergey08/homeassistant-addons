@@ -45,6 +45,13 @@ class GatewayTests(unittest.TestCase):
                 check_message({"jsonrpc": "2.0", "id": 1, "method": "initialize",
                                "params": params}, self.allowed)
 
+    def test_upstream_jsonrpc_errors_are_preserved_for_mcp_client(self):
+        response = {"jsonrpc": "2.0", "id": 1,
+                    "error": {"code": -32603, "message": "Upstream unavailable"}}
+        for method in ("initialize", "tools/list", "tools/call"):
+            with self.subTest(method=method):
+                self.assertEqual(filter_reply(method, response, self.allowed), response)
+
     def test_initialize_upstream_version_is_validated(self):
         base = {"jsonrpc": "2.0", "id": 1, "result": {
             "protocolVersion": "2025-06-18", "capabilities": {},
