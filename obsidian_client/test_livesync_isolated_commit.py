@@ -62,6 +62,17 @@ class TestIsolatedCommit(unittest.TestCase):
             commit_isolated_plan(plan(),fake_put,isolated_test=True)
         self.assertEqual(calls,["h:+abc","notes/example.md"])
 
+    def test_new_parent_create_uses_generation_one(self):
+        candidate=plan()
+        del candidate["parent"]["_rev"]
+        calls=[]
+        def fake_put(doc):
+            calls.append(doc["_id"])
+            return 201,{"ok":True,"id":doc["_id"],"rev":"1-"+"d"*32}
+        result=commit_isolated_plan(candidate,fake_put,isolated_test=True)
+        self.assertEqual(result["status"],"committed_in_disposable_test_only")
+        self.assertEqual(calls,["h:+abc","notes/example.md"])
+
     def test_rejects_mismatched_document_or_order_before_write(self):
         for mutation in ("badorder","badleaf","badparent"):
             candidate=plan()
