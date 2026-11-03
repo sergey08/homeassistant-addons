@@ -43,6 +43,16 @@ jobs:
           docker image inspect "$upstream" --format 'OCI source: {{index .Config.Labels "org.opencontainers.image.source"}}'
           docker image inspect "$upstream" --format 'OCI revision: {{index .Config.Labels "org.opencontainers.image.revision"}}'
           docker image inspect "$upstream" --format 'OCI version: {{index .Config.Labels "org.opencontainers.image.version"}}'
+          expected_source='https://github.com/lexfrei/mcp-raker'
+          expected_revision='0caea7c31a0780462331e9031e3bf0f435d190ed'
+          expected_version='0.2.0'
+          actual_source=$(docker image inspect "$upstream" --format '{{index .Config.Labels "org.opencontainers.image.source"}}')
+          actual_revision=$(docker image inspect "$upstream" --format '{{index .Config.Labels "org.opencontainers.image.revision"}}')
+          actual_version=$(docker image inspect "$upstream" --format '{{index .Config.Labels "org.opencontainers.image.version"}}')
+          test "$actual_source" = "$expected_source"
+          test "$actual_revision" = "$expected_revision"
+          test "$actual_version" = "$expected_version"
+          echo 'Pinned upstream OCI labels match audited revision (not cryptographic attestation).'
           echo 'Provenance labels are informational; matching them to audited source remains a separate verification gate.'
       - name: Build DEV container (no deployment)
         run: docker build --pull --tag moonraker-mcp:dev ./moonraker_mcp
