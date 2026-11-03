@@ -88,7 +88,13 @@ jobs:
                   assert "result" in result and isinstance(result["result"].get("tools"),list), result
                   tools=result["result"]["tools"]
                   assert tools and any(t["name"].startswith("moonraker_") for t in tools)
+                  with open("moonraker_mcp/read_only_allowlist.json") as policy_file:
+                      allowlist=json.load(policy_file)["allowed_tools"]
+                  assert len(allowlist)==len(set(allowlist)), "Duplicate tool names in allowlist"
                   names=sorted(t["name"] for t in tools)
+                  missing=sorted(set(allowlist)-set(names))
+                  assert not missing, "Allowlisted tools absent upstream: "+", ".join(missing)
+                  print("Read-only policy candidate:",len(allowlist),"tools; NOT ENFORCED")
                   print("MCP initialize and tools/list OK; tools:",len(tools))
                   print("Registered tools:",", ".join(names))
                   hazardous=("gcode_script","emergency_stop","print_start","print_cancel","printer_restart","firmware_restart")
