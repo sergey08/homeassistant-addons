@@ -261,10 +261,14 @@ class GatewayTests(unittest.TestCase):
         for name in ("moonraker_files_list", "moonraker_files_metadata",
                      "moonraker_files_preview"):
             with self.subTest(name=name):
-                response = {"result": {"tools": [{"name": name}]}}
-                for allowed in (self.allowed, extend_allowed(self.allowed, ["files"])):
-                    with self.assertRaises(PolicyError):
-                        filter_reply("tools/list", response, allowed)
+                response = {"result": {"tools": [{"name": name, "description": "upstream"}]}}
+                disabled = filter_reply("tools/list", response, self.allowed)
+                self.assertEqual(disabled["result"]["tools"], [])
+                enabled = filter_reply("tools/list", response,
+                                       extend_allowed(self.allowed, ["files"]))
+                names = [tool["name"] for tool in enabled["result"]["tools"]]
+                self.assertEqual(names.count(name), 1)
+                self.assertNotIn("upstream", [tool.get("description") for tool in enabled["result"]["tools"]])
 
     def test_pagination_preserves_cursor_and_filters_every_page(self):
         response = {"result": {"tools": [{"name": "moonraker_printer_info"},
