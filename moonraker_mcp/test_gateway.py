@@ -1,5 +1,5 @@
 import unittest
-from gateway import check_message, filter_reply
+from gateway import check_message, filter_reply, validate_reply
 from tool_policy import PolicyError, load_allowed
 
 
@@ -7,6 +7,20 @@ class GatewayTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.allowed = load_allowed()
+
+    def test_upstream_reply_validation(self):
+        request = {"jsonrpc": "2.0", "id": 9, "method": "ping"}
+        valid = {"jsonrpc": "2.0", "id": 9, "result": {}}
+        self.assertEqual(validate_reply(request, valid), valid)
+        for invalid in (
+            [{"jsonrpc": "2.0", "id": 9, "result": {}}],
+            {"jsonrpc": "2.0", "id": 8, "result": {}},
+            {"jsonrpc": "1.0", "id": 9, "result": {}},
+            {"jsonrpc": "2.0", "id": 9, "result": {}, "error": {}},
+            {"jsonrpc": "2.0", "id": 9},
+        ):
+            with self.subTest(invalid=invalid), self.assertRaises(PolicyError):
+                validate_reply(request, invalid)
 
     def test_status_call_allowed(self):
         self.assertEqual(
