@@ -14,6 +14,7 @@ ALLOWED_METHODS = frozenset((
     "initialize", "notifications/initialized", "ping", "tools/list", "tools/call"
 ))
 MAX_BODY = 1024 * 1024
+MAX_TOOL_ARGUMENTS = 16 * 1024
 FORWARD_HEADERS = ("Mcp-Session-Id", "MCP-Protocol-Version")
 
 
@@ -35,6 +36,9 @@ def check_message(message, allowed):
             raise PolicyError("Unexpected tools/call parameters")
         if "arguments" in params and not isinstance(params["arguments"], dict):
             raise PolicyError("Tool arguments must be an object")
+        arguments = params.get("arguments", {})
+        if len(json.dumps(arguments).encode("utf-8")) > MAX_TOOL_ARGUMENTS:
+            raise PolicyError("Tool arguments too large")
         authorize_call(params.get("name"), allowed)
     return method
 
