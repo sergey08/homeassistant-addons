@@ -139,7 +139,7 @@ class GatewayTests(unittest.TestCase):
             "moonraker_sensors_measurements", "moonraker_spoolman_status",
             "moonraker_spoolman_get_spool",
         )
-        self.assertEqual(len(self.allowed), 7)
+        self.assertEqual(len(self.allowed), 5)
         for name in excluded:
             with self.subTest(name=name), self.assertRaises(PolicyError):
                 check_message({"jsonrpc": "2.0", "id": 1, "method": "tools/call",
@@ -151,7 +151,7 @@ class GatewayTests(unittest.TestCase):
         )["result"]["tools"], [])
 
     def test_optional_profiles_require_explicit_opt_in(self):
-        self.assertEqual(len(self.allowed), 7)
+        self.assertEqual(len(self.allowed), 5)
         self.assertEqual(extend_allowed(self.allowed, []), self.allowed)
         history = extend_allowed(self.allowed, ["history"])
         self.assertEqual(len(history), 10)
