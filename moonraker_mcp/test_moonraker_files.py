@@ -43,6 +43,12 @@ class FileApiTests(unittest.TestCase):
                 validate_filename(name)
         self.assertEqual(validate_filename("parts/benchy.gcode"), "parts/benchy.gcode")
 
+    def test_reject_encoded_path_traversal(self):
+        for name in ("%2e%2e/secret.gcode", "dir%2fsecret.gcode",
+                     "file%252fgcode", "parts/%2E%2E/secret.gcode"):
+            with self.subTest(name=name), self.assertRaises(FileAccessError):
+                validate_filename(name)
+
     def test_list_is_get_and_gcode_root_only(self):
         calls = []
         def fake(req, timeout):
