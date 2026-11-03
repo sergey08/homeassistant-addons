@@ -71,3 +71,38 @@ def gcode_metadata(base_url, filename, api_key="", opener=None):
     filename = validate_filename(filename)
     url = base_url.rstrip("/") + "/server/files/metadata?" + urllib.parse.urlencode({"filename": filename})
     return _read_json(url, api_key, opener)
+
+
+MAX_GCODE_PREVIEW_BYTES = 16 * 1024
+
+
+def gcode_preview(base_url, filename, api_key="", opener=None):
+    """Return a bounded UTF-8 prefix of a G-code file, never config files.
+
+    Moonraker serves raw files at GET /server/files/gcodes/<relative-path>.
+    This intentionally does not support arbitrary roots or full downloads.
+    """
+    filename = validate_filename(filename)
+    if not filename.lower().endswith((".gcode", ".gco")):
+        raise FileAccessError("Only G-code previews are permitted")
+    parsed = urllib.parse.urlsplit(base_url)
+    if parsed.scheme not in ("http", "https") or not parsed.hostname or parsed.username or parsed.password:
+        raise FileAccessError("Invalid Moonraker URL")
+    if parsed.query or parsed.fragment or parsed.path not in ("", "/"):
+        raise FileAccessError("Moonraker base URL must not include path, query or fragment")
+    encoded = "/".join(urllib.parse.quote(part, safe="") for part in filename.split("/"))
+    url = base_url.rstrip("/") + "/server/files/gcodes/" + encoded
+    headers = {"Accept": "application/octet-stream", "Range": f"bytes=0-{MAX_GCODE_PREVIEW_BYTES - 1}"}
+    if api_key:
+        headers["X-Api-Key"] = api_key
+    req = urllib.request.Request(url, headers=headers, method="GET")
+    if opener is None:
+        opener = urllib.request.build_opener(_NoRedirect()).open
+    with opener(req, timeout=10) as response:
+        raw = response.read(MAX_GCODE_PREVIEW_BYTES + 1)
+    if len(raw) > MAX_GCODE_PREVIEW_BYTES:
+        raise FileAccessError("G-code preview exceeds maximum size")
+    if b"\\x00" in raw:
+        raise FileAccessError("Binary content is not permitted")
+    return {"filename": filename, "preview": raw.decode("utf-8", errors="replace"),
+            "max_bytes": MAX_GCODE_PREVIEW_BYTES}
