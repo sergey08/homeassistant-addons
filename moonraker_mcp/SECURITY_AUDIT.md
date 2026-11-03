@@ -2,7 +2,7 @@
 
 Audit date: 2026-11-03. Source inspected: `lexfrei/mcp-raker` Go handlers under `internal/tools/`, including the **exact OCI-labelled source revision** `0caea7c31a0780462331e9031e3bf0f435d190ed` (upstream version `0.2.0`). The pinned image digest `sha256:cdfbb9b4ead2b3f8a253eb55c1996a69cfdbc17088cc111b7d265d8b71f7090e` was pulled in GitHub Actions run 144; its OCI source, revision and version labels match this reference. **OCI labels alone are not cryptographic build provenance or a reproducible-build proof.**
 
-The HTTP gateway enforces an explicit allowlist of **5 default names plus 11 explicitly opt-in names** (16 maximum), and rejects calls to other names before forwarding to the loopback-only upstream. This review describes the handler behavior seen in source; it is **not a security certification**.
+The HTTP gateway enforces an explicit allowlist of **5 default upstream names plus 11 explicitly opt-in upstream names**, and **3 additional local file tools** behind `enable_files` (19 maximum), and rejects calls to other names before forwarding to the loopback-only upstream. This review describes the handler behavior seen in source; it is **not a security certification**.
 
 | Allowed MCP tool | Observed upstream action |
 | --- | --- |
@@ -50,7 +50,7 @@ The gateway currently forwards tool results without field-level redaction. The b
 
 ### Optional profile configuration validation
 
-The add-on defaults all five optional profile switches (`objects`, `history`, `sensors`, `spoolman`, `power`) to `false`. Startup now rejects non-boolean values rather than treating strings or numbers as permission flags. Missing optional fields remain disabled for backward compatibility. A malformed configuration must prevent gateway startup; never silently broaden the allowlist.
+The add-on defaults all six optional profile switches (`files`, `objects`, `history`, `sensors`, `spoolman`, `power`) to `false`. Startup now rejects non-boolean values rather than treating strings or numbers as permission flags. Missing optional fields remain disabled for backward compatibility. A malformed configuration must prevent gateway startup; never silently broaden the allowlist.
 
 ### Klipper object-query privacy decision (implemented in DEV)
 
@@ -59,3 +59,11 @@ The default profile **does not expose** `moonraker_objects_list` or `moonraker_o
 The five default tools are `moonraker_mcp_version`, `moonraker_server_info`, `moonraker_printer_info`, `moonraker_temperature_store`, and `moonraker_jobqueue_status`. With `history` enabled there are 8; with all optional profiles except `objects` there are 14; with all five optional profiles there are 16.
 
 **Remaining deployment gate:** verify representative responses and explicit user approval before exposing even default status data to external MCP clients.
+
+### Local file API audit (DEV, 2026-11-03)
+
+Unlike the 16 upstream tools in the table, `moonraker_files_list`, `moonraker_files_metadata`, and `moonraker_files_preview` are **implemented locally** in the Python gateway. All require `enable_files: true`. Their HTTP endpoints are GET-only and limited to Moonraker's `gcodes` root. The preview returns at most 16 KiB, rejects NUL bytes, refuses redirects, and restricts extensions to `.gcode`/`.gco`. Filename validation rejects absolute paths, traversal segments, control characters, backslashes, and percent escapes. API-key headers must never be forwarded on redirects. The HTTP request's tool arguments must match each tool's schema.
+
+These restrictions are **not** a guarantee that file names or G-code comments contain no sensitive information. No arbitrary config-root access, file modification, upload, deletion or full download is available. In particular, `printer.cfg` and other configuration files are **not accessible through this profile**.
+
+**Deployment gate:** inspect representative G-code metadata and preview responses for sensitive comments before enabling `files`; do not expose file access to external clients merely because the calls are read-only.
