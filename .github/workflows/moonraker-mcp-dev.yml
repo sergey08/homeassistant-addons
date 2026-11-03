@@ -106,6 +106,26 @@ jobs:
                   assert not matches, "DANGEROUS: gateway exposed control tools: "+", ".join(matches)
                   print("SECURITY AUDIT: no hazardous controls exposed through gateway")
                   print("Gateway policy verified; printer integration not tested")
+                  # Exercise the actual Docker gateway, not only policy unit tests.
+                  # Denied calls must fail before any connection to Moonraker.
+                  import urllib.error
+                  forbidden=[
+                      "moonraker_gcode_script",
+                      "moonraker_print_start",
+                      "moonraker_print_cancel",
+                      "moonraker_firmware_restart",
+                      "moonraker_files_delete",
+                      "moonraker_spoolman_set_spool",
+                      "moonraker_new_future_tool",
+                  ]
+                  for index, name in enumerate(forbidden, start=100):
+                      try:
+                          request("tools/call",{"name":name,"arguments":{}},index,session)
+                      except urllib.error.HTTPError as error:
+                          assert error.code==403, (name,error.code)
+                      else:
+                          raise AssertionError("Forbidden tool reached upstream: "+name)
+                  print("Docker HTTP gateway blocked",len(forbidden),"forbidden tool calls")
               finally:
                   subprocess.run(["docker","rm","-f","moonraker-mcp-protocol"],capture_output=True)
           PY
