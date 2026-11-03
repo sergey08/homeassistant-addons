@@ -24,8 +24,8 @@ class TestRemoteWritePreview(unittest.TestCase):
         self.assertFalse(result.json["remote_write_enabled"])
         self.assertFalse(result.json["save_supported"])
         self.assertTrue(result.json["revision_verified"])
-        inspect.assert_called_once_with("Notes/Test.md")
-        read.assert_called_once_with("Notes/Test.md")
+        inspect.assert_not_called()
+        read.assert_called_once_with("Notes/Test.md",verify_revision=True)
     def test_rejects_remote_content_conflict(self):
         with patch("server.read_encrypted_note",return_value=("changed elsewhere",None)):
             result=self.post({"path":"Notes/Test.md","content":"after",
