@@ -4,7 +4,7 @@ No HTTP client is created here. An injected transport must expose put(doc)
 and return (status, response). Production writes are deliberately forbidden.
 """
 from livesync_revision_contract import (RevisionConflict, require_successful_put,
-                                       require_confirmed_put_response)
+                                       require_confirmed_put_response, require_confirmed_create_response)
 from livesync_write_preflight import UnsafeWrite
 
 
@@ -34,12 +34,10 @@ def commit_isolated_plan(plan, put_document, *, isolated_test=False,
         raise UnsafeWrite("invalid_parent_id")
     for kind,document in (("leaf",leaf),("parent",parent)):
         status,response=put_document(dict(document))
-        if kind == "parent":
+        if kind == "parent" and document.get("_rev") is not None:
             require_confirmed_put_response(status,response,document["_id"],
-                                           document.get("_rev"))
+                                           document["_rev"])
         else:
-            require_successful_put(status,response)
-            if response.get("id") != document["_id"]:
-                raise RevisionConflict("remote_document_identity_mismatch")
+            require_confirmed_create_response(status,response,document["_id"])
     return {"status":"committed_in_disposable_test_only",
             "parent_id":parent["_id"]}
