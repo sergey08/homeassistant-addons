@@ -15,6 +15,7 @@ class FakeUpstream(BaseHTTPRequestHandler):
     redirect_target = None
     redirect_status = 307
     leaked_headers = []
+    jsonrpc_error = False
 
     def do_POST(self):
         if self.path == "/collect":
@@ -46,7 +47,11 @@ class FakeUpstream(BaseHTTPRequestHandler):
             result = {"protocolVersion": "2025-06-18", "capabilities": {}, "serverInfo": {"name": "fake", "version": "1"}}
         else:
             result = {"ok": True}
-        body = json.dumps({"jsonrpc": "2.0", "id": message.get("id"), "result": result}).encode()
+        response = ({"jsonrpc": "2.0", "id": message.get("id"),
+                     "error": {"code": -32603, "message": "Simulated upstream error"}}
+                    if self.jsonrpc_error else
+                    {"jsonrpc": "2.0", "id": message.get("id"), "result": result})
+        body = json.dumps(response).encode()
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(body)))
@@ -105,6 +110,25 @@ class HTTPGatewayTests(unittest.TestCase):
         with urllib.request.urlopen(req, timeout=5) as response:
             self.assertEqual(response.status, 202)
             self.assertEqual(response.read(), b"")
+
+    def test_upstream_jsonrpc_errors_preserved_over_http(self):
+        original = FakeUpstream.jsonrpc_error
+        try:
+            FakeUpstream.jsonrpc_error = True
+            for method, params in (
+                ("initialize", {"protocolVersion": "2025-06-18",
+                                "capabilities": {},
+                                "clientInfo": {"name": "test", "version": "1"}}),
+                ("tools/list", {}),
+                ("tools/call", {"name": "moonraker_printer_info", "arguments": {}}),
+            ):
+                with self.subTest(method=method):
+                    status, body = self.request(method, params)
+                    self.assertEqual(status, 200)
+                    self.assertEqual(body["error"]["code"], -32603)
+                    self.assertNotIn("result", body)
+        finally:
+            FakeUpstream.jsonrpc_error = original
 
     def test_listing_filters_unsafe_tools(self):
         status, body = self.request("tools/list")
