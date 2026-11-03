@@ -82,8 +82,13 @@ def check_message(message, allowed):
         raise PolicyError("MCP request must have an id")
     if "params" in message and not isinstance(message["params"], dict):
         raise PolicyError("MCP params must be an object")
-    if method in ("ping", "tools/list", "notifications/initialized") and message.get("params", {}) != {}:
+    if method in ("ping", "notifications/initialized") and message.get("params", {}) != {}:
         raise PolicyError("Unexpected parameters for MCP method")
+    if method == "tools/list":
+        params = message.get("params", {})
+        if set(params) - {"cursor"} or ("cursor" in params and
+                (not isinstance(params["cursor"], str) or not 0 < len(params["cursor"]) <= 512)):
+            raise PolicyError("Invalid MCP tools/list cursor")
     if method == "initialize":
         params = message.get("params")
         if not isinstance(params, dict) or params.get("protocolVersion") not in SUPPORTED_PROTOCOL_VERSIONS:
@@ -132,7 +137,7 @@ def validate_reply(request, response):
     return response
 
 
-def filter_reply(method, response, allowed):
+def filter_reply(method, response, allowed, cursor=None):
     # A valid JSON-RPC error has no result; preserve it for the MCP client.
     if "error" in response:
         return response
@@ -150,10 +155,13 @@ def filter_reply(method, response, allowed):
     result = response["result"]
     if any(key not in ("tools", "nextCursor") for key in result):
         raise PolicyError("Unexpected tools/list result fields")
-    if "nextCursor" in result:
-        raise PolicyError("Paginated tool listings not supported")
+    if "nextCursor" in result and (not isinstance(result["nextCursor"], str) or
+                                   not 0 < len(result["nextCursor"]) <= 512):
+        raise PolicyError("Invalid upstream tools/list cursor")
     response = dict(response)
-    response["result"] = dict(result, tools=filter_tools(result.get("tools"), allowed) + [tool for name, tool in LOCAL_FILE_TOOLS.items() if name in allowed])
+    local_tools = ([tool for name, tool in LOCAL_FILE_TOOLS.items() if name in allowed]
+                   if cursor is None else [])
+    response["result"] = dict(result, tools=filter_tools(result.get("tools"), allowed) + local_tools)
     return response
 
 
@@ -269,7 +277,8 @@ class Handler(BaseHTTPRequestHandler):
                         self.send_header("Content-Length", "0")
                         self.end_headers()
                         return
-                    parsed = filter_reply(method, validate_reply(message, strict_json_loads(raw)), self.allowed)
+                    parsed = filter_reply(method, validate_reply(message, strict_json_loads(raw)), self.allowed,
+                                          message.get("params", {}).get("cursor") if method == "tools/list" else None)
                     extra = {}
                     session = upstream.headers.get("Mcp-Session-Id")
                     if session:
