@@ -5,6 +5,7 @@ tools/call is independently authorized. No unauthenticated upstream access.
 """
 import json
 import os
+import re
 import urllib.error
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -16,6 +17,13 @@ ALLOWED_METHODS = frozenset((
 MAX_BODY = 1024 * 1024
 MAX_TOOL_ARGUMENTS = 16 * 1024
 FORWARD_HEADERS = ("Mcp-Session-Id", "MCP-Protocol-Version")
+SAFE_HEADER_VALUE = re.compile(r"^[A-Za-z0-9._-]{1,128}$")
+
+
+def validate_mcp_header(value):
+    if not isinstance(value, str) or not SAFE_HEADER_VALUE.fullmatch(value):
+        raise PolicyError("Invalid MCP session or protocol header")
+    return value
 
 
 def check_message(message, allowed):
@@ -112,7 +120,7 @@ class Handler(BaseHTTPRequestHandler):
             for key in FORWARD_HEADERS:
                 value = self.headers.get(key)
                 if value:
-                    headers[key] = value
+                    headers[key] = validate_mcp_header(value)
             req = urllib.request.Request(
                 self.upstream, data=json.dumps(message).encode(), headers=headers
             )
@@ -147,7 +155,7 @@ class Handler(BaseHTTPRequestHandler):
                     extra = {}
                     session = upstream.headers.get("Mcp-Session-Id")
                     if session:
-                        extra["Mcp-Session-Id"] = session
+                        extra["Mcp-Session-Id"] = validate_mcp_header(session)
                     return self.reply(200, parsed, extra)
             except urllib.error.HTTPError as exc:
                 return self.reply(502, {"error": "Upstream MCP error", "status": exc.code})
