@@ -18,6 +18,11 @@ class FakeUpstream(BaseHTTPRequestHandler):
         message = json.loads(self.rfile.read(length))
         self.calls.append(message)
         method = message["method"]
+        if method == "notifications/initialized":
+            self.send_response(202)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
         if method == "tools/list":
             result = {"tools": [
                 {"name": "moonraker_printer_info", "inputSchema": {}},
@@ -69,6 +74,23 @@ class HTTPGatewayTests(unittest.TestCase):
                 return res.status, json.loads(res.read())
         except urllib.error.HTTPError as err:
             return err.code, json.loads(err.read())
+
+    def test_initialize_and_notification(self):
+        status, body = self.request("initialize", {
+            "protocolVersion": "2025-06-18", "capabilities": {},
+            "clientInfo": {"name": "test", "version": "1"}})
+        self.assertEqual(status, 200)
+        self.assertIn("serverInfo", body["result"])
+        payload = json.dumps({"jsonrpc": "2.0",
+                              "method": "notifications/initialized"}).encode()
+        req = urllib.request.Request(
+            "http://127.0.0.1:%s/" % self.gateway.server_port,
+            data=payload,
+            headers={"Authorization": "Bearer ci-secret",
+                     "Content-Type": "application/json"})
+        with urllib.request.urlopen(req, timeout=5) as response:
+            self.assertEqual(response.status, 202)
+            self.assertEqual(response.read(), b"")
 
     def test_listing_filters_unsafe_tools(self):
         status, body = self.request("tools/list")
