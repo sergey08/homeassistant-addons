@@ -28,6 +28,12 @@ def check_message(message, allowed):
     method = message.get("method")
     if method not in ALLOWED_METHODS:
         raise PolicyError("MCP method is not permitted")
+    if method == "notifications/initialized" and "id" in message:
+        raise PolicyError("MCP notification must not have an id")
+    if method != "notifications/initialized" and "id" not in message:
+        raise PolicyError("MCP request must have an id")
+    if "params" in message and not isinstance(message["params"], dict):
+        raise PolicyError("MCP params must be an object")
     if method == "tools/call":
         params = message.get("params")
         if not isinstance(params, dict):
