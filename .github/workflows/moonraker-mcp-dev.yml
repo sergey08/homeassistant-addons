@@ -47,3 +47,43 @@ jobs:
           test "$status" = 401 || { echo "Expected 401 without bearer token, got $status"; exit 1; }
           echo "HTTP listener started; unauthenticated access rejected"
 
+      - name: MCP initialize and tools/list protocol smoke test
+        run: |
+          python - <<'PY'
+          import json, urllib.request
+          url = "http://127.0.0.1:18765/"
+          headers = {
+              "Authorization": "Bearer ci-test-token",
+              "Content-Type": "application/json",
+              "Accept": "application/json, text/event-stream",
+              "MCP-Protocol-Version": "2025-06-18",
+          }
+          # This step runs in a separate process: launch the server here.
+          import subprocess, tempfile, os, time
+          with tempfile.TemporaryDirectory() as tmp:
+              with open(os.path.join(tmp, "options.json"), "w") as f:
+                  json.dump({"moonraker_url":"http://127.0.0.1:7125","moonraker_api_key":"","mcp_http_token":"ci-test-token"}, f)
+              subprocess.run(["docker","run","-d","--name","moonraker-mcp-protocol","-p","127.0.0.1:18765:8765","-v",tmp+":/data:ro","moonraker-mcp:dev"], check=True, capture_output=True)
+              try:
+                  time.sleep(2)
+                  def request(method, params=None, rid=1, session=None):
+                      data={"jsonrpc":"2.0","id":rid,"method":method}
+                      if params is not None: data["params"]=params
+                      h=dict(headers)
+                      if session: h["Mcp-Session-Id"]=session
+                      req=urllib.request.Request(url, data=json.dumps(data).encode(), headers=h)
+                      with urllib.request.urlopen(req, timeout=10) as response:
+                          raw=response.read().decode()
+                          if "text/event-stream" in response.headers.get("Content-Type",""):
+                              raw="".join(line[6:] for line in raw.splitlines() if line.startswith("data:"))
+                          return json.loads(raw), response.headers.get("Mcp-Session-Id")
+                  init,session=request("initialize",{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"ha-addon-ci","version":"0.1.0"}},1)
+                  assert "result" in init and "serverInfo" in init["result"], init
+                  result,_=request("tools/list",{},2,session)
+                  assert "result" in result and isinstance(result["result"].get("tools"),list), result
+                  tools=result["result"]["tools"]
+                  assert tools and any(t["name"].startswith("moonraker_") for t in tools)
+                  print("MCP initialize and tools/list OK; tools:",len(tools))
+              finally:
+                  subprocess.run(["docker","rm","-f","moonraker-mcp-protocol"],capture_output=True)
+          PY
