@@ -133,6 +133,9 @@ def validate_reply(request, response):
 
 
 def filter_reply(method, response, allowed):
+    # A valid JSON-RPC error has no result; preserve it for the MCP client.
+    if "error" in response:
+        return response
     if method == "initialize":
         result = response.get("result")
         if not isinstance(result, dict) or result.get("protocolVersion") not in SUPPORTED_PROTOCOL_VERSIONS:
