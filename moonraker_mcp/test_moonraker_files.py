@@ -106,7 +106,7 @@ class FileApiTests(unittest.TestCase):
         class BinaryResponse:
             def __enter__(self): return self
             def __exit__(self, *args): return False
-            def read(self, size): return b"\\x00\\x01"
+            def read(self, size): return bytes((0, 1))
         with self.assertRaises(FileAccessError):
             gcode_preview("http://printer.local:7125", "part.gcode",
                           opener=lambda req, timeout: BinaryResponse())
