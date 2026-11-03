@@ -152,6 +152,38 @@ class RemotePreviewRevisionTests(unittest.TestCase):
                 self.assertEqual(error, "remote_revision_changed")
                 self.assertEqual(opener.open.call_count, 4)
 
+    def test_duplicate_encrypted_parents_rejected_before_leaf_reads(self):
+        import io
+        import json
+        from unittest.mock import Mock
+
+        original = {"_id": "f:first", "_rev": "1-" + "a" * 32,
+                    "type": "plain", "path": "/\\:%=first"}
+        duplicate = {"_id": "f:second", "_rev": "1-" + "b" * 32,
+                     "type": "plain", "path": "/\\:%=second"}
+        cfg = {"livesync_encryption_enabled": True,
+               "livesync_e2ee_passphrase": "fixture-only",
+               "couchdb_url": "http://db21ed7f-obsidian-syncserver-ssl:5984",
+               "couchdb_database": "disposable"}
+        responses = [
+            {"pbkdf2salt": "fixture-salt"},
+            {"rows": [{"doc": original}, {"doc": duplicate}]},
+        ]
+        opener = Mock()
+        opener.open.side_effect = [
+            io.BytesIO(json.dumps(item).encode()) for item in responses
+        ]
+        meta = json.dumps({"path": BODY["path"], "size": 4})
+        with (patch.object(server, "options", return_value=cfg),
+              patch.object(server, "build_opener", return_value=opener),
+              patch("livesync_crypto.decrypt_hkdf_string",
+                    side_effect=[meta, meta])):
+            content, error = server.read_encrypted_note(
+                BODY["path"], verify_revision=True)
+        self.assertIsNone(content)
+        self.assertEqual(error, "ambiguous_parent")
+        self.assertEqual(opener.open.call_count, 2)
+
     def test_cross_origin_header_rejected(self):
         r=self.client.post("/api/remote/write-preview",json=BODY,
              headers={**HEADERS,"Origin":"https://untrusted.example"})
