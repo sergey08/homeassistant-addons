@@ -1,6 +1,6 @@
 # Upstream is a FROM scratch image: it contains no shell or jq.
 # Copy its statically linked Go binary into a minimal Alpine runtime.
-FROM ghcr.io/lexfrei/mcp-raker:latest AS upstream
+FROM ghcr.io/lexfrei/mcp-raker@sha256:cdfbb9b4ead2b3f8a253eb55c1996a69cfdbc17088cc111b7d265d8b71f7090e AS upstream
 FROM alpine:3.22
 RUN apk add --no-cache ca-certificates jq && \
     addgroup -g 65534 -S nobody 2>/dev/null || true
