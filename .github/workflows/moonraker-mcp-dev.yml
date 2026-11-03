@@ -90,21 +90,22 @@ jobs:
                   result,_=request("tools/list",{},2,session)
                   assert "result" in result and isinstance(result["result"].get("tools"),list), result
                   tools=result["result"]["tools"]
-                  assert tools and any(t["name"].startswith("moonraker_") for t in tools)
+                  assert tools and all(t["name"].startswith("moonraker_") for t in tools)
                   with open("moonraker_mcp/read_only_allowlist.json") as policy_file:
                       allowlist=json.load(policy_file)["allowed_tools"]
                   assert len(allowlist)==len(set(allowlist)), "Duplicate tool names in allowlist"
                   names=sorted(t["name"] for t in tools)
                   missing=sorted(set(allowlist)-set(names))
-                  assert not missing, "Allowlisted tools absent upstream: "+", ".join(missing)
+                  assert not missing, "Allowlisted tools absent from gateway: "+", ".join(missing)
+                  assert set(names)==set(allowlist), "Gateway exposed tools outside allowlist"
                   print("Read-only policy candidate:",len(allowlist),"tools; NOT ENFORCED")
                   print("MCP initialize and tools/list OK; tools:",len(tools))
                   print("Registered tools:",", ".join(names))
                   hazardous=("gcode_script","emergency_stop","print_start","print_cancel","printer_restart","firmware_restart")
                   matches=[name for name in names if any(term in name for term in hazardous)]
-                  assert matches, "Expected upstream control tools missing: review upstream changes"
-                  print("SECURITY AUDIT: upstream still exposes control tools:",", ".join(matches))
-                  print("DO NOT DEPLOY until a fail-closed read-only tool gate is implemented")
+                  assert not matches, "DANGEROUS: gateway exposed control tools: "+", ".join(matches)
+                  print("SECURITY AUDIT: no hazardous controls exposed through gateway")
+                  print("Gateway policy verified; printer integration not tested")
               finally:
                   subprocess.run(["docker","rm","-f","moonraker-mcp-protocol"],capture_output=True)
           PY
