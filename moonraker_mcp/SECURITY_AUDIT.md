@@ -1,6 +1,6 @@
 # Moonraker MCP — read-only tool audit (DEV)
 
-Audit date: 2026-11-03. Source inspected: `lexfrei/mcp-raker` Go handlers under `internal/tools/` (current default branch; **not yet verified against pinned image digest**).
+Audit date: 2026-11-03. Source inspected: `lexfrei/mcp-raker` Go handlers under `internal/tools/`, including the **exact OCI-labelled source revision** `0caea7c31a0780462331e9031e3bf0f435d190ed` (upstream version `0.2.0`). The pinned image digest `sha256:cdfbb9b4ead2b3f8a253eb55c1996a69cfdbc17088cc111b7d265d8b71f7090e` was pulled in GitHub Actions run 144; its OCI source, revision and version labels match this reference. **OCI labels alone are not cryptographic build provenance or a reproducible-build proof.**
 
 The HTTP gateway enforces an explicit allowlist of 16 names, and rejects calls to other names before forwarding to the loopback-only upstream. This review describes the handler behavior seen in source; it is **not a security certification**.
 
@@ -25,7 +25,7 @@ The HTTP gateway enforces an explicit allowlist of 16 names, and rejects calls t
 
 ### Remaining risks / Riesgos pendientes
 
-1. Confirm that the pinned upstream image corresponds to the audited source revision. Upstream main can change independently.
+1. OCI metadata ties the pinned image to the audited revision, but independently verify build provenance/attestation if available; labels are self-reported and upstream main can change independently.
 2. Review each tool's input schema and restrict sensitive object names, sensor identifiers, job IDs and unusually large requests where needed.
 3. GET requests can expose printer metadata, print history and Spoolman inventory. Review privacy implications.
 4. Validate MCP sessions, SSE behavior, token handling, timeout and denial of unsupported methods with the intended client.
