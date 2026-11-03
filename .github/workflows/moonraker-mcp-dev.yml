@@ -28,9 +28,17 @@ jobs:
           PY
       - name: Build DEV container (no deployment)
         run: docker build --pull --tag moonraker-mcp:dev ./moonraker_mcp
-      - name: Verify binary exists
+      - name: Smoke test HTTP MCP auth (no printer commands)
         run: |
-          docker run --rm --entrypoint /usr/local/bin/mcp-raker moonraker-mcp:dev --help >/dev/null 2>&1 || {
-            echo 'Binary invocation failed; inspect upstream CLI behavior.'
-            exit 1
-          }
+          mkdir -p /tmp/moonraker-mcp-options
+          printf '%s\n' '{"moonraker_url":"http://127.0.0.1:7125","moonraker_api_key":"","mcp_http_token":"ci-test-token"}' > /tmp/moonraker-mcp-options/options.json
+          docker run -d --name moonraker-mcp-ci -p 127.0.0.1:18765:8765 -v /tmp/moonraker-mcp-options:/data:ro moonraker-mcp:dev
+          trap 'docker logs moonraker-mcp-ci; docker rm -f moonraker-mcp-ci' EXIT
+          for i in $(seq 1 20); do
+            if curl -s -o /dev/null http://127.0.0.1:18765/mcp; then break; fi
+            sleep 1
+          done
+          status=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:18765/mcp)
+          test "$status" = 401 || { echo "Expected 401 without bearer token, got $status"; exit 1; }
+          echo "HTTP listener started; unauthenticated access rejected"
+
