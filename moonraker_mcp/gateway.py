@@ -39,6 +39,7 @@ LOCAL_FILE_TOOLS = {
     },
 }
 SAFE_HEADER_VALUE = re.compile(r"^[A-Za-z0-9._-]{1,128}$")
+SUPPORTED_PROTOCOL_VERSIONS = frozenset(("2025-03-26", "2025-06-18"))
 
 
 def validate_mcp_header(value):
@@ -83,6 +84,12 @@ def check_message(message, allowed):
         raise PolicyError("MCP params must be an object")
     if method in ("ping", "tools/list", "notifications/initialized") and message.get("params", {}) != {}:
         raise PolicyError("Unexpected parameters for MCP method")
+    if method == "initialize":
+        params = message.get("params")
+        if not isinstance(params, dict) or params.get("protocolVersion") not in SUPPORTED_PROTOCOL_VERSIONS:
+            raise PolicyError("Unsupported MCP protocol version")
+        if not isinstance(params.get("capabilities"), dict) or not isinstance(params.get("clientInfo"), dict):
+            raise PolicyError("Invalid MCP initialize parameters")
     if method == "tools/call":
         params = message.get("params")
         if not isinstance(params, dict):
@@ -186,6 +193,9 @@ class Handler(BaseHTTPRequestHandler):
                 return self.reply(413, {"error": "Invalid request size"})
             message = strict_json_loads(self.rfile.read(length))
             method = check_message(message, self.allowed)
+            protocol_version = self.headers.get("MCP-Protocol-Version")
+            if protocol_version and protocol_version not in SUPPORTED_PROTOCOL_VERSIONS:
+                return self.reply(400, {"error": "Unsupported MCP protocol version"})
             if method == "tools/call" and message["params"]["name"] in LOCAL_FILE_TOOLS:
                 name = message["params"]["name"]
                 args = message["params"].get("arguments", {})
