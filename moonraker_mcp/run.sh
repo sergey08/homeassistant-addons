@@ -7,9 +7,9 @@ if [ ! -f "$OPTIONS" ]; then
 fi
 MOONRAKER_URL="$(jq -er '.moonraker_url | select(type=="string" and length>0)' "$OPTIONS")"
 export MOONRAKER_URL
-MOONRAKER_API_KEY="$(jq -er '(.moonraker_api_key // "") | select(type=="string")' "$OPTIONS")"
+MOONRAKER_API_KEY="$(jq -er 'if .moonraker_api_key == null then "" else .moonraker_api_key | select(type=="string") end' "$OPTIONS")"
 export MOONRAKER_API_KEY
-MCP_HTTP_TOKEN="$(jq -er '(.mcp_http_token // "") | select(type=="string")' "$OPTIONS")"
+MCP_HTTP_TOKEN="$(jq -er 'if .mcp_http_token == null then "" else .mcp_http_token | select(type=="string") end' "$OPTIONS")"
 export MCP_HTTP_TOKEN
 if [ -z "$MCP_HTTP_TOKEN" ]; then
   echo "Configure a nonempty MCP HTTP token" >&2
