@@ -12,14 +12,19 @@ class TestRemoteWritePreview(unittest.TestCase):
         return self.client.post("/api/remote/write-preview",
                                 json=payload,headers=headers or self.headers)
     def test_valid_preview_is_read_only(self):
-        with patch("server.read_encrypted_note",return_value=("before",None)) as read:
+        with patch("server.read_encrypted_note",return_value=("before",None)) as read, \
+             patch("server.remote_parent_revision") as inspect:
+            from flask import jsonify
+            inspect.side_effect=lambda path: jsonify(
+                revision_available=True,encrypted_parent=True,write_supported=False)
             result=self.post({"path":"Notes/Test.md","content":"after",
                               "expected_content":"before"})
         self.assertEqual(result.status_code,200)
         self.assertEqual(result.json["status"],"preview_only")
         self.assertFalse(result.json["remote_write_enabled"])
         self.assertFalse(result.json["save_supported"])
-        self.assertFalse(result.json["revision_verified"])
+        self.assertTrue(result.json["revision_verified"])
+        inspect.assert_called_once_with("Notes/Test.md")
         read.assert_called_once_with("Notes/Test.md")
     def test_rejects_remote_content_conflict(self):
         with patch("server.read_encrypted_note",return_value=("changed elsewhere",None)):
