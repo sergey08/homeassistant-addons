@@ -159,6 +159,9 @@ def filter_reply(method, response, allowed, cursor=None):
                                    not 0 < len(result["nextCursor"]) <= 512):
         raise PolicyError("Invalid upstream tools/list cursor")
     response = dict(response)
+    # Names handled locally must never be supplied by the upstream server.
+    if any(tool.get("name") in LOCAL_FILE_TOOLS for tool in result["tools"]):
+        raise PolicyError("Upstream tool conflicts with local file tool")
     local_tools = ([tool for name, tool in LOCAL_FILE_TOOLS.items() if name in allowed]
                    if cursor is None else [])
     response["result"] = dict(result, tools=filter_tools(result.get("tools"), allowed) + local_tools)
