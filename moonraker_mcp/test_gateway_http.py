@@ -111,6 +111,34 @@ class HTTPGatewayTests(unittest.TestCase):
             self.assertEqual(response.status, 202)
             self.assertEqual(response.read(), b"")
 
+    def test_initialize_rejects_mismatched_protocol_header(self):
+        payload = json.dumps({
+            "jsonrpc": "2.0", "id": 1, "method": "initialize",
+            "params": {"protocolVersion": "2025-06-18",
+                       "capabilities": {},
+                       "clientInfo": {"name": "test", "version": "1"}}
+        }).encode()
+        for header, expected in (
+            ("2025-03-26", 400),
+            ("2024-11-05", 400),
+            ("2025-06-18", 200),
+        ):
+            with self.subTest(header=header):
+                before = len(FakeUpstream.calls)
+                req = urllib.request.Request(
+                    "http://127.0.0.1:%s/mcp" % self.gateway.server_port,
+                    data=payload,
+                    headers={"Authorization": "Bearer ci-secret",
+                             "Content-Type": "application/json",
+                             "MCP-Protocol-Version": header})
+                try:
+                    with urllib.request.urlopen(req, timeout=5) as response:
+                        status = response.status
+                except urllib.error.HTTPError as exc:
+                    status = exc.code
+                self.assertEqual(status, expected)
+                self.assertEqual(len(FakeUpstream.calls), before + (1 if expected == 200 else 0))
+
     def test_upstream_jsonrpc_errors_preserved_over_http(self):
         original = FakeUpstream.jsonrpc_error
         try:
