@@ -133,6 +133,13 @@ def validate_reply(request, response):
 
 
 def filter_reply(method, response, allowed):
+    if method == "initialize":
+        result = response.get("result")
+        if not isinstance(result, dict) or result.get("protocolVersion") not in SUPPORTED_PROTOCOL_VERSIONS:
+            raise PolicyError("Unsupported upstream MCP protocol version")
+        if not isinstance(result.get("capabilities"), dict) or not isinstance(result.get("serverInfo"), dict):
+            raise PolicyError("Invalid upstream MCP initialize response")
+        return response
     if method != "tools/list":
         return response
     if not isinstance(response, dict) or not isinstance(response.get("result"), dict):
