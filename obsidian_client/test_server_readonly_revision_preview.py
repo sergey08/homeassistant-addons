@@ -56,6 +56,23 @@ class RemotePreviewRevisionTests(unittest.TestCase):
                                json=BODY,headers=HEADERS)
             self.assertEqual(r.status_code,409)
 
+    def test_revision_verification_failure_modes_fail_closed(self):
+        # The reader owns parent/chunk consistency; preview must never authorize
+        # saving if that verification reports an unsafe remote snapshot.
+        for reason in ("remote_revision_changed", "ambiguous_parent",
+                       "invalid_parent_snapshot", "read_failed",
+                       "not_found", "size_mismatch"):
+            with self.subTest(reason=reason):
+                with patch.object(server, "read_encrypted_note",
+                                  return_value=(None, reason)) as reader:
+                    r = self.client.post("/api/remote/write-preview",
+                                         json=BODY, headers=HEADERS)
+                self.assertEqual(r.status_code, 409)
+                self.assertEqual(r.json["error"], "remote_snapshot_not_verified")
+                self.assertFalse(r.json["save_supported"])
+                self.assertFalse(r.json["remote_write_enabled"])
+                reader.assert_called_once_with(BODY["path"], verify_revision=True)
+
     def test_cross_origin_header_rejected(self):
         r=self.client.post("/api/remote/write-preview",json=BODY,
              headers={**HEADERS,"Origin":"https://untrusted.example"})
