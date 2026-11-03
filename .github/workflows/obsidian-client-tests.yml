@@ -874,18 +874,19 @@ jobs:
                           stored_parent=json.load(response)
                       old_rev=stored_parent["_rev"]
                       updated_text="# Python obfuscated envelope\\nSafely updated using CAS\\n"
-                      updated_chunk="h:"+legacy_chunk_id(
-                          updated_text,config["livesync_e2ee_passphrase"])
-                      updated_leaf={"_id":updated_chunk,"type":"leaf","e_":True,
-                          "data":encrypt_hkdf_string(
-                              updated_text,config["livesync_e2ee_passphrase"],obfuscated_salt)}
-                      updated_meta=encode_parent_metadata_fixture(
-                          python_path,[updated_chunk],config["livesync_e2ee_passphrase"],
-                          obfuscated_salt,ctime=1730000000000,mtime=1730000001000,
-                          size=len(updated_text.encode("utf-8")))
-                      updated_parent=dict(stored_parent)
-                      updated_parent.update({"path":updated_meta["path"],"children":[],
-                          "ctime":0,"mtime":0,"size":0})
+                      import hashlib
+                      from livesync_obfuscated_update_plan import prepare_obfuscated_encrypted_update
+                      planned_update=prepare_obfuscated_encrypted_update(
+                          python_path,updated_text,stored_parent,python_text,old_rev,
+                          hashlib.sha256(python_text.encode("utf-8")).hexdigest(),
+                          config["livesync_e2ee_passphrase"],obfuscated_salt,
+                          modified_millis=1730000001000,case_insensitive=True,
+                          remote_writes_enabled=False)
+                      assert planned_update["write_supported"] is False
+                      assert planned_update["write_order"]==("leaf","parent")
+                      updated_leaf=planned_update["leaf"]
+                      updated_parent=planned_update["parent"]
+                      updated_meta={"path":updated_parent["path"]}
                       def put_test_document(document):
                           req=urllib.request.Request(
                               obfuscated_url+"/"+quote(document["_id"],safe=""),
