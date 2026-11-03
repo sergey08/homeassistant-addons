@@ -171,6 +171,9 @@ class Handler(BaseHTTPRequestHandler):
         if self.headers.get("Authorization") != "Bearer " + self.token:
             return self.reply(401, {"error": "Unauthorized"})
         try:
+            content_type = self.headers.get("Content-Type", "").split(";", 1)[0].strip().lower()
+            if content_type != "application/json":
+                return self.reply(415, {"error": "MCP POST requires application/json"})
             length = int(self.headers.get("Content-Length", "-1"))
             if not 0 <= length <= MAX_BODY:
                 return self.reply(413, {"error": "Invalid request size"})
