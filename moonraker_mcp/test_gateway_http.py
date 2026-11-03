@@ -17,6 +17,7 @@ class FakeUpstream(BaseHTTPRequestHandler):
     leaked_headers = []
     jsonrpc_error = False
     notification_status = 202
+    paginate_tools = False
 
     def do_POST(self):
         if self.path == "/collect":
@@ -40,10 +41,19 @@ class FakeUpstream(BaseHTTPRequestHandler):
             self.end_headers()
             return
         if method == "tools/list":
-            result = {"tools": [
-                {"name": "moonraker_printer_info", "inputSchema": {}},
-                {"name": "moonraker_gcode_script", "inputSchema": {}},
-            ]}
+            cursor = message.get("params", {}).get("cursor")
+            if self.paginate_tools and cursor == "page-2":
+                result = {"tools": [
+                    {"name": "moonraker_server_info", "inputSchema": {}},
+                    {"name": "moonraker_print_start", "inputSchema": {}},
+                ]}
+            else:
+                result = {"tools": [
+                    {"name": "moonraker_printer_info", "inputSchema": {}},
+                    {"name": "moonraker_gcode_script", "inputSchema": {}},
+                ]}
+                if self.paginate_tools:
+                    result["nextCursor"] = "page-2"
         elif method == "initialize":
             result = {"protocolVersion": "2025-06-18", "capabilities": {}, "serverInfo": {"name": "fake", "version": "1"}}
         else:
@@ -182,6 +192,24 @@ class HTTPGatewayTests(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual([t["name"] for t in body["result"]["tools"]],
                          ["moonraker_printer_info"])
+
+    def test_paginated_tool_listing_filters_each_http_page(self):
+        original = FakeUpstream.paginate_tools
+        try:
+            FakeUpstream.paginate_tools = True
+            first_status, first = self.request("tools/list")
+            self.assertEqual(first_status, 200)
+            self.assertEqual(first["result"]["nextCursor"], "page-2")
+            self.assertEqual([tool["name"] for tool in first["result"]["tools"]],
+                             ["moonraker_printer_info"])
+            second_status, second = self.request("tools/list", {"cursor": "page-2"})
+            self.assertEqual(second_status, 200)
+            self.assertNotIn("nextCursor", second["result"])
+            self.assertEqual([tool["name"] for tool in second["result"]["tools"]],
+                             ["moonraker_server_info"])
+            self.assertEqual(FakeUpstream.calls[-1]["params"]["cursor"], "page-2")
+        finally:
+            FakeUpstream.paginate_tools = original
 
     def test_mcp_endpoint_alias_and_authentication(self):
         payload = json.dumps({"jsonrpc": "2.0", "id": 11,
