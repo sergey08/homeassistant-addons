@@ -1168,7 +1168,7 @@ def render_wikilinks(content, current_path, known_notes):
 
 
 @app.get("/api/remote/parent-revision")
-def remote_parent_revision():
+def remote_parent_revision(_requested_path=None):
     """Read-only revision lookup for encrypted parent metadata.
 
     Never expose remote document IDs, revisions, ciphertext or credentials to
@@ -1178,7 +1178,7 @@ def remote_parent_revision():
     from livesync_crypto import decrypt_hkdf_string, UnsupportedEncryption
     from livesync_write_preflight import validate_write_request, UnsafeWrite
     import base64
-    requested=request.args.get("path","")
+    requested=_requested_path if _requested_path is not None else request.args.get("path","")
     try:
         validate_write_request(requested,"",None,creating=True)
     except (UnsafeWrite,ValueError):
@@ -1423,10 +1423,23 @@ def remote_write_preview():
         return jsonify(error="remote_read_failed", remote_write_enabled=False), 409
     if hashlib.sha256(current.encode("utf-8")).digest()!=hashlib.sha256(expected.encode("utf-8")).digest():
         return jsonify(error="remote_content_conflict", remote_write_enabled=False), 409
-    return jsonify(path=path, bytes=result["bytes"], operation="update",
+    # Perform revision inspection server-side in the same preview request.
+    # This remains READ-ONLY; validation is not an authorization to write.
+    inspected=remote_parent_revision(path)
+    revision_response,revision_status=inspected if isinstance(inspected,tuple) else (inspected,200)
+    inspection=revision_response.get_json()
+    if (revision_status!=200 or not isinstance(inspection,dict)
+            or inspection.get("revision_available") is not True
+            or inspection.get("encrypted_parent") is not True
+            or inspection.get("write_supported") is not False):
+        return jsonify(error="remote_revision_not_verified",
+                       remote_write_enabled=False,save_supported=False),409
+    response=jsonify(path=path, bytes=result["bytes"], operation="update",
                    content_changed=content!=current,
                    status="preview_only", remote_write_enabled=False,
-                   revision_verified=False, save_supported=False)
+                   revision_verified=True, save_supported=False)
+    response.headers["Cache-Control"]="no-store"
+    return response
 
 
 @app.get("/remote/edit")
@@ -1504,11 +1517,8 @@ def remote_edit_draft():
         'headers:{"Content-Type":"application/json","X-Obsidian-Client-Action":"write-preview"},'
         'body:JSON.stringify({path:note.path,content:e.value,expected_content:remoteSnapshot})});'
         'const data=await res.json();if(!res.ok)throw Error(data.error||"preview_failed");'
-        'const revisionRes=await fetch("../api/remote/parent-revision?path="+'
-        'encodeURIComponent(note.path),{cache:"no-store"});'
-        'const revision=await revisionRes.json();'
-        'if(!revisionRes.ok||!revision.revision_available||revision.write_supported!==false)'
-        'throw Error(revision.error||"revision_not_verified");'
+        'if(data.revision_verified!==true||data.save_supported!==false)'
+        'throw Error("revision_not_verified");'
         'status.textContent=(data.content_changed?"Cambios detectados. ":"Sin cambios pendientes. ")+'
         '"Revisión cifrada comprobada (solo lectura). Guardado remoto desactivado.";'
         '}catch(err){status.textContent="Comprobación fallida: "+err.message}'
