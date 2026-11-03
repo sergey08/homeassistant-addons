@@ -46,6 +46,15 @@ class FileApiTests(unittest.TestCase):
                 validate_filename(name)
         self.assertEqual(validate_filename("parts/benchy.gcode"), "parts/benchy.gcode")
 
+    def test_unicode_path_aliases_and_invisible_controls_rejected(self):
+        for name in ("dir/．．/secret.gcode", "dir／secret.gcode",
+                     "dir＼secret.gcode", "file\u202e.gcode",
+                     "file\u200b.gcode", "file\ud800.gcode"):
+            with self.subTest(name=repr(name)), self.assertRaises(FileAccessError):
+                validate_filename(name)
+        self.assertEqual(validate_filename("piezas/árbol azul.gcode"),
+                         "piezas/árbol azul.gcode")
+
     def test_reject_encoded_path_traversal(self):
         for name in ("%2e%2e/secret.gcode", "dir%2fsecret.gcode",
                      "file%252fgcode", "parts/%2E%2E/secret.gcode"):
