@@ -117,7 +117,7 @@ def gcode_preview(base_url, filename, api_key="", opener=None):
         raw = response.read(MAX_GCODE_PREVIEW_BYTES + 1)
     if len(raw) > MAX_GCODE_PREVIEW_BYTES:
         raise FileAccessError("G-code preview exceeds maximum size")
-    if b"\\x00" in raw:
+    if b"\x00" in raw:
         raise FileAccessError("Binary content is not permitted")
     return {"filename": filename, "preview": raw.decode("utf-8", errors="replace"),
             "max_bytes": MAX_GCODE_PREVIEW_BYTES}
