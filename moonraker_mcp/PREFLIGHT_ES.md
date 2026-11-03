@@ -29,6 +29,14 @@
 5. Validar compatibilidad con el cliente MCP de destino y diseñar HTTPS seguro **antes** de habilitar acceso remoto.
 6. Detener el complemento si aparecen datos inesperados o cualquier efecto sobre la impresora.
 
+## Ficheros de Moonraker: fases separadas
+
+- **Fase 1 (por defecto):** cinco consultas básicas de estado; `enable_files: false`.
+- **Fase 2 (requiere nueva aprobación):** activar `enable_files` para listar G-code, consultar metadatos y obtener una vista previa de 16 KiB como máximo.
+- **Fuera del alcance actual:** lectura de `printer.cfg`, archivos de configuración, registros, descarga completa, escritura, subida, borrado y ejecución de G-code. Cualquier ampliación necesitará una revisión de permisos independiente.
+- Antes de activar la fase 2, inspeccionar las respuestas de prueba para evitar divulgar nombres de trabajos, rutas y comentarios sensibles.
+- **No confundir:** Home Assistant aloja la aplicación, pero las consultas de este MCP se realizan directamente a Moonraker, no mediante entidades de Home Assistant.
+
 ## Condiciones de salida
 
 - Pruebas de CI completas en verde para el commit final.
