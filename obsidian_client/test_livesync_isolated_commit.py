@@ -37,8 +37,8 @@ class TestIsolatedCommit(unittest.TestCase):
             calls.append(doc["_id"])
             if doc["type"]=="plain":
                 return 409,{"error":"conflict"}
-            return 201,{"ok":True}
-        with self.assertRaises(RevisionConflict):
+            return 201,{"ok":True,"id":doc["_id"],"rev":"1-"+"c"*32}
+        with self.assertRaisesRegex(RevisionConflict,"remote_revision_conflict"):
             commit_isolated_plan(plan(),fake_put,isolated_test=True)
         self.assertEqual(calls,["h:+abc","notes/example.md"])
 
