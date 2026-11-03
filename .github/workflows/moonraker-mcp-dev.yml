@@ -63,9 +63,13 @@ jobs:
           with tempfile.TemporaryDirectory() as tmp:
               with open(os.path.join(tmp, "options.json"), "w") as f:
                   json.dump({"moonraker_url":"http://127.0.0.1:7125","moonraker_api_key":"","mcp_http_token":"ci-test-token"}, f)
-              subprocess.run(["docker","run","-d","--name","moonraker-mcp-protocol","-p","127.0.0.1:18765:8765","-v",tmp+":/data:ro","moonraker-mcp:dev"], check=True, capture_output=True)
+              subprocess.run(["docker","run","-i","-d","--name","moonraker-mcp-protocol","-p","127.0.0.1:18765:8765","-v",tmp+":/data:ro","moonraker-mcp:dev"], check=True, capture_output=True)
               try:
                   time.sleep(2)
+                  state=subprocess.run(["docker","inspect","-f","{{.State.Running}}","moonraker-mcp-protocol"],capture_output=True,text=True)
+                  if state.stdout.strip() != "true":
+                      logs=subprocess.run(["docker","logs","moonraker-mcp-protocol"],capture_output=True,text=True)
+                      raise RuntimeError("MCP container exited: "+logs.stderr+logs.stdout)
                   def request(method, params=None, rid=1, session=None):
                       data={"jsonrpc":"2.0","id":rid,"method":method}
                       if params is not None: data["params"]=params
