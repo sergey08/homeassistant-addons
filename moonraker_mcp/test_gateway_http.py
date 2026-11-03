@@ -98,6 +98,37 @@ class HTTPGatewayTests(unittest.TestCase):
         self.assertEqual([t["name"] for t in body["result"]["tools"]],
                          ["moonraker_printer_info"])
 
+    def test_mcp_endpoint_alias_and_authentication(self):
+        payload = json.dumps({"jsonrpc": "2.0", "id": 11,
+                              "method": "tools/list", "params": {}}).encode()
+        for path in ("/", "/mcp"):
+            req = urllib.request.Request(
+                "http://127.0.0.1:%s%s" % (self.gateway.server_port, path),
+                data=payload,
+                headers={"Authorization": "Bearer ci-secret",
+                         "Content-Type": "application/json",
+                         "Accept": "application/json, text/event-stream"})
+            with urllib.request.urlopen(req, timeout=5) as response:
+                self.assertEqual(response.status, 200)
+                self.assertIn("tools", json.loads(response.read())["result"])
+        for auth in ("Bearer wrong", ""):
+            req = urllib.request.Request(
+                "http://127.0.0.1:%s/mcp" % self.gateway.server_port,
+                data=payload, headers={"Authorization": auth,
+                                       "Content-Type": "application/json"})
+            with self.assertRaises(urllib.error.HTTPError) as ctx:
+                urllib.request.urlopen(req, timeout=5)
+            self.assertEqual(ctx.exception.code, 401)
+
+    def test_unsupported_session_methods_are_rejected(self):
+        for method in ("GET", "DELETE"):
+            req = urllib.request.Request(
+                "http://127.0.0.1:%s/mcp" % self.gateway.server_port,
+                headers={"Authorization": "Bearer ci-secret"}, method=method)
+            with self.subTest(method=method), self.assertRaises(urllib.error.HTTPError) as ctx:
+                urllib.request.urlopen(req, timeout=5)
+            self.assertEqual(ctx.exception.code, 405)
+
     def test_unsafe_call_never_reaches_upstream(self):
         before = len(FakeUpstream.calls)
         status, _ = self.request("tools/call", {
