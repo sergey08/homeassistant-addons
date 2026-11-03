@@ -16,6 +16,7 @@ class FakeUpstream(BaseHTTPRequestHandler):
     redirect_status = 307
     leaked_headers = []
     jsonrpc_error = False
+    notification_status = 202
 
     def do_POST(self):
         if self.path == "/collect":
@@ -34,7 +35,7 @@ class FakeUpstream(BaseHTTPRequestHandler):
         self.calls.append(message)
         method = message["method"]
         if method == "notifications/initialized":
-            self.send_response(202)
+            self.send_response(self.notification_status)
             self.send_header("Content-Length", "0")
             self.end_headers()
             return
@@ -157,6 +158,24 @@ class HTTPGatewayTests(unittest.TestCase):
                     self.assertNotIn("result", body)
         finally:
             FakeUpstream.jsonrpc_error = original
+
+    def test_notification_accepts_successful_upstream_acknowledgements(self):
+        original = FakeUpstream.notification_status
+        try:
+            payload = b'{"jsonrpc":"2.0","method":"notifications/initialized"}'
+            for upstream_status in (200, 202, 204):
+                with self.subTest(upstream_status=upstream_status):
+                    FakeUpstream.notification_status = upstream_status
+                    req = urllib.request.Request(
+                        "http://127.0.0.1:%s/mcp" % self.gateway.server_port,
+                        data=payload,
+                        headers={"Authorization": "Bearer ci-secret",
+                                 "Content-Type": "application/json"})
+                    with urllib.request.urlopen(req, timeout=5) as response:
+                        self.assertEqual(response.status, 202)
+                        self.assertEqual(response.read(), b"")
+        finally:
+            FakeUpstream.notification_status = original
 
     def test_listing_filters_unsafe_tools(self):
         status, body = self.request("tools/list")
