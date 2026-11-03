@@ -2,7 +2,7 @@
 
 Audit date: 2026-11-03. Source inspected: `lexfrei/mcp-raker` Go handlers under `internal/tools/`, including the **exact OCI-labelled source revision** `0caea7c31a0780462331e9031e3bf0f435d190ed` (upstream version `0.2.0`). The pinned image digest `sha256:cdfbb9b4ead2b3f8a253eb55c1996a69cfdbc17088cc111b7d265d8b71f7090e` was pulled in GitHub Actions run 144; its OCI source, revision and version labels match this reference. **OCI labels alone are not cryptographic build provenance or a reproducible-build proof.**
 
-The HTTP gateway enforces an explicit allowlist of 16 names, and rejects calls to other names before forwarding to the loopback-only upstream. This review describes the handler behavior seen in source; it is **not a security certification**.
+The HTTP gateway enforces an explicit allowlist of **5 default names plus 11 explicitly opt-in names** (16 maximum), and rejects calls to other names before forwarding to the loopback-only upstream. This review describes the handler behavior seen in source; it is **not a security certification**.
 
 | Allowed MCP tool | Observed upstream action |
 | --- | --- |
@@ -50,12 +50,12 @@ The gateway currently forwards tool results without field-level redaction. The b
 
 ### Optional profile configuration validation
 
-The add-on defaults all four optional profile switches to `false`. Startup now rejects non-boolean values rather than treating strings or numbers as permission flags. Missing optional fields remain disabled for backward compatibility. A malformed configuration must prevent gateway startup; never silently broaden the allowlist.
+The add-on defaults all five optional profile switches (`objects`, `history`, `sensors`, `spoolman`, `power`) to `false`. Startup now rejects non-boolean values rather than treating strings or numbers as permission flags. Missing optional fields remain disabled for backward compatibility. A malformed configuration must prevent gateway startup; never silently broaden the allowlist.
 
-### Klipper object-query privacy decision (pending approval)
+### Klipper object-query privacy decision (implemented in DEV)
 
-The default profile currently exposes `moonraker_objects_list` and `moonraker_objects_query`. Both are GET-only in the audited upstream revision, but `objects_query` accepts caller-selected Klipper object and field names; therefore the HTTP gateway does **not** guarantee that only innocuous status fields are returned. `objects_list` can also disclose the configured printer object inventory.
+The default profile **does not expose** `moonraker_objects_list` or `moonraker_objects_query`. Both require the explicit Home Assistant option `enable_objects: true`. The gateway enforces this policy on both `tools/list` and `tools/call`; CI includes denial tests for the default and history-enabled profiles. The object-query tool can still return caller-selected Klipper fields when enabled. This opt-in is a privacy boundary, **not field-level redaction**.
 
-**Recommendation for the eventual production profile:** require an explicit opt-in for both tools, or enforce an audited per-object/per-field allowlist before enabling them by default. This has **not** been changed in DEV because existing clients/tests currently assume seven default tools; changing permissions requires a coordinated configuration, documentation and compatibility update.
+The five default tools are `moonraker_mcp_version`, `moonraker_server_info`, `moonraker_printer_info`, `moonraker_temperature_store`, and `moonraker_jobqueue_status`. With `history` enabled there are 8; with all optional profiles except `objects` there are 14; with all five optional profiles there are 16.
 
-Do not interpret read-only as privacy-safe. Until this decision is implemented and tested, the add-on remains unsuitable for exposing to external MCP clients.
+**Remaining deployment gate:** verify representative responses and explicit user approval before exposing even default status data to external MCP clients.
