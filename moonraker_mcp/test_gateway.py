@@ -24,6 +24,20 @@ class GatewayTests(unittest.TestCase):
             with self.subTest(invalid=invalid), self.assertRaises(PolicyError):
                 validate_reply(request, invalid)
 
+    def test_notification_and_request_ids(self):
+        self.assertEqual(
+            check_message({"jsonrpc": "2.0", "method": "notifications/initialized"},
+                          self.allowed),
+            "notifications/initialized",
+        )
+        for message in (
+            {"jsonrpc": "2.0", "id": 1, "method": "notifications/initialized"},
+            {"jsonrpc": "2.0", "method": "tools/list"},
+            {"jsonrpc": "2.0", "id": 1, "method": "ping", "params": []},
+        ):
+            with self.subTest(message=message), self.assertRaises(PolicyError):
+                check_message(message, self.allowed)
+
     def test_status_call_allowed(self):
         self.assertEqual(
             check_message({"jsonrpc": "2.0", "id": 1, "method": "tools/call",
