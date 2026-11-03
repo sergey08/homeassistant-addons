@@ -46,7 +46,7 @@ jobs:
             if curl -s -o /dev/null http://127.0.0.1:18765/mcp; then break; fi
             sleep 1
           done
-          status=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:18765/mcp)
+          status=$(curl -s -o /dev/null -w '%{http_code}' -X POST -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' http://127.0.0.1:18765/mcp)
           test "$status" = 401 || { echo "Expected 401 without bearer token, got $status"; exit 1; }
           echo "HTTP listener started; unauthenticated access rejected"
 
