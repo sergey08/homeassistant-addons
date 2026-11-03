@@ -184,6 +184,44 @@ class RemotePreviewRevisionTests(unittest.TestCase):
         self.assertEqual(error, "ambiguous_parent")
         self.assertEqual(opener.open.call_count, 2)
 
+    def test_stable_encrypted_parent_can_be_read_without_writing(self):
+        import io
+        import json
+        from unittest.mock import Mock
+
+        parent = {"_id": "f:opaque", "_rev": "1-" + "a" * 32,
+                  "type": "plain", "path": "/\\:%=ciphertext"}
+        responses = [
+            {"pbkdf2salt": "fixture-salt"},
+            {"rows": [{"doc": parent}]},
+            {"type": "leaf", "data": "%=encrypted-leaf"},
+            dict(parent),
+        ]
+        opener = Mock()
+        opener.open.side_effect = [
+            io.BytesIO(json.dumps(value).encode()) for value in responses
+        ]
+        cfg = {"livesync_encryption_enabled": True,
+               "livesync_e2ee_passphrase": "fixture-only",
+               "couchdb_url": "http://db21ed7f-obsidian-syncserver-ssl:5984",
+               "couchdb_database": "disposable"}
+        decrypted = [json.dumps({"path": BODY["path"], "size": 4}), "body"]
+        with (patch.object(server, "options", return_value=cfg),
+              patch.object(server, "build_opener", return_value=opener),
+              patch("livesync_crypto.decrypt_hkdf_string",
+                    side_effect=decrypted),
+              patch("livesync_metadata.validate_encrypted_parent",
+                    return_value=["h:chunk"]),
+              patch("livesync_encrypted_parent_snapshot.validate_encrypted_parent_snapshot")):
+            content, error = server.read_encrypted_note(
+                BODY["path"], verify_revision=True)
+        self.assertEqual(content, "body")
+        self.assertIsNone(error)
+        self.assertEqual(opener.open.call_count, 4)
+        # All requests from the read-only reader must be GET requests.
+        self.assertTrue(all(call.args[0].get_method() == "GET"
+                            for call in opener.open.call_args_list))
+
     def test_cross_origin_header_rejected(self):
         r=self.client.post("/api/remote/write-preview",json=BODY,
              headers={**HEADERS,"Origin":"https://untrusted.example"})
