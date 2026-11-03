@@ -73,6 +73,30 @@ jobs:
                   assert "Optional MCP profiles must be boolean" in result.stderr, (key,result.stderr)
                   print("Rejected invalid permission:",key)
           PY
+      - name: Verify startup rejects malformed credentials and file permissions
+        run: |
+          python3 - <<'PY'
+          import json, os, subprocess, tempfile
+          base={"moonraker_url":"http://127.0.0.1:7125","moonraker_api_key":"","mcp_http_token":"ci-test-token"}
+          invalid=[
+              ("mcp_http_token", 123),
+              ("mcp_http_token", {"token":"secret"}),
+              ("mcp_http_token", ""),
+              ("moonraker_api_key", ["not-a-key"]),
+              ("moonraker_api_key", 42),
+              ("enable_files", "true"),
+              ("enable_files", 1),
+          ]
+          for key, bad in invalid:
+              with tempfile.TemporaryDirectory() as tmp:
+                  os.chmod(tmp,0o755)
+                  with open(os.path.join(tmp,"options.json"),"w") as out:
+                      json.dump({**base,key:bad},out)
+                  result=subprocess.run(["docker","run","--rm","-v",tmp+":/data:ro",
+                                         "moonraker-mcp:dev"],capture_output=True,text=True,timeout=15)
+                  assert result.returncode != 0, (key,"invalid value accepted",result.stdout)
+                  print("Rejected invalid startup option:",key,type(bad).__name__)
+          PY
 
       - name: Smoke test HTTP MCP auth (no printer commands)
         run: |
