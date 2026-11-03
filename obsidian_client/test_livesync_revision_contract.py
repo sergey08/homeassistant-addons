@@ -2,7 +2,7 @@
 import unittest
 from livesync_revision_contract import (
     RevisionConflict, prepare_conditional_document, require_successful_put,
-    require_confirmed_put_response,
+    require_confirmed_put_response, require_confirmed_create_response,
 )
 
 class TestConditionalRevisionContract(unittest.TestCase):
@@ -94,6 +94,30 @@ class TestCouchDbPutAcknowledgement(unittest.TestCase):
             require_confirmed_put_response(201, self.ack, "", self.rev)
         with self.assertRaises(RevisionConflict):
             require_confirmed_put_response(201, self.ack, self.doc_id, "invalid")
+
+class TestCouchDbCreateAcknowledgement(unittest.TestCase):
+    def test_valid_creation_ack(self):
+        self.assertEqual(
+            require_confirmed_create_response(
+                201, {"ok": True, "id": "f:new", "rev": "1-" + "a" * 32},
+                "f:new"),
+            "1-" + "a" * 32)
+
+    def test_wrong_identity_or_generation_fails_closed(self):
+        for response in (
+            {"ok": True, "id": "different", "rev": "1-" + "a" * 32},
+            {"ok": True, "id": "f:new", "rev": "2-" + "a" * 32},
+            {"ok": True, "id": "f:new", "rev": "invalid"},
+            {"ok": True, "id": "f:new"},
+        ):
+            with self.subTest(response=response), self.assertRaises(RevisionConflict):
+                require_confirmed_create_response(201, response, "f:new")
+
+    def test_conflict_and_malformed_ack_rejected(self):
+        with self.assertRaisesRegex(RevisionConflict, "remote_revision_conflict"):
+            require_confirmed_create_response(409, {"error": "conflict"}, "f:new")
+        with self.assertRaises(RevisionConflict):
+            require_confirmed_create_response(201, {"ok": False}, "f:new")
 
 if __name__ == "__main__":
     unittest.main()
