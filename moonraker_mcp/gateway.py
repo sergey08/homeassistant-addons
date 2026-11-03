@@ -169,10 +169,15 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         if self.path not in ("/", "/mcp"):
             return self.reply(404, {"error": "Not found"})
+        if len(self.headers.get_all("Authorization", [])) != 1:
+            return self.reply(401, {"error": "Unauthorized"})
         authorization = self.headers.get("Authorization", "")
         if not hmac.compare_digest(authorization, "Bearer " + self.token):
             return self.reply(401, {"error": "Unauthorized"})
         try:
+            for header in ("Content-Length", "Content-Type", "Mcp-Session-Id", "MCP-Protocol-Version"):
+                if len(self.headers.get_all(header, [])) > 1:
+                    return self.reply(400, {"error": "Duplicate HTTP header"})
             content_type = self.headers.get("Content-Type", "").split(";", 1)[0].strip().lower()
             if content_type != "application/json":
                 return self.reply(415, {"error": "MCP POST requires application/json"})
