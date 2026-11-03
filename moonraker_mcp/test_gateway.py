@@ -38,6 +38,18 @@ class GatewayTests(unittest.TestCase):
             with self.subTest(message=message), self.assertRaises(PolicyError):
                 check_message(message, self.allowed)
 
+    def test_unexpected_method_params_blocked(self):
+        for method, params, has_id in (
+            ("ping", {"command": "restart"}, True),
+            ("tools/list", {"cursor": "unexpected"}, True),
+            ("notifications/initialized", {"command": "restart"}, False),
+        ):
+            message = {"jsonrpc": "2.0", "method": method, "params": params}
+            if has_id:
+                message["id"] = 1
+            with self.subTest(method=method), self.assertRaises(PolicyError):
+                check_message(message, self.allowed)
+
     def test_status_call_allowed(self):
         self.assertEqual(
             check_message({"jsonrpc": "2.0", "id": 1, "method": "tools/call",
