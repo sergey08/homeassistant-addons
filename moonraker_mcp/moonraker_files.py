@@ -44,13 +44,20 @@ class _NoRedirect(urllib.request.HTTPRedirectHandler):
 
 def validate_base_url(base_url):
     """Require a fixed Moonraker origin; never accept embedded credentials or paths."""
-    if not isinstance(base_url, str):
+    if (not isinstance(base_url, str) or not base_url or
+            any(ord(char) <= 32 or ord(char) == 127 for char in base_url)):
         raise FileAccessError("Invalid Moonraker base URL")
-    parsed = urllib.parse.urlsplit(base_url)
+    try:
+        parsed = urllib.parse.urlsplit(base_url)
+    except ValueError as exc:
+        raise FileAccessError("Invalid Moonraker base URL") from exc
     if (parsed.scheme not in ("http", "https") or not parsed.hostname
             or parsed.username or parsed.password or parsed.query or parsed.fragment
             or parsed.path not in ("", "/")):
         raise FileAccessError("Invalid Moonraker base URL")
+    if (not parsed.netloc or "@" in parsed.netloc or "%" in parsed.netloc
+            or any(char in parsed.netloc for char in ("\\", "#", "?"))):
+        raise FileAccessError("Invalid Moonraker host")
     try:
         parsed.port
     except ValueError as exc:
