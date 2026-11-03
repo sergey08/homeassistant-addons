@@ -26,6 +26,24 @@ def validate_mcp_header(value):
     return value
 
 
+def _unique_json_object(pairs):
+    obj = {}
+    for key, value in pairs:
+        if key in obj:
+            raise PolicyError("Duplicate JSON field")
+        obj[key] = value
+    return obj
+
+
+def _reject_json_constant(value):
+    raise PolicyError("Invalid JSON constant")
+
+
+def strict_json_loads(payload):
+    return json.loads(payload, object_pairs_hook=_unique_json_object,
+                      parse_constant=_reject_json_constant)
+
+
 def check_message(message, allowed):
     if not isinstance(message, dict) or message.get("jsonrpc") != "2.0":
         raise PolicyError("Invalid JSON-RPC request")
@@ -110,7 +128,7 @@ class Handler(BaseHTTPRequestHandler):
             length = int(self.headers.get("Content-Length", "-1"))
             if not 0 <= length <= MAX_BODY:
                 return self.reply(413, {"error": "Invalid request size"})
-            message = json.loads(self.rfile.read(length))
+            message = strict_json_loads(self.rfile.read(length))
             method = check_message(message, self.allowed)
             headers = {
                 "Authorization": "Bearer " + self.token,
@@ -151,7 +169,7 @@ class Handler(BaseHTTPRequestHandler):
                         self.send_header("Content-Length", "0")
                         self.end_headers()
                         return
-                    parsed = filter_reply(method, validate_reply(message, json.loads(raw)), self.allowed)
+                    parsed = filter_reply(method, validate_reply(message, strict_json_loads(raw)), self.allowed)
                     extra = {}
                     session = upstream.headers.get("Mcp-Session-Id")
                     if session:
