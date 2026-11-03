@@ -134,6 +134,35 @@ class HTTPGatewayTests(unittest.TestCase):
                 urllib.request.urlopen(req, timeout=5)
             self.assertEqual(ctx.exception.code, 401)
 
+    def test_duplicate_http_headers_rejected_before_upstream(self):
+        import http.client
+        for header, duplicate, expected in (
+            ("Authorization", "Bearer other", 401),
+            ("Content-Length", "1", 400),
+            ("Content-Type", "text/plain", 400),
+            ("Mcp-Session-Id", "second", 400),
+            ("MCP-Protocol-Version", "2024-11-05", 400),
+        ):
+            with self.subTest(header=header):
+                before = len(FakeUpstream.calls)
+                body = b'{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
+                connection = http.client.HTTPConnection("127.0.0.1", self.gateway.server_port, timeout=5)
+                try:
+                    connection.putrequest("POST", "/mcp")
+                    connection.putheader("Authorization", "Bearer ci-secret")
+                    connection.putheader("Content-Type", "application/json")
+                    connection.putheader("Content-Length", str(len(body)))
+                    if header in ("Mcp-Session-Id", "MCP-Protocol-Version"):
+                        connection.putheader(header, "session-one" if header == "Mcp-Session-Id" else "2025-06-18")
+                    connection.putheader(header, duplicate)
+                    connection.endheaders(body)
+                    response = connection.getresponse()
+                    self.assertEqual(response.status, expected)
+                    response.read()
+                finally:
+                    connection.close()
+                self.assertEqual(len(FakeUpstream.calls), before)
+
     def test_mcp_post_rejects_non_json_content_types(self):
         payload = b'{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
         for content_type in ("text/plain", "application/x-www-form-urlencoded",
