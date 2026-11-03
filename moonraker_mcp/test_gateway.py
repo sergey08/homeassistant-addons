@@ -41,6 +41,26 @@ class GatewayTests(unittest.TestCase):
         self.assertEqual([x["name"] for x in result["result"]["tools"]],
                          ["moonraker_printer_info"])
 
+    def test_malformed_arguments_blocked(self):
+        for arguments in (None, "M112", ["M112"], 123):
+            with self.subTest(arguments=arguments):
+                with self.assertRaises(PolicyError):
+                    check_message({"jsonrpc": "2.0", "id": 1, "method": "tools/call",
+                                   "params": {"name": "moonraker_printer_info",
+                                              "arguments": arguments}}, self.allowed)
+
+    def test_extra_fields_blocked(self):
+        for request in (
+            {"jsonrpc": "2.0", "id": 1, "method": "tools/list", "unexpected": True},
+            {"jsonrpc": "2.0", "id": True, "method": "tools/list"},
+            {"jsonrpc": "2.0", "id": 1, "method": "tools/call",
+             "params": {"name": "moonraker_printer_info", "arguments": {},
+                        "extra": "ignored"}},
+        ):
+            with self.subTest(request=request):
+                with self.assertRaises(PolicyError):
+                    check_message(request, self.allowed)
+
     def test_pagination_rejected(self):
         with self.assertRaises(PolicyError):
             filter_reply("tools/list", {"result": {"tools": [], "nextCursor": "x"}},
