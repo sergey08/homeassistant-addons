@@ -45,6 +45,17 @@ class GatewayTests(unittest.TestCase):
                 check_message({"jsonrpc": "2.0", "id": 1, "method": "initialize",
                                "params": params}, self.allowed)
 
+    def test_initialize_upstream_version_is_validated(self):
+        base = {"jsonrpc": "2.0", "id": 1, "result": {
+            "protocolVersion": "2025-06-18", "capabilities": {},
+            "serverInfo": {"name": "fake", "version": "1"}}}
+        self.assertEqual(filter_reply("initialize", base, self.allowed), base)
+        for version in ("2024-11-05", None, 123):
+            invalid = {"jsonrpc": "2.0", "id": 1, "result": {
+                **base["result"], "protocolVersion": version}}
+            with self.subTest(version=version), self.assertRaises(PolicyError):
+                filter_reply("initialize", invalid, self.allowed)
+
     def test_upstream_reply_validation(self):
         request = {"jsonrpc": "2.0", "id": 9, "method": "ping"}
         valid = {"jsonrpc": "2.0", "id": 9, "result": {}}
