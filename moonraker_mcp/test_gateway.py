@@ -58,6 +58,16 @@ class GatewayTests(unittest.TestCase):
             "tools/call",
         )
 
+    def test_klipper_objects_require_explicit_opt_in(self):
+        names = ("moonraker_objects_list", "moonraker_objects_query")
+        enabled = extend_allowed(self.allowed, ["objects"])
+        for name in names:
+            message = {"jsonrpc": "2.0", "id": 1, "method": "tools/call",
+                       "params": {"name": name, "arguments": {}}}
+            with self.subTest(name=name), self.assertRaises(PolicyError):
+                check_message(message, self.allowed)
+            self.assertEqual(check_message(message, enabled), "tools/call")
+
     def test_gcode_blocked(self):
         with self.assertRaises(PolicyError):
             check_message({"jsonrpc": "2.0", "id": 2, "method": "tools/call",
