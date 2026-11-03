@@ -31,6 +31,30 @@ jobs:
           assert data["ports"]["8765/tcp"] is None
           print("Add-on configuration valid")
           PY
+      - name: Validate Home Assistant app packaging contract
+        run: |
+          python - <<'PY'
+          import pathlib, yaml
+          root=pathlib.Path("moonraker_mcp")
+          repo=yaml.safe_load(pathlib.Path("repository.yaml").read_text())
+          cfg=yaml.safe_load((root/"config.yaml").read_text())
+          assert repo["name"] and repo["url"]
+          assert cfg["slug"]=="moonraker_mcp"
+          assert cfg["startup"]=="services" and cfg["boot"]=="manual"
+          assert cfg["arch"] and "amd64" in cfg["arch"]
+          assert cfg["ports"]["8765/tcp"] is None
+          assert cfg["schema"]["mcp_http_token"]=="password"
+          assert cfg["options"]["mcp_http_token"]==""
+          for flag in ("enable_files","enable_objects","enable_history","enable_sensors","enable_spoolman","enable_power"):
+              assert cfg["options"][flag] is False, flag
+              assert cfg["schema"][flag]=="bool", flag
+          dockerfile=(root/"Dockerfile").read_text()
+          assert 'ENTRYPOINT ["/run.sh"]' in dockerfile
+          for file in ("Dockerfile","run.sh","gateway.py","tool_policy.py",
+                       "moonraker_files.py","read_only_allowlist.json","README.md"):
+              assert (root/file).is_file(), file
+          print("HA application packaging and safe defaults verified")
+          PY
       - name: Test fail-closed tool policy
         run: python3 -m unittest discover -s moonraker_mcp -p 'test_*.py' -v
 
