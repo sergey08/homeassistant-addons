@@ -95,9 +95,9 @@ jobs:
                       allowlist=json.load(policy_file)["allowed_tools"]
                   assert len(allowlist)==len(set(allowlist)), "Duplicate tool names in allowlist"
                   names=sorted(t["name"] for t in tools)
+                  assert set(names)==set(allowlist), "Gateway exposed tools outside allowlist"
                   missing=sorted(set(allowlist)-set(names))
                   assert not missing, "Allowlisted tools absent from gateway: "+", ".join(missing)
-                  assert set(names)==set(allowlist), "Gateway exposed tools outside allowlist"
                   print("Read-only policy candidate:",len(allowlist),"tools; NOT ENFORCED")
                   print("MCP initialize and tools/list OK; tools:",len(tools))
                   print("Registered tools:",", ".join(names))
