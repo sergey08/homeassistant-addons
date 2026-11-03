@@ -4,6 +4,7 @@ Only selected JSON-RPC methods are forwarded. tools/list is filtered and
 tools/call is independently authorized. No unauthenticated upstream access.
 """
 import json
+import hmac
 import os
 import re
 import urllib.error
@@ -168,7 +169,8 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         if self.path not in ("/", "/mcp"):
             return self.reply(404, {"error": "Not found"})
-        if self.headers.get("Authorization") != "Bearer " + self.token:
+        authorization = self.headers.get("Authorization", "")
+        if not hmac.compare_digest(authorization, "Bearer " + self.token):
             return self.reply(401, {"error": "Unauthorized"})
         try:
             content_type = self.headers.get("Content-Type", "").split(";", 1)[0].strip().lower()
