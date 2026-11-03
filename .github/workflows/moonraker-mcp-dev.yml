@@ -88,7 +88,14 @@ jobs:
                   assert "result" in result and isinstance(result["result"].get("tools"),list), result
                   tools=result["result"]["tools"]
                   assert tools and any(t["name"].startswith("moonraker_") for t in tools)
+                  names=sorted(t["name"] for t in tools)
                   print("MCP initialize and tools/list OK; tools:",len(tools))
+                  print("Registered tools:",", ".join(names))
+                  hazardous=("gcode_script","emergency_stop","print_start","print_cancel","printer_restart","firmware_restart")
+                  matches=[name for name in names if any(term in name for term in hazardous)]
+                  assert matches, "Expected upstream control tools missing: review upstream changes"
+                  print("SECURITY AUDIT: upstream still exposes control tools:",", ".join(matches))
+                  print("DO NOT DEPLOY until a fail-closed read-only tool gate is implemented")
               finally:
                   subprocess.run(["docker","rm","-f","moonraker-mcp-protocol"],capture_output=True)
           PY
