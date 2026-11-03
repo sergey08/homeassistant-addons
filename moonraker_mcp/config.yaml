@@ -17,7 +17,15 @@ options:
   moonraker_url: "http://printer.local:7125"
   moonraker_api_key: ""
   mcp_http_token: ""
+  enable_history: false
+  enable_sensors: false
+  enable_spoolman: false
+  enable_power: false
 schema:
   moonraker_url: url
   moonraker_api_key: "password?"
   mcp_http_token: password
+  enable_history: bool
+  enable_sensors: bool
+  enable_spoolman: bool
+  enable_power: bool
