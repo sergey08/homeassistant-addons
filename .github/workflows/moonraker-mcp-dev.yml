@@ -31,6 +31,9 @@ jobs:
           assert data["ports"]["8765/tcp"] is None
           print("Add-on configuration valid")
           PY
+      - name: Test fail-closed tool policy
+        run: python3 -m unittest discover -s moonraker_mcp -p 'test_tool_policy.py' -v
+
       - name: Build DEV container (no deployment)
         run: docker build --pull --tag moonraker-mcp:dev ./moonraker_mcp
       - name: Smoke test HTTP MCP auth (no printer commands)
