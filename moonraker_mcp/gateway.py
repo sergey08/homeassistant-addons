@@ -99,6 +99,11 @@ class Handler(BaseHTTPRequestHandler):
                         raw = events[0].encode()
                     elif "application/json" not in content_type:
                         raise PolicyError("Unsupported upstream content type")
+                    if not raw.strip() and method == "notifications/initialized":
+                        self.send_response(202)
+                        self.send_header("Content-Length", "0")
+                        self.end_headers()
+                        return
                     parsed = filter_reply(method, json.loads(raw), self.allowed)
                     extra = {}
                     session = upstream.headers.get("Mcp-Session-Id")
