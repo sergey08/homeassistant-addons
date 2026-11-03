@@ -125,7 +125,7 @@ class HTTPGatewayTests(unittest.TestCase):
             with urllib.request.urlopen(req, timeout=5) as response:
                 self.assertEqual(response.status, 200)
                 self.assertIn("tools", json.loads(response.read())["result"])
-        for auth in ("Bearer wrong", ""):
+        for auth in ("Bearer wrong", "", "Basic ci-secret", "Bearer ci-secret-extra", "bearer ci-secret"):
             req = urllib.request.Request(
                 "http://127.0.0.1:%s/mcp" % self.gateway.server_port,
                 data=payload, headers={"Authorization": auth,
