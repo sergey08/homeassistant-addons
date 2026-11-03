@@ -8,7 +8,7 @@ import os
 import urllib.error
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from tool_policy import PolicyError, authorize_call, filter_tools, load_allowed
+from tool_policy import PolicyError, authorize_call, extend_allowed, filter_tools, load_allowed
 
 ALLOWED_METHODS = frozenset((
     "initialize", "notifications/initialized", "ping", "tools/list", "tools/call"
@@ -165,7 +165,7 @@ class Handler(BaseHTTPRequestHandler):
 
 
 if __name__ == "__main__":
-    Handler.allowed = load_allowed()
+    Handler.allowed = extend_allowed(load_allowed(), json.loads(os.environ.get("MCP_ALLOWED_PROFILES", "[]")))
     Handler.token = os.environ["MCP_HTTP_TOKEN"]
     if not Handler.token:
         raise SystemExit("MCP_HTTP_TOKEN must not be empty")
