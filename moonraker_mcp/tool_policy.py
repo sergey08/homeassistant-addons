@@ -31,12 +31,18 @@ def filter_tools(tools, allowed):
     """Only explicitly allowed tools can appear in tools/list."""
     if not isinstance(tools, list):
         raise PolicyError("Malformed upstream tools/list response")
-    return [
-        tool for tool in tools
-        if isinstance(tool, dict)
-        and isinstance(tool.get("name"), str)
-        and tool["name"] in allowed
-    ]
+    seen = set()
+    visible = []
+    for tool in tools:
+        if not isinstance(tool, dict) or not isinstance(tool.get("name"), str):
+            raise PolicyError("Malformed upstream tool entry")
+        name = tool["name"]
+        if name in seen:
+            raise PolicyError("Duplicate upstream tool name")
+        seen.add(name)
+        if name in allowed:
+            visible.append(tool)
+    return visible
 
 
 def authorize_call(name, allowed):
