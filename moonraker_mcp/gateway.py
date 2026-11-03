@@ -206,6 +206,8 @@ class Handler(BaseHTTPRequestHandler):
             protocol_version = self.headers.get("MCP-Protocol-Version")
             if protocol_version and protocol_version not in SUPPORTED_PROTOCOL_VERSIONS:
                 return self.reply(400, {"error": "Unsupported MCP protocol version"})
+            if method == "initialize" and protocol_version and protocol_version != message["params"]["protocolVersion"]:
+                return self.reply(400, {"error": "MCP protocol version header does not match initialize request"})
             if method == "tools/call" and message["params"]["name"] in LOCAL_FILE_TOOLS:
                 name = message["params"]["name"]
                 args = message["params"].get("arguments", {})
