@@ -1,5 +1,5 @@
 import unittest
-from gateway import check_message, filter_reply, validate_reply, validate_mcp_header
+from gateway import check_message, filter_reply, validate_reply, validate_mcp_header, strict_json_loads
 from tool_policy import PolicyError, load_allowed, extend_allowed
 
 
@@ -161,6 +161,17 @@ class GatewayTests(unittest.TestCase):
                         "has space", "semi;colon", "\\u2603", None):
             with self.subTest(value=invalid), self.assertRaises(PolicyError):
                 validate_mcp_header(invalid)
+
+    def test_strict_json_rejects_duplicate_fields_and_nonfinite_values(self):
+        for payload in (
+            '{"jsonrpc":"2.0","jsonrpc":"1.0","id":1}',
+            '{"params":{"name":"safe","name":"unsafe"}}',
+            '{"value":NaN}', '{"value":Infinity}', '{"value":-Infinity}',
+        ):
+            with self.subTest(payload=payload), self.assertRaises(PolicyError):
+                strict_json_loads(payload)
+        self.assertEqual(strict_json_loads('{"id":1,"params":{"ok":true}}'),
+                         {"id":1,"params":{"ok":True}})
 
     def test_pagination_rejected(self):
         with self.assertRaises(PolicyError):
