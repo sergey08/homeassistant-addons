@@ -44,3 +44,27 @@ def require_successful_put(status_code, response):
     if status_code not in (201, 202) or not isinstance(response, dict) or response.get("ok") is not True:
         raise RevisionConflict("remote_write_not_confirmed")
     return True
+
+
+def require_confirmed_put_response(status_code, response, expected_id,
+                                   previous_revision):
+    """Validate a single CouchDB CAS update acknowledgement, offline only.
+
+    This is not a write implementation or authorization to write. It checks
+    the response to a hypothetical conditional PUT; never retries conflicts.
+    """
+    require_successful_put(status_code, response)
+    if not isinstance(expected_id, str) or not expected_id:
+        raise RevisionConflict("invalid_document_id")
+    if not isinstance(response.get("id"), str) or response["id"] != expected_id:
+        raise RevisionConflict("remote_document_identity_mismatch")
+    if not isinstance(previous_revision, str) or not _REV.fullmatch(previous_revision):
+        raise RevisionConflict("invalid_expected_revision")
+    new_revision = response.get("rev")
+    if not isinstance(new_revision, str) or not _REV.fullmatch(new_revision):
+        raise RevisionConflict("invalid_remote_revision")
+    old_generation = int(previous_revision.split("-", 1)[0])
+    new_generation = int(new_revision.split("-", 1)[0])
+    if new_generation != old_generation + 1:
+        raise RevisionConflict("unexpected_revision_generation")
+    return new_revision
