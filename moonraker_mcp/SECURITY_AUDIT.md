@@ -47,3 +47,7 @@ The gateway currently forwards tool results without field-level redaction. The b
 **Deployment gate:** do not expose this add-on beyond a trusted network or configure it as a ChatGPT connector until the user approves the information that may be disclosed. Consider a smaller default allowlist and optional feature groups (history, sensors, Spoolman) after inspecting actual payloads. HTTP read-only behavior does not guarantee privacy.
 
 **Testing note:** the 1 MiB upstream-response cap is a transport limit, not a data-redaction mechanism. Authentication, logs and remote TLS configuration need independent review.
+
+### Optional profile configuration validation
+
+The add-on defaults all four optional profile switches to `false`. Startup now rejects non-boolean values rather than treating strings or numbers as permission flags. Missing optional fields remain disabled for backward compatibility. A malformed configuration must prevent gateway startup; never silently broaden the allowlist.
