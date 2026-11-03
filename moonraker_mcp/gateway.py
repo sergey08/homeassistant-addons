@@ -133,6 +133,16 @@ def filter_reply(method, response, allowed):
     return response
 
 
+class NoRedirect(urllib.request.HTTPRedirectHandler):
+    """Do not follow upstream redirects with MCP authorization headers."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
+UPSTREAM_OPENER = urllib.request.build_opener(NoRedirect)
+
+
 class Handler(BaseHTTPRequestHandler):
     allowed = frozenset()
     token = ""
@@ -192,7 +202,7 @@ class Handler(BaseHTTPRequestHandler):
                 self.upstream, data=json.dumps(message).encode(), headers=headers
             )
             try:
-                with urllib.request.urlopen(req, timeout=25) as upstream:
+                with UPSTREAM_OPENER.open(req, timeout=25) as upstream:
                     raw = upstream.read(MAX_BODY + 1)
                     if len(raw) > MAX_BODY:
                         raise PolicyError("Upstream response too large")
