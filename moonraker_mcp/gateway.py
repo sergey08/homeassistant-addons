@@ -34,6 +34,8 @@ def check_message(message, allowed):
         raise PolicyError("MCP request must have an id")
     if "params" in message and not isinstance(message["params"], dict):
         raise PolicyError("MCP params must be an object")
+    if method in ("ping", "tools/list", "notifications/initialized") and message.get("params", {}) != {}:
+        raise PolicyError("Unexpected parameters for MCP method")
     if method == "tools/call":
         params = message.get("params")
         if not isinstance(params, dict):
