@@ -28,6 +28,23 @@ class GatewayTests(unittest.TestCase):
         self.assertTrue(any(isinstance(handler, NoRedirect)
                             for handler in UPSTREAM_OPENER.handlers))
 
+    def test_initialize_requires_supported_protocol_and_client_fields(self):
+        for version in ("2025-03-26", "2025-06-18"):
+            self.assertEqual(check_message({
+                "jsonrpc": "2.0", "id": 1, "method": "initialize",
+                "params": {"protocolVersion": version, "capabilities": {},
+                           "clientInfo": {"name": "test", "version": "1"}}
+            }, self.allowed), "initialize")
+        for params in (
+            {},
+            {"protocolVersion": "2024-11-05", "capabilities": {}, "clientInfo": {}},
+            {"protocolVersion": "2025-06-18", "capabilities": [] , "clientInfo": {}},
+            {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": "client"},
+        ):
+            with self.subTest(params=params), self.assertRaises(PolicyError):
+                check_message({"jsonrpc": "2.0", "id": 1, "method": "initialize",
+                               "params": params}, self.allowed)
+
     def test_upstream_reply_validation(self):
         request = {"jsonrpc": "2.0", "id": 9, "method": "ping"}
         valid = {"jsonrpc": "2.0", "id": 9, "result": {}}
