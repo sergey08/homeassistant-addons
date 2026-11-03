@@ -93,11 +93,10 @@ class RemotePreviewRevisionTests(unittest.TestCase):
                "livesync_e2ee_passphrase": "test-secret",
                "couchdb_url": "http://db21ed7f-obsidian-syncserver-ssl:5984",
                "couchdb_database": "test"}
-        def decrypt(value, password, salt):
-            return json.dumps({"path": BODY["path"], "size": 4}) if "ciphertext" in value and not value.startswith("%=") else "body"
+        decrypted = [json.dumps({"path": BODY["path"], "size": 4}), "body"]
         with patch.object(server, "options", return_value=cfg), \\
              patch.object(server, "build_opener", return_value=opener), \\
-             patch("livesync_crypto.decrypt_hkdf_string", side_effect=decrypt), \\
+             patch("livesync_crypto.decrypt_hkdf_string", side_effect=decrypted), \\
              patch("livesync_metadata.validate_encrypted_parent", return_value=["h:chunk"]), \\
              patch("livesync_encrypted_parent_snapshot.validate_encrypted_parent_snapshot"):
             content, error = server.read_encrypted_note(BODY["path"], verify_revision=True)
