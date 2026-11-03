@@ -5,6 +5,11 @@ on:
     paths:
       - 'moonraker_mcp/**'
       - '.github/workflows/moonraker-mcp-dev.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'moonraker_mcp/**'
+      - '.github/workflows/moonraker-mcp-dev.yml'
   workflow_dispatch:
 jobs:
   validate-and-build:
