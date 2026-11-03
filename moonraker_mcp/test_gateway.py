@@ -1,6 +1,6 @@
 import unittest
 from gateway import check_message, filter_reply, validate_reply
-from tool_policy import PolicyError, load_allowed
+from tool_policy import PolicyError, load_allowed, extend_allowed
 
 
 class GatewayTests(unittest.TestCase):
@@ -139,6 +139,20 @@ class GatewayTests(unittest.TestCase):
         self.assertEqual(filter_reply(
             "tools/list", {"result": {"tools": listed}}, self.allowed
         )["result"]["tools"], [])
+
+    def test_optional_profiles_require_explicit_opt_in(self):
+        self.assertEqual(len(self.allowed), 7)
+        self.assertEqual(extend_allowed(self.allowed, []), self.allowed)
+        history = extend_allowed(self.allowed, ["history"])
+        self.assertEqual(len(history), 10)
+        self.assertIn("moonraker_history_job", history)
+        self.assertNotIn("moonraker_spoolman_status", history)
+        all_profiles = extend_allowed(
+            self.allowed, ["history", "sensors", "spoolman", "power"])
+        self.assertEqual(len(all_profiles), 16)
+        for invalid in (["admin"], ["history", "admin"], "history", [None]):
+            with self.subTest(invalid=invalid), self.assertRaises(PolicyError):
+                extend_allowed(self.allowed, invalid)
 
     def test_pagination_rejected(self):
         with self.assertRaises(PolicyError):
