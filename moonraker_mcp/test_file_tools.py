@@ -15,14 +15,15 @@ class FileToolPolicyTests(unittest.TestCase):
                 check_message({"jsonrpc": "2.0", "id": 1, "method": "tools/call",
                                "params": {"name": name, "arguments": {}}}, self.base)
 
-    def test_files_opt_in_exposes_two_tools(self):
+    def test_files_opt_in_exposes_three_tools(self):
         allowed = extend_allowed(self.base, ["files"])
         reply = filter_reply("tools/list", {"jsonrpc": "2.0", "id": 1,
                             "result": {"tools": []}}, allowed)
         self.assertEqual({x["name"] for x in reply["result"]["tools"]}, set(LOCAL_FILE_TOOLS))
         for name in LOCAL_FILE_TOOLS:
+            arguments = {} if name == "moonraker_files_list" else {"filename": "test.gcode"}
             self.assertEqual(check_message({"jsonrpc": "2.0", "id": 1, "method": "tools/call",
-                             "params": {"name": name, "arguments": {}}}, allowed), "tools/call")
+                             "params": {"name": name, "arguments": arguments}}, allowed), "tools/call")
 
     def test_file_arguments_are_strictly_validated(self):
         allowed = extend_allowed(self.base, ["files"])
