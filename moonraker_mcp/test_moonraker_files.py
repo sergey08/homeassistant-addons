@@ -89,6 +89,28 @@ class FileApiTests(unittest.TestCase):
             gcode_preview("http://printer.local:7125", "test.gcode",
                           opener=lambda req, timeout: RawResponse(b"x" * 16385))
 
+    def test_preview_never_reads_beyond_limit(self):
+        class BoundedResponse:
+            def __enter__(self): return self
+            def __exit__(self, *args): return False
+            def read(self, size):
+                self.requested = size
+                return b"G1 X1\\n"
+        response = BoundedResponse()
+        result = gcode_preview("http://printer.local:7125", "part.gcode",
+                               opener=lambda req, timeout: response)
+        self.assertEqual(result["preview"], "G1 X1\\n")
+        self.assertEqual(response.requested, 16385)
+
+    def test_preview_rejects_binary_content(self):
+        class BinaryResponse:
+            def __enter__(self): return self
+            def __exit__(self, *args): return False
+            def read(self, size): return b"\\x00\\x01"
+        with self.assertRaises(FileAccessError):
+            gcode_preview("http://printer.local:7125", "part.gcode",
+                          opener=lambda req, timeout: BinaryResponse())
+
     def test_redirects_are_blocked_to_protect_api_key(self):
         req = urllib.request.Request("http://printer.local:7125/server/files/list",
                                      headers={"X-Api-Key": "secret"})
