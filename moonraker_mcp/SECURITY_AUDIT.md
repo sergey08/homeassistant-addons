@@ -51,3 +51,11 @@ The gateway currently forwards tool results without field-level redaction. The b
 ### Optional profile configuration validation
 
 The add-on defaults all four optional profile switches to `false`. Startup now rejects non-boolean values rather than treating strings or numbers as permission flags. Missing optional fields remain disabled for backward compatibility. A malformed configuration must prevent gateway startup; never silently broaden the allowlist.
+
+### Klipper object-query privacy decision (pending approval)
+
+The default profile currently exposes `moonraker_objects_list` and `moonraker_objects_query`. Both are GET-only in the audited upstream revision, but `objects_query` accepts caller-selected Klipper object and field names; therefore the HTTP gateway does **not** guarantee that only innocuous status fields are returned. `objects_list` can also disclose the configured printer object inventory.
+
+**Recommendation for the eventual production profile:** require an explicit opt-in for both tools, or enforce an audited per-object/per-field allowlist before enabling them by default. This has **not** been changed in DEV because existing clients/tests currently assume seven default tools; changing permissions requires a coordinated configuration, documentation and compatibility update.
+
+Do not interpret read-only as privacy-safe. Until this decision is implemented and tested, the add-on remains unsuitable for exposing to external MCP clients.
