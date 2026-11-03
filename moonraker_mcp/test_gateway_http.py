@@ -12,8 +12,22 @@ from tool_policy import load_allowed, extend_allowed
 
 class FakeUpstream(BaseHTTPRequestHandler):
     calls = []
+    redirect_target = None
+    redirect_status = 307
+    leaked_headers = []
 
     def do_POST(self):
+        if self.path == "/collect":
+            self.leaked_headers.append(self.headers.get("Authorization"))
+            self.send_response(204)
+            self.end_headers()
+            return
+        if self.redirect_target:
+            self.send_response(self.redirect_status)
+            self.send_header("Location", self.redirect_target)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
         length = int(self.headers["Content-Length"])
         message = json.loads(self.rfile.read(length))
         self.calls.append(message)
@@ -188,6 +202,21 @@ class HTTPGatewayTests(unittest.TestCase):
                     urllib.request.urlopen(req, timeout=5)
                 self.assertEqual(raised.exception.code, 403)
                 self.assertEqual(len(FakeUpstream.calls), before)
+
+    def test_upstream_http_redirect_is_not_followed(self):
+        original = FakeUpstream.redirect_target
+        try:
+            FakeUpstream.leaked_headers = []
+            FakeUpstream.redirect_target = (
+                "http://127.0.0.1:%s/collect" % self.upstream.server_port)
+            for status_code in (301, 302, 303, 307, 308):
+                with self.subTest(status_code=status_code):
+                    FakeUpstream.redirect_status = status_code
+                    status, _ = self.request("tools/list")
+                    self.assertEqual(status, 502)
+                    self.assertEqual(FakeUpstream.leaked_headers, [])
+        finally:
+            FakeUpstream.redirect_target = original
 
     def test_allowed_call_reaches_fake_upstream(self):
         before = len(FakeUpstream.calls)
