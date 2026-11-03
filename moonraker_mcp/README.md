@@ -1,23 +1,27 @@
 # Moonraker MCP for Home Assistant (DEV)
 
-Experimental Home Assistant OS add-on packaging [lexfrei/mcp-raker](https://github.com/lexfrei/mcp-raker) (BSD-3-Clause).
+Experimental Home Assistant OS add-on wrapping [lexfrei/mcp-raker](https://github.com/lexfrei/mcp-raker), BSD-3-Clause.
 
-**Not ready for installation.** The upstream image entrypoint, binary location and availability of `jq` must be validated; the current Dockerfile and startup script are scaffolding, not a tested build.
+## Packaging
+The upstream `Containerfile` uses a **scratch** final stage, with the binary at `/mcp-raker` and **no shell or jq**. This add-on therefore copies that binary into an Alpine runtime with shell, jq and CA certificates. The runtime script reads Home Assistant options from `/data/options.json`.
 
-- Runs the upstream Moonraker MCP server as an isolated add-on.
-- HTTP MCP on container port 8765, bearer token required.
-- Moonraker URL and optional API key in add-on options.
-- Admin tools disabled, **but printing/G-code/restart tools are still exposed** by upstream. Treat all clients as privileged.
-- Do not publish the MCP port to the internet. Use authenticated TLS reverse proxy only after testing.
-- Does not modify the printer or existing Home Assistant integrations.
+**Not yet tested or ready to install.** Upstream is currently referenced by the mutable `latest` tag; pin a reviewed digest before release. The Home Assistant build and runtime still require testing.
 
-## Next
-1. Inspect upstream container filesystem, entrypoint and runtime dependencies.
-2. Replace provisional Dockerfile and startup with verified commands.
-3. Pin a reviewed upstream image digest/version.
-4. Build in DEV and test with the printer in read-only workflows.
-5. Confirm compatibility with ChatGPT's remote MCP transport/authentication.
-6. Add Spanish/English documentation and release after review.
+## Security
+- Configure a strong `mcp_http_token` before starting; the add-on refuses to start without it.
+- `MOONRAKER_ENABLE_ADMIN=false` blocks upstream's *admin* tool group only.
+- **Core tools still include start/cancel prints, G-code execution, firmware restart and emergency stop. This is NOT a read-only server.**
+- Do not publish port 8765 to the internet; it is unbound on the host by default (`null` port mapping).
+- For ChatGPT remote access, design a separate HTTPS authenticated gateway with explicit tool allowlisting, or fork upstream to implement server-side read-only controls. No such gateway exists yet.
+- Do not put API keys or MCP tokens in GitHub.
+
+## Roadmap / Próximos pasos
+1. Pin upstream release/digest and verify license notices.
+2. Build the Docker image in CI and check startup with a mock Moonraker endpoint.
+3. Confirm Supervisor compatibility on amd64.
+4. Implement genuine server-side read-only mode before exposing to AI.
+5. Validate remote ChatGPT MCP compatibility and secure HTTPS access.
+6. Add ES/EN installation docs and release only after testing.
 
 ## Español
-Complemento experimental para ejecutar el MCP existente de Moonraker en Home Assistant OS. **No está listo para instalar** hasta validar la imagen y el arranque. Las herramientas de impresión siguen pudiendo actuar sobre la máquina aunque se deshabiliten las funciones administrativas.
+Complemento experimental que reutiliza el MCP original de Moonraker. La imagen original no contiene shell, por lo que empaquetamos su ejecutable en Alpine. **No instalar ni publicar todavía:** falta compilar y verificar el arranque y la seguridad. Desactivar las herramientas administrativas no impide ejecutar G-code u otras acciones de impresión.
