@@ -26,7 +26,10 @@ class FileApiTests(unittest.TestCase):
         self.assertEqual(validate_base_url("http://printer.local:7125/"), "http://printer.local:7125")
         for url in ("http://user:pass@printer.local:7125", "http://printer.local:7125/evil",
                     "http://printer.local:7125?key=secret", "http://printer.local:7125/#frag",
-                    "file:///etc/passwd", "http://printer.local:invalid", ""):
+                    "file:///etc/passwd", "http://printer.local:invalid", "",
+                    "http://printer.local:7125\\n", "http://printer.local:7125 ",
+                    "http://printer.local%2F.evil:7125", "http://printer.local@evil.test",
+                    "http://printer.local:7125\\t"):
             with self.subTest(url=url), self.assertRaises(FileAccessError):
                 validate_base_url(url)
 
