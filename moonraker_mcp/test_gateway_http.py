@@ -1,5 +1,6 @@
 """HTTP-level security tests with a fake upstream; no printer is contacted."""
 import json
+from unittest.mock import patch
 import threading
 import unittest
 import urllib.error
@@ -109,6 +110,27 @@ class HTTPGatewayTests(unittest.TestCase):
                 return res.status, json.loads(res.read())
         except urllib.error.HTTPError as err:
             return err.code, json.loads(err.read())
+
+    def test_file_api_errors_are_sanitized(self):
+        original_allowed = Handler.allowed
+        try:
+            Handler.allowed = extend_allowed(load_allowed(), ["files"])
+            with patch.dict("os.environ", {"MOONRAKER_URL": "http://127.0.0.1:7125",
+                                           "MOONRAKER_API_KEY": "secret"}):
+                for upstream_code, expected in ((404, 404), (401, 502), (500, 502)):
+                    with self.subTest(upstream_code=upstream_code):
+                        error = urllib.error.HTTPError(
+                            "http://internal-printer:7125/secret", upstream_code,
+                            "secret server detail", {}, None)
+                        with patch("gateway.list_gcodes", side_effect=error):
+                            status, body = self.request(
+                                "tools/call", {"name": "moonraker_files_list",
+                                               "arguments": {}})
+                        self.assertEqual(status, expected)
+                        self.assertNotIn("secret", json.dumps(body).lower())
+                        self.assertNotIn("internal-printer", json.dumps(body))
+        finally:
+            Handler.allowed = original_allowed
 
     def test_initialize_and_notification(self):
         status, body = self.request("initialize", {
