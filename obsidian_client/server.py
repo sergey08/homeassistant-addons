@@ -1327,10 +1327,10 @@ def remote_new_draft():
     path_json = json.dumps(requested, ensure_ascii=True).replace("<", "\\u003c")
     return page(
         '<p><a href="../">← Volver</a></p><h2>Nueva nota (borrador)</h2>'
-        '<p class="muted">El guardado local requiere activar el CLI. No se sincroniza con la bóveda remota.</p>'
+        '<p class="muted">Se guarda como archivo Markdown. En modo compartido, el MCP se encarga de sincronizar mediante LiveSync.</p>'
         '<h3>' + html.escape(requested) + '</h3>'
         '<textarea id="editor" style="width:100%;height:50vh;font:14px monospace"></textarea>'
-        '<p><button id="saveLocal" type="button">Guardar localmente (sin sincronizar)</button> '
+        '<p><button id="saveLocal" type="button">Guardar Markdown</button> '
         '<button id="export" type="button">Exportar .md</button></p>'
         '<p id="saveStatus" role="status"></p>'
         '<pre id="preview" style="white-space:pre-wrap"></pre>'
@@ -1349,7 +1349,7 @@ def remote_new_draft():
         'if((dirty||draft)&&draft!==data.content&&confirm("Recuperar borrador anterior?"))editor.value=draft;'
         'else try{sessionStorage.removeItem(key)}catch(_){}'
         'document.getElementById("preview").textContent=editor.value;'
-        'document.getElementById("saveStatus").textContent="Nota local cargada (sin sincronizar)";'
+        'document.getElementById("saveStatus").textContent="Nota Markdown local cargada";'
         '}}).catch(()=>{}).finally(()=>{loadingLocal=false});'
         'document.getElementById("saveLocal").onclick=async()=>{'
         'if(loadingLocal||saving){document.getElementById("saveStatus").textContent="Espera a finalizar la operación anterior";return;}'
@@ -1362,7 +1362,7 @@ def remote_new_draft():
         'expected_content:savedContent,content:submitted})});'
         'const data=await r.json();if(!r.ok)throw Error(data.error||"save_failed");'
         'savedContent=submitted;dirty=editor.value!==submitted;'
-        'status.textContent="Guardado localmente. Aún NO sincronizado con Obsidian.";'
+        'status.textContent="Archivo Markdown guardado. LiveSync gestiona la sincronización solo en modo compartido.";'
         'try{if(!dirty)sessionStorage.removeItem(key);else refresh()}catch(_){}'
         '}catch(e){status.textContent="No guardado: "+e.message}'
         'finally{saving=false;document.getElementById("saveLocal").disabled=false}};'
@@ -1447,7 +1447,7 @@ def remote_edit_draft():
     script_data = json.dumps({"path": requested, "content": content, "needs_remote_load": cli_fallback}, ensure_ascii=True).replace("<", "\\u003c")
     body = (
         '<p><a href="../">← Volver</a></p><h2>Borrador Markdown</h2>'
-        '<p class="muted">Guardar crea una copia local aislada; no sincroniza con LiveSync.</p>'
+        '<p class="muted">El guardado escribe Markdown local; en modo compartido LiveSync sincroniza mediante el MCP.</p>'
         '<h3>' + html.escape(requested) + '</h3>'
         '<textarea id="editor" style="width:100%;height:50vh;font:14px monospace"></textarea>'
         '<p><button type="button" id="copyDraft">Copiar Markdown</button> '
