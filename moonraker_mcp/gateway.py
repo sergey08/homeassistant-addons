@@ -254,6 +254,14 @@ class Handler(BaseHTTPRequestHandler):
             for header in ("Content-Length", "Content-Type", "Mcp-Session-Id", "MCP-Protocol-Version"):
                 if len(self.headers.get_all(header, [])) > 1:
                     return self.reply(400, {"error": "Duplicate HTTP header"})
+            # This gateway only returns JSON to MCP clients. Do not send a
+            # representation the client explicitly refuses.
+            accept = self.headers.get("Accept", "*/*")
+            accepted = [part.split(";", 1)[0].strip().lower()
+                        for part in accept.split(",")]
+            if not any(media in ("application/json", "application/*", "*/*")
+                       for media in accepted):
+                return self.reply(406, {"error": "MCP gateway requires JSON response acceptance"})
             content_type = self.headers.get("Content-Type", "").split(";", 1)[0].strip().lower()
             if content_type != "application/json":
                 return self.reply(415, {"error": "MCP POST requires application/json"})
