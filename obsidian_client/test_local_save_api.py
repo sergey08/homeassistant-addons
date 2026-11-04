@@ -208,6 +208,34 @@ class LocalSaveTests(unittest.TestCase):
         self.assertIn("remote/new?path=Notes%2FNew.md", page.get_data(as_text=True))
         self.assertIn("Sin sincronizar", page.get_data(as_text=True))
 
+    def test_mcp_shared_mode_requires_existing_fixed_vault(self):
+        with patch("server.options", return_value={"editor_storage_mode": "mcp_shared"}):
+            with patch("server._MCP_SHARED_VAULT", str(self.vault / "not-created")):
+                response = self.post()
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(response.json["error"], "mcp_shared_vault_unavailable")
+        self.assertFalse((self.vault / "not-created").exists())
+
+    def test_mcp_shared_mode_reads_and_writes_fixed_vault(self):
+        shared = Path(self.tempdir.name) / "mcp-shared-vault"
+        shared.mkdir()
+        with patch("server.options", return_value={"editor_storage_mode": "mcp_shared"}):
+            with patch("server._MCP_SHARED_VAULT", str(shared)):
+                response = self.post()
+                loaded = self.client.get("/api/livesync-cli/local-note?path=Notes/New.md")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(loaded.status_code, 200)
+        self.assertEqual(loaded.json["content"], "# Hello")
+        self.assertEqual((shared / "Notes/New.md").read_text(), "# Hello")
+        self.assertFalse((self.vault / "Notes/New.md").exists())
+
+    def test_private_mode_does_not_touch_shared_vault(self):
+        shared = Path(self.tempdir.name) / "mcp-shared-vault"
+        shared.mkdir()
+        with patch("server._MCP_SHARED_VAULT", str(shared)):
+            self.assertEqual(self.post().status_code, 200)
+        self.assertFalse((shared / "Notes/New.md").exists())
+
     def test_invalid_path_blocked(self):
         response = self.post({**self.payload, "path": "../secret.md"})
         self.assertEqual(response.status_code, 400)
