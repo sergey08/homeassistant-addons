@@ -48,6 +48,16 @@ class DisposableOrphanAuditTests(unittest.TestCase):
                     [parent(["h:+present"])],[leaf("h:+present")],
                     isolated_test=isolated,snapshot_complete=complete)
 
+    def test_attachment_metadata_is_not_a_safe_audit_snapshot(self):
+        for kind in ("parent", "leaf"):
+            for value in ({}, {"file.bin":{"stub":True}}):
+                parents=[parent(["h:+kept"])]
+                leaves=[leaf("h:+kept")]
+                (parents[0] if kind=="parent" else leaves[0])["_attachments"]=value
+                with self.subTest(kind=kind,value=value), self.assertRaisesRegex(
+                        UnsafeWrite,"attachments_not_supported"):
+                    audit(parents,leaves)
+
     def test_duplicate_or_corrupt_documents_fail_closed(self):
         cases=[
             ([parent(["h:+same"]),parent(["h:+same"])],[leaf("h:+same")]),
