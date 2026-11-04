@@ -111,6 +111,26 @@ class HTTPGatewayTests(unittest.TestCase):
         except urllib.error.HTTPError as err:
             return err.code, json.loads(err.read())
 
+    def test_local_file_tool_success_uses_mcp_content_format(self):
+        original_allowed = Handler.allowed
+        try:
+            Handler.allowed = extend_allowed(load_allowed(), ["files"])
+            with patch.dict("os.environ", {"MOONRAKER_URL": "http://127.0.0.1:7125",
+                                           "MOONRAKER_API_KEY": ""}):
+                with patch("gateway.list_gcodes",
+                           return_value=[{"path": "piezas/árbol azul.gcode"}]):
+                    status, body = self.request(
+                        "tools/call", {"name": "moonraker_files_list", "arguments": {}})
+            self.assertEqual(status, 200)
+            self.assertEqual(body["jsonrpc"], "2.0")
+            self.assertEqual(body["id"], 1)
+            self.assertIs(body["result"]["isError"], False)
+            self.assertEqual(body["result"]["content"][0]["type"], "text")
+            self.assertEqual(json.loads(body["result"]["content"][0]["text"]),
+                             [{"path": "piezas/árbol azul.gcode"}])
+        finally:
+            Handler.allowed = original_allowed
+
     def test_file_api_errors_are_sanitized(self):
         original_allowed = Handler.allowed
         try:
