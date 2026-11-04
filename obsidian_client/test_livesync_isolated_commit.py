@@ -128,6 +128,24 @@ class TestIsolatedCommit(unittest.TestCase):
                                      isolated_test=True)
             self.assertEqual(calls,[])
 
+    def test_transport_cannot_mutate_nested_plan_metadata(self):
+        candidate=plan()
+        candidate["parent"]["nested"]={"tags":["untouched"]}
+        original_children=list(candidate["parent"]["children"])
+        calls=[]
+        def mutating_put(doc):
+            calls.append(doc["_id"])
+            if doc["type"]=="plain":
+                doc["children"].append("h:+injected")
+                doc["nested"]["tags"].append("injected")
+                return 201,{"ok":True,"id":doc["_id"],"rev":"2-"+"b"*32}
+            return 201,{"ok":True,"id":doc["_id"],"rev":"1-"+"c"*32}
+        result=commit_isolated_plan(candidate,mutating_put,isolated_test=True)
+        self.assertEqual(result["status"],"committed_in_disposable_test_only")
+        self.assertEqual(calls,["h:+abc","notes/example.md"])
+        self.assertEqual(candidate["parent"]["children"],original_children)
+        self.assertEqual(candidate["parent"]["nested"],{"tags":["untouched"]})
+
     def test_rejects_mismatched_document_or_order_before_write(self):
         for mutation in ("badorder","badleaf","badparent"):
             candidate=plan()

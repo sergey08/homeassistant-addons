@@ -3,6 +3,8 @@
 No HTTP client is created here. An injected transport must expose put(doc)
 and return (status, response). Production writes are deliberately forbidden.
 """
+from copy import deepcopy
+
 from livesync_revision_contract import (RevisionConflict, require_successful_put,
                                        require_confirmed_put_response, require_confirmed_create_response,
                                        require_matching_revision)
@@ -49,7 +51,8 @@ def commit_isolated_plan(plan, put_document, *, isolated_test=False,
     if "_rev" in parent:
         require_matching_revision(parent["_rev"], parent["_rev"])
     for kind,document in (("leaf",leaf),("parent",parent)):
-        status,response=put_document(dict(document))
+        # Isolate nested metadata from mutations by an injected test transport.
+        status,response=put_document(deepcopy(document))
         if kind == "parent" and document.get("_rev") is not None:
             require_confirmed_put_response(status,response,document["_id"],
                                            document["_rev"])
