@@ -84,6 +84,19 @@ class TestIsolatedCommit(unittest.TestCase):
                                      isolated_test=True)
             self.assertEqual(calls,[])
 
+    def test_deleted_or_conflicted_documents_rejected_before_any_put(self):
+        for kind in ("leaf", "parent"):
+            for field, value in (("_deleted", True), ("deleted", True),
+                                 ("_conflicts", ["2-" + "b" * 32])):
+                candidate = plan()
+                candidate[kind][field] = value
+                calls = []
+                with self.subTest(kind=kind, field=field), self.assertRaisesRegex(
+                        UnsafeWrite, "deleted_or_conflicted_document"):
+                    commit_isolated_plan(candidate, lambda doc: calls.append(doc),
+                                         isolated_test=True)
+                self.assertEqual(calls, [])
+
     def test_rejects_mismatched_document_or_order_before_write(self):
         for mutation in ("badorder","badleaf","badparent"):
             candidate=plan()
