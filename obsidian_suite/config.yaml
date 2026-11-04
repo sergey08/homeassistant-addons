@@ -23,6 +23,7 @@ options:
   livesync_interval: 60
   vault_path: ""
   storage_mode: "livesync"
+  livesync_shared_vault_path: ""
 schema:
   tunnel_id: str
   enable_tunnel: bool
@@ -30,3 +31,4 @@ schema:
   livesync_interval: int(30,3600)
   vault_path: str
   storage_mode: list(livesync|local)
+  livesync_shared_vault_path: str
