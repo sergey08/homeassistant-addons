@@ -42,6 +42,24 @@ class VaultSelectionTests(unittest.TestCase):
                 with self.subTest(rejected=options), self.assertRaises((ValueError, FileNotFoundError)):
                     select_storage(options, original, root)
 
+    def test_explicit_shared_livesync_vault_only_after_migration(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d) / "share"
+            shared = root / "obsidian-shared-vault"
+            shared.mkdir(parents=True)
+            original = Path(d) / "legacy-vault"
+            setting = {"storage_mode": "livesync", "enable_livesync": True,
+                       "livesync_shared_vault_path": str(shared)}
+            with self.assertRaisesRegex(ValueError, "migrate first"):
+                select_storage(setting, original, root)
+            (shared / "existing.md").write_text("# Existing")
+            self.assertEqual(select_storage(setting, original, root),
+                             ("livesync", shared.resolve(), True))
+            with self.assertRaises(ValueError):
+                select_storage({**setting, "enable_livesync": False}, original, root)
+            self.assertEqual(select_storage({"enable_livesync": True}, original, root),
+                             ("livesync", original, True))
+
     def test_escape_and_symlinks_rejected(self):
         with tempfile.TemporaryDirectory() as d:
             root = Path(d) / "share"
