@@ -31,6 +31,20 @@ class DisposableOrphanAuditTests(unittest.TestCase):
                       parent(["h:+shared"],"f:second")],[leaf("h:+shared")])
         self.assertEqual(result["unreferenced_leaf_candidates"],())
 
+    def test_duplicate_chunk_reference_within_parent_fails_closed(self):
+        parents=[parent(["h:+same","h:+same"])]
+        leaves=[leaf("h:+same")]
+        with self.assertRaisesRegex(UnsafeWrite,"duplicate_parent_chunk_reference"):
+            audit(parents,leaves)
+        self.assertEqual(parents[0]["children"],["h:+same","h:+same"])
+
+    def test_same_chunk_across_different_parents_remains_valid(self):
+        parents=[parent(["h:+shared"],"f:one"),
+                 parent(["h:+shared"],"f:two")]
+        result=audit(parents,[leaf("h:+shared")])
+        self.assertEqual(result["unreferenced_leaf_candidates"],())
+        self.assertEqual(result["missing_referenced_leaf_ids"],())
+
     def test_missing_chunks_reported_without_any_mutation(self):
         parents=[parent(["h:+present","h:+missing"])]
         leaves=[leaf("h:+present")]
