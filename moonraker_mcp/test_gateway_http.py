@@ -149,7 +149,9 @@ class HTTPGatewayTests(unittest.TestCase):
                     with self.assertRaises(urllib.error.HTTPError) as raised:
                         urllib.request.urlopen(req, timeout=5)
                     response = raised.exception
-                    self.assertEqual(response.code, 405)
+                    self.assertEqual(response.code, 405 if authorized else 401)
+                    if authorized:
+                        self.assertEqual(response.headers.get("Allow"), "POST")
                     self.assertEqual(response.headers.get("Cache-Control"), "no-store")
                     response.read()
                     self.assertEqual(len(FakeUpstream.calls), before)
