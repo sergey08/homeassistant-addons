@@ -21,6 +21,7 @@ class FakeUpstream(BaseHTTPRequestHandler):
     paginate_tools = False
     spoof_local_files = False
     malformed_result = None
+    malformed_reply = None
 
     def do_POST(self):
         if self.path == "/collect":
@@ -74,6 +75,8 @@ class FakeUpstream(BaseHTTPRequestHandler):
         if self.malformed_result is not None:
             response = {"jsonrpc": "2.0", "id": message.get("id"),
                         "result": self.malformed_result}
+        if self.malformed_reply is not None:
+            response = self.malformed_reply
         body = json.dumps(response).encode()
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
@@ -385,6 +388,27 @@ class HTTPGatewayTests(unittest.TestCase):
             with self.subTest(method=method), self.assertRaises(urllib.error.HTTPError) as ctx:
                 urllib.request.urlopen(req, timeout=5)
             self.assertEqual(ctx.exception.code, 405)
+
+    def test_invalid_jsonrpc_errors_are_rejected_with_502(self):
+        original = FakeUpstream.malformed_reply
+        try:
+            for response in (
+                {"jsonrpc": "2.0", "id": 999,
+                 "error": {"code": -32603, "message": "bad id"}},
+                {"jsonrpc": "2.0", "id": 1,
+                 "error": {"code": True, "message": "invalid code"}},
+                {"jsonrpc": "2.0", "id": 1,
+                 "error": {"code": -32603, "message": 42}},
+                {"jsonrpc": "2.0", "id": 1,
+                 "result": {}, "error": {"code": -32603, "message": "both"}},
+            ):
+                with self.subTest(response=response):
+                    FakeUpstream.malformed_reply = response
+                    status, body = self.request("tools/list")
+                    self.assertEqual(status, 502)
+                    self.assertEqual(body, {"error": "Invalid upstream MCP response"})
+        finally:
+            FakeUpstream.malformed_reply = original
 
     def test_malformed_upstream_response_is_502_not_403(self):
         original = FakeUpstream.malformed_result
