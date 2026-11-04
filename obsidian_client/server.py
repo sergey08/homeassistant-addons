@@ -1375,6 +1375,10 @@ def remote_write_preview():
     if not isinstance(expected,str):
         return jsonify(error="expected_content_required"), 400
     try:
+        expected_bytes=expected.encode("utf-8")
+    except UnicodeError:
+        return jsonify(error="invalid_expected_content_encoding"), 400
+    try:
         result=validate_write_request(path,content,None,creating=True)
     except (UnsafeWrite,ValueError,UnicodeError):
         return jsonify(error="invalid_note"), 400
@@ -1383,7 +1387,12 @@ def remote_write_preview():
     if error:
         return jsonify(error="remote_snapshot_not_verified",
                        remote_write_enabled=False,save_supported=False),409
-    if hashlib.sha256(current.encode("utf-8")).digest()!=hashlib.sha256(expected.encode("utf-8")).digest():
+    try:
+        current_bytes=current.encode("utf-8")
+    except (AttributeError, UnicodeError):
+        return jsonify(error="remote_snapshot_not_verified",
+                       remote_write_enabled=False,save_supported=False),409
+    if hashlib.sha256(current_bytes).digest()!=hashlib.sha256(expected_bytes).digest():
         return jsonify(error="remote_content_conflict",
                        remote_write_enabled=False,save_supported=False),409
     response=jsonify(path=path, bytes=result["bytes"], operation="update",
