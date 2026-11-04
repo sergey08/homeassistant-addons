@@ -98,55 +98,27 @@ Fuentes oficiales consultadas:
 La opción de alta está confirmada, **pero la compatibilidad funcional de este gateway aún no está demostrada**. Mantener puerto 8765 sin publicar, sin abrir puertos externos y sin instalar hasta autorización expresa.
 
 
-## Diseño elegido: OpenAI Secure MCP Tunnel (confirmado por el usuario)
+## Diseño elegido: túnel local en Home Assistant (como Obsidian MCP)
 
-El usuario ha elegido expresamente reutilizar el **mismo mecanismo OpenAI Secure MCP Tunnel / tunnel-client** que emplea con sus otros MCP (Home Assistant, SSH y SAP Cloud Connector). **No utilizar Cloudflare Tunnel independiente, DuckDNS, redirección de puertos del router ni exponer Moonraker a Internet.**
+**Corrección de arquitectura (2026-11-04):** la implementación de referencia es **Obsidian MCP en el mismo Lenovo con Home Assistant OS**, no los túneles empresariales de DCL. Se descarta por completo el host Debian DCL, sus direcciones, rutas, proxies, WireGuard y comprobaciones de conectividad: no intervienen en este proyecto.
 
-### Topología prevista (aún no desplegada)
+### Referencia real ya utilizada: Obsidian
 
-`ChatGPT -> OpenAI Secure MCP Tunnel dedicado -> tunnel-client -> gateway HTTP de solo lectura (:8765) -> mcp-raker (127.0.0.1:8766, interno) -> Moonraker U1 (LAN)`
+- El servidor `obsidian-mcp` funciona como complemento/contenedor en el Lenovo Home Assistant.
+- El cliente `tunnel-client` versión `0.0.10` se ejecuta en el propio host/entorno HA, originalmente en el contenedor `obsidian-tunnel` (Alpine 3.22), con túnel HTTPS **saliente** a OpenAI, sin abrir puertos del router.
+- En la versión de complemento, el destino interno del canal era `http://c3543d2f-obsidian-mcp:8765/mcp`, en la red Docker `hassio`. El binario y la clave de ejecución permanecen en `/app_configs/obsidian_bridge/tunnel/` del entorno local, nunca en GitHub.
+- El acceso desde ChatGPT mediante ese túnel y la lectura de notas de Obsidian ya se probaron. **No reutilizar la identidad del túnel Obsidian ni revelar sus credenciales.**
 
-- Crear identidad y perfil de túnel **separados**, sin cambiar los túneles de HA, SSH u otros MCP.
-- El complemento Home Assistant sigue con arranque manual y el mapeo externo del puerto 8765 sin publicar (`null`) por defecto. Un cliente túnel ejecutado fuera de su espacio de red no puede acceder a un puerto no publicado: **hay que diseñar y verificar un canal interno entre ambos procesos** antes de integrar el túnel. No resolverlo publicando el puerto en el router.
-- El `tunnel-client` se conectará de forma **saliente** al servicio de túneles. Su destino local debe apuntar exclusivamente al gateway filtrado; nunca al `mcp-raker` sin filtrar ni a la API Moonraker.
-- No escribir en GitHub el Tunnel ID privado, claves, tokens, rutas secretas ni direcciones internas. Guardarlos únicamente en configuración local protegida.
-- **Autenticación: reutilizar el patrón probado con el MCP de SAP Cloud Connector.** El perfil de `tunnel-client` configura `extra_headers` y `discovery_extra_headers` con `Authorization: file:<ruta privada>`, donde el fichero contiene la cabecera completa `Bearer <token>` (permisos `0600`). Mantener el mismo token en la opción local `mcp_http_token` del gateway, sin exponerlo en GitHub ni en registros. No hace falta eliminar autenticación ni escribir una credencial en el YAML.
-- **Separación de equipos:** los túneles SSH/SAP anteriores se ejecutan en una máquina Debian distinta de Home Assistant. En aquel entorno, el proxy Bearer escuchaba en loopback y el `tunnel-client` apuntaba a `http://127.0.0.1:<puerto>/mcp`. Para Moonraker conservaremos ese esquema en el host Debian: un proxy local en loopback con destino exclusivamente al gateway filtrado del complemento en HA.
-- **Conectividad Debian → HA:** el proxy de Debian debe alcanzar el gateway de HA por un enlace LAN/VPN privado y controlado. El puerto `8765` del complemento sigue sin mapear por defecto; para conectar dos hosts distintos será imprescindible habilitar expresamente un acceso de red privado y restringido (o un canal privado equivalente). **No** implica abrir puertos en el router ni publicar un servicio en Internet. La topología de red concreta se verificará antes del despliegue; no asumir que `127.0.0.1` del Debian apunta a HA.
-- Probar de forma independiente las solicitudes `initialize`, `notifications/initialized`, `tools/list`, `tools/call` autorizadas y denegadas a través del túnel, con un servicio de prueba **sin impresora**.
-- Solo con autorización explícita: preparar el túnel, instalar el complemento, conectar Moonraker y registrar el servidor en ChatGPT; son decisiones separadas. La selección de arquitectura de túnel **no autoriza el despliegue**.
+### Objetivo equivalente para Moonraker
 
-### Configuración de referencia (plantilla, sin credenciales reales)
+`ChatGPT -> nuevo túnel saliente OpenAI -> tunnel-client en Lenovo/HA -> http://<hostname-del-addon-moonraker>:8765/mcp (red interna hassio) -> gateway filtrado -> upstream mcp-raker (127.0.0.1:8766 dentro del addon) -> Moonraker Snapmaker U1 en la LAN`
 
-Reutilizar en el Debian los mismos campos ya comprobados en el perfil del MCP SAP, pero con identidad y archivos exclusivos para Moonraker:
+1. Crear un **perfil/túnel exclusivamente de Moonraker**, dejando Obsidian y HA-MCP existentes intactos.
+2. Ejecutar `tunnel-client` **en Home Assistant**, junto al complemento Moonraker MCP, utilizando conectividad por nombre interno de complemento en `hassio` (como con Obsidian). El valor del hostname definitivo debe comprobarse al instalar; `<hostname-del-addon-moonraker>` es un marcador, no un DNS confirmado.
+3. El gateway actual ya exige `Authorization: Bearer <mcp_http_token>` en cada petición HTTP. Configurar un encabezado de autenticación desde un fichero privado en el cliente del túnel **si la versión ejecutada lo admite**, o reutilizar el mismo mecanismo local de autenticación que se verificó con Obsidian. No retirar autenticación, no usar claves compartidas en el repositorio.
+4. El puerto 8765 debe ser alcanzable **solo desde la red interna Docker de HA**; no se necesita publicar el puerto en el router, ni realizar conexiones al Debian DCL. Validar la conectividad interna y que únicamente se exponga el gateway filtrado, nunca el `mcp-raker` sin filtrar.
+5. Secuencia de pruebas sin impresora: `initialize`, `tools/list`, ejecución de la herramienta de versión y denegación de comandos G-code mediante el túnel. Después, con autorización explícita, instalación y conexión a la Snapmaker U1.
 
-```yaml
-# Perfil exclusivo de tunnel-client para Moonraker MCP.
-# Completar con los campos de identidad/endpoint del perfil existente.
-extra_headers:
-  Authorization: file:/home/ivan/.config/moonraker-mcp/tunnel-authorization
-discovery_extra_headers:
-  Authorization: file:/home/ivan/.config/moonraker-mcp/tunnel-authorization
-```
+### Estado de desarrollo
 
-El archivo `tunnel-authorization` (modo `0600`) debe contener una única línea `Bearer <token-privado>`, con valor idéntico al configurado como `mcp_http_token` en HA. El destino HTTP del túnel apuntará al **proxy local restringido de Debian**; el proxy comunicará con `/mcp` del gateway de HA y nunca con Moonraker ni el upstream sin filtrar. Conservar el flujo `doctor` y `health` del `tunnel-client` utilizado con SAP para las pruebas.
-
-**No reutilizar literalmente** los puertos, nombres de perfil ni rutas de autenticación de SAP: crear recursos independientes; no modificar sus perfiles en funcionamiento. Este documento define el patrón, no confirma que exista ya el enlace de red Debian → HA ni que se haya desplegado el túnel.
-
-### Auditoría de conectividad sin cambios en producción (2026-11-04)
-
-Comprobado mediante SSH de solo lectura en el host Debian `dcl-debian`:
-
-- Debian `ens33`: `192.168.5.21`; `wg0`: `10.10.10.1/24` (activo); enlace adicional `10.0.0.1`. Los proxies existentes escuchan exclusivamente en `127.0.0.1:3000`, `:3001`, `:3002`; las interfaces de control de túneles en `127.0.0.1:8081` y `:8082`.
-- Home Assistant en Lenovo: dirección conocida `192.168.1.33`, distinta subred.
-- `ip route get 192.168.1.33` en Debian devuelve `via 192.168.5.1 dev ens33 src 192.168.5.21`: el tráfico no se encamina actualmente por `wg0`.
-- `ping -c 2 -W 1 192.168.1.33` terminó sin respuestas. **Esto no demuestra por sí solo falta de TCP**: ICMP puede estar filtrado.
-- La comprobación HTTP/TCP desde la herramienta SSH en modo solo lectura no pudo ejecutarse, pues `curl` no está permitido por su lista de comandos de lectura. Queda pendiente confirmar TCP a un servicio conocido en HA antes de seleccionar la ruta al gateway.
-
-**Consecuencia:** no publicar `:8765` en el router ni dar por resuelta la comunicación Debian→HA. Elegir una única vía privada: ruta LAN entre `192.168.5.0/24` y `192.168.1.0/24` si la segmentación/firewall la admite, o una ruta privada VPN WireGuard explícitamente autorizada. Verificar TCP y reglas de retorno primero; después establecer el enlace restringido a `/mcp` del gateway en HA y el proxy local del Debian. El esquema `file:` para Bearer queda confirmado por la configuración anterior; no requiere inventar otro método de autenticación.
-
-**No se cambiaron rutas, reglas de firewall, servicios, complementos, puertos ni credenciales durante esta auditoría.**
-
-### Criterio de avance
-
-La CI Docker con el SDK oficial MCP `mcp==1.30.0` ya ha comprobado autenticación, descubrimiento de cuatro herramientas, consulta de versión y denegación de G-code. Falta el ensayo de extremo a extremo **a través del OpenAI Secure MCP Tunnel**, y después el ensayo controlado en Home Assistant con la Snapmaker U1.
+La CI Docker sin impresora, con SDK oficial MCP `mcp==1.30.0`, ha confirmado la conexión, el descubrimiento de cuatro herramientas de lectura, la ejecución de `moonraker_mcp_version` y el bloqueo con HTTP 403 de `moonraker_gcode_script`. **Todavía no se ha desplegado el túnel de Moonraker ni instalado el complemento en el HA del usuario.** No confundir la prueba del SDK aislado con una conexión ChatGPT real.
