@@ -26,6 +26,7 @@ class FakeUpstream(BaseHTTPRequestHandler):
     initialize_instructions = None
     response_content_type = "application/json"
     sse_extra_lines = None
+    session_headers = []
 
     def do_POST(self):
         if self.path == "/collect":
@@ -42,6 +43,7 @@ class FakeUpstream(BaseHTTPRequestHandler):
         length = int(self.headers["Content-Length"])
         message = json.loads(self.rfile.read(length))
         self.calls.append(message)
+        self.session_headers.append(self.headers.get("Mcp-Session-Id"))
         method = message["method"]
         if method == "notifications/initialized":
             self.send_response(self.notification_status)
@@ -130,6 +132,24 @@ class HTTPGatewayTests(unittest.TestCase):
                 return res.status, json.loads(res.read())
         except urllib.error.HTTPError as err:
             return err.code, json.loads(err.read())
+
+    def test_session_header_forwarded_across_requests(self):
+        initial = len(FakeUpstream.session_headers)
+        for method in ("ping", "tools/list"):
+            payload = json.dumps({"jsonrpc": "2.0", "id": 1,
+                                  "method": method, "params": {}}).encode()
+            req = urllib.request.Request(
+                "http://127.0.0.1:%s/mcp" % self.gateway.server_port,
+                data=payload,
+                headers={"Authorization": "Bearer ci-secret",
+                         "Content-Type": "application/json",
+                         "Mcp-Session-Id": "test-session-123",
+                         "MCP-Protocol-Version": "2025-06-18"})
+            with urllib.request.urlopen(req, timeout=5) as response:
+                self.assertEqual(response.status, 200)
+                response.read()
+        self.assertEqual(FakeUpstream.session_headers[initial:],
+                         ["test-session-123", "test-session-123"])
 
     def test_duplicate_accept_header_is_rejected(self):
         payload = json.dumps({"jsonrpc": "2.0", "id": 1, "method": "ping",
