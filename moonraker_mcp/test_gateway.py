@@ -59,7 +59,8 @@ class GatewayTests(unittest.TestCase):
         base = {"jsonrpc": "2.0", "id": 1, "result": {
             "protocolVersion": "2025-06-18", "capabilities": {},
             "serverInfo": {"name": "fake", "version": "1"}}}
-        self.assertEqual(filter_reply("initialize", base, self.allowed), base)
+        self.assertEqual(filter_reply("initialize", base, self.allowed), {
+            **base, "result": {**base["result"], "capabilities": {"tools": {}}}})
         for version in ("2024-11-05", None, 123):
             invalid = {"jsonrpc": "2.0", "id": 1, "result": {
                 **base["result"], "protocolVersion": version}}
@@ -80,7 +81,8 @@ class GatewayTests(unittest.TestCase):
             filter_reply("initialize", {**base, "result": {
                 **base["result"], "instructions": ["invalid"]}}, self.allowed)
         valid = {**base, "result": {**base["result"], "instructions": "Read-only tools"}}
-        self.assertEqual(filter_reply("initialize", valid, self.allowed), base)
+        self.assertEqual(filter_reply("initialize", valid, self.allowed), {
+            **base, "result": {**base["result"], "capabilities": {"tools": {}}}})
         self.assertIn("instructions", valid["result"],
                       "Filtering must not mutate the upstream response")
 
