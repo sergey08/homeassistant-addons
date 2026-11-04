@@ -408,6 +408,27 @@ class HTTPGatewayTests(unittest.TestCase):
         finally:
             FakeUpstream.malformed_result = original
 
+    def test_write_tool_cannot_be_exposed_by_any_optional_profile(self):
+        from tool_policy import OPTIONAL_PROFILES
+        original = Handler.allowed
+        try:
+            for profiles in ([], list(OPTIONAL_PROFILES)):
+                with self.subTest(profiles=profiles):
+                    Handler.allowed = extend_allowed(load_allowed(), profiles)
+                    status, response = self.request("tools/list")
+                    self.assertEqual(status, 200)
+                    names = {tool["name"] for tool in response["result"]["tools"]}
+                    self.assertNotIn("moonraker_gcode_script", names)
+                    before = len(FakeUpstream.calls)
+                    status, _ = self.request(
+                        "tools/call",
+                        {"name": "moonraker_gcode_script",
+                         "arguments": {"script": "M112"}})
+                    self.assertEqual(status, 403)
+                    self.assertEqual(len(FakeUpstream.calls), before)
+        finally:
+            Handler.allowed = original
+
     def test_unsafe_call_never_reaches_upstream(self):
         before = len(FakeUpstream.calls)
         status, _ = self.request("tools/call", {
