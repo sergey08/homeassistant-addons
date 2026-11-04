@@ -10,4 +10,7 @@ COPY gateway.py tool_policy.py moonraker_files.py read_only_allowlist.json /opt/
 RUN chmod 755 /run.sh && mkdir -p /data && chown 65534:65534 /data
 # HA Supervisor keeps /data/options.json readable only by root. The small
 # launcher reads options as root and drops privileges for network services.
+# Ensure the launcher can read Supervisor-protected /data/options.json.
+# run.sh drops privileges to 65534:65534 for the long-lived services.
+USER root
 ENTRYPOINT ["/run.sh"]
