@@ -96,3 +96,24 @@ Fuentes oficiales consultadas:
 4. Preparar un ensayo controlado, sujeto a autorización explícita, antes de instalar el complemento o permitir acceso a la Snapmaker U1.
 
 La opción de alta está confirmada, **pero la compatibilidad funcional de este gateway aún no está demostrada**. Mantener puerto 8765 sin publicar, sin abrir puertos externos y sin instalar hasta autorización expresa.
+
+
+## Diseño elegido: OpenAI Secure MCP Tunnel (confirmado por el usuario)
+
+El usuario ha elegido expresamente reutilizar el **mismo mecanismo OpenAI Secure MCP Tunnel / tunnel-client** que emplea con sus otros MCP (Home Assistant, SSH y SAP Cloud Connector). **No utilizar Cloudflare Tunnel independiente, DuckDNS, redirección de puertos del router ni exponer Moonraker a Internet.**
+
+### Topología prevista (aún no desplegada)
+
+`ChatGPT -> OpenAI Secure MCP Tunnel dedicado -> tunnel-client -> gateway HTTP de solo lectura (:8765) -> mcp-raker (127.0.0.1:8766, interno) -> Moonraker U1 (LAN)`
+
+- Crear identidad y perfil de túnel **separados**, sin cambiar los túneles de HA, SSH u otros MCP.
+- El complemento Home Assistant sigue con arranque manual y el mapeo externo del puerto 8765 sin publicar (`null`) por defecto. Un cliente túnel ejecutado fuera de su espacio de red no puede acceder a un puerto no publicado: **hay que diseñar y verificar un canal interno entre ambos procesos** antes de integrar el túnel. No resolverlo publicando el puerto en el router.
+- El `tunnel-client` se conectará de forma **saliente** al servicio de túneles. Su destino local debe apuntar exclusivamente al gateway filtrado; nunca al `mcp-raker` sin filtrar ni a la API Moonraker.
+- No escribir en GitHub el Tunnel ID privado, claves, tokens, rutas secretas ni direcciones internas. Guardarlos únicamente en configuración local protegida.
+- **Compatibilidad de autenticación pendiente:** el gateway actual exige `Authorization: Bearer <mcp_http_token>` en cada POST. Comprobar si el cliente de túnel puede añadir ese encabezado al destino local de manera segura. Si no puede, no desactivar sin más la autenticación; diseñar un adaptador local con privilegios mínimos o una identidad autenticada equivalente.
+- Probar de forma independiente las solicitudes `initialize`, `notifications/initialized`, `tools/list`, `tools/call` autorizadas y denegadas a través del túnel, con un servicio de prueba **sin impresora**.
+- Solo con autorización explícita: preparar el túnel, instalar el complemento, conectar Moonraker y registrar el servidor en ChatGPT; son decisiones separadas. La selección de arquitectura de túnel **no autoriza el despliegue**.
+
+### Criterio de avance
+
+La CI Docker con el SDK oficial MCP `mcp==1.30.0` ya ha comprobado autenticación, descubrimiento de cuatro herramientas, consulta de versión y denegación de G-code. Falta el ensayo de extremo a extremo **a través del OpenAI Secure MCP Tunnel**, y después el ensayo controlado en Home Assistant con la Snapmaker U1.
