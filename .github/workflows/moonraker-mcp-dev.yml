@@ -394,6 +394,56 @@ jobs:
                                  capture_output=True)
           PY
 
+      - name: Verify job queue opt-in in running Docker gateway
+        run: |
+          python3 - <<'PY'
+          import json, os, subprocess, tempfile, time, urllib.request, urllib.error
+          with tempfile.TemporaryDirectory() as tmp:
+              os.chmod(tmp,0o755)
+              with open(os.path.join(tmp,"options.json"),"w") as out:
+                  json.dump({"moonraker_url":"http://127.0.0.1:7125",
+                             "moonraker_api_key":"","mcp_http_token":"ci-test-token",
+                             "enable_jobqueue":True},out)
+              subprocess.run(["docker","run","-d","--name","moonraker-mcp-jobqueue-ci",
+                              "-p","127.0.0.1:18767:8765","-v",tmp+":/data:ro",
+                              "moonraker-mcp:dev"],check=True,capture_output=True)
+              try:
+                  url="http://127.0.0.1:18767/"
+                  def request(method,params=None,rid=1):
+                      payload={"jsonrpc":"2.0","id":rid,"method":method}
+                      if params is not None: payload["params"]=params
+                      req=urllib.request.Request(url,data=json.dumps(payload).encode(),
+                          headers={"Authorization":"Bearer ci-test-token",
+                                   "Content-Type":"application/json",
+                                   "Accept":"application/json, text/event-stream"})
+                      with urllib.request.urlopen(req,timeout=10) as res:
+                          return json.loads(res.read())
+                  for attempt in range(25):
+                      try:
+                          init=request("initialize",{"protocolVersion":"2025-06-18",
+                              "capabilities":{},"clientInfo":{"name":"ci","version":"1"}})
+                          assert "result" in init,init
+                          break
+                      except (urllib.error.URLError,ConnectionError):
+                          time.sleep(1)
+                  else: raise AssertionError("Job queue gateway did not start")
+                  listed=request("tools/list",{},2)
+                  names={x["name"] for x in listed["result"]["tools"]}
+                  base=set(json.load(open("moonraker_mcp/read_only_allowlist.json"))["allowed_tools"])
+                  assert names==base|{"moonraker_jobqueue_status"},(names,base)
+                  for forbidden in ("moonraker_history_list","moonraker_objects_query",
+                                    "moonraker_gcode_script"):
+                      try:
+                          request("tools/call",{"name":forbidden,"arguments":{}},3)
+                      except urllib.error.HTTPError as exc:
+                          assert exc.code==403,(forbidden,exc.code)
+                      else: raise AssertionError("Unexpected access: "+forbidden)
+                  print("Docker job queue opt-in exposes one extra read-only tool")
+              finally:
+                  subprocess.run(["docker","rm","-f","moonraker-mcp-jobqueue-ci"],
+                                 capture_output=True)
+          PY
+
       - name: Verify explicit history profile in running Docker gateway
         run: |
           python3 - <<'PY'
