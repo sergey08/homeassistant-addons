@@ -34,7 +34,7 @@ class TestWritePreflight(unittest.TestCase):
 
     def test_invalid_unicode_content_rejected_cleanly(self):
         with self.assertRaisesRegex(UnsafeWrite, "invalid_content_encoding"):
-            validate_write_request("Nota.md", "bad\\ud800", None, creating=True)
+            validate_write_request("Nota.md", "bad" + chr(0xD800), None, creating=True)
 
     def test_create_does_not_accept_revision(self):
         with self.assertRaises(UnsafeWrite):
@@ -70,7 +70,7 @@ class TestOptimisticSnapshot(unittest.TestCase):
 
     def test_invalid_unicode_current_snapshot_rejected_cleanly(self):
         with self.assertRaisesRegex(UnsafeWrite, "current_content_encoding_invalid"):
-            self.check(current_content="bad\\ud800")
+            self.check(current_content="bad" + chr(0xD800))
 
     def test_oversized_current_snapshot_is_rejected(self):
         giant="x"*2_000_001
