@@ -125,78 +125,13 @@ def livesync_cli_configure_local():
 
 @app.post("/api/livesync-cli/publish-test-note")
 def livesync_cli_publish_test_note():
-    """One server-defined disposable test note, never the persistent editor DB."""
-    from livesync_cli_bridge import publish_isolated_test_note, CLIUnavailable
-    if options().get("livesync_cli_enabled") is not True:
-        return jsonify(error="cli_disabled"), 403
-    if request.headers.get("X-Obsidian-Client-Action") != "publish-test-note":
-        return jsonify(error="missing_action_header"), 403
-    if request.headers.get("Sec-Fetch-Site") not in (None, "same-origin"):
-        return jsonify(error="cross_origin_blocked"), 403
-    if request.headers.get("Origin") and request.headers.get("Sec-Fetch-Site") != "same-origin":
-        return jsonify(error="cross_origin_blocked"), 403
-    # Fixed server-generated content and path: no arbitrary client-supplied writes.
-    note_path = "Pruebas ChatGPT/Prueba sincronizacion cliente 2026-10-26.md"
-    content = "# Prueba LiveSync\\n\\nPublicada desde el cliente de Home Assistant.\\n"
-    with _local_save_lock:
-        paths, error = encrypted_note_paths()
-        if error or not paths or paths.get("truncated"):
-            return jsonify(error="remote_index_unavailable"), 503
-        if any(p.casefold() == note_path.casefold() for p in paths["notes"]):
-            return jsonify(error="test_note_already_exists"), 409
-        try:
-            result = publish_isolated_test_note(options(), note_path, content)
-        except CLIUnavailable as exc:
-            code = str(exc)
-            allowed = {"publish_local_roundtrip_failed",
-                       "publish_remote_preflight_execution_failed",
-                       "publish_remote_preflight_rejected",
-                       "publish_registration_cli_remote_add_failed",
-                       "publish_registration_cli_remote_add_not_active",
-                       "publish_registration_cli_remote_add_id_missing",
-                       "publish_registration_cli_remote_activate_failed",
-                       "publish_registration_cli_remote_registration_missing",
-                       "publish_cli_sync_remote_locked",
-                       "publish_cli_sync_version_incompatible",
-                       "publish_cli_sync_device_not_accepted",
-                       "publish_cli_sync_authentication",
-                       "publish_cli_sync_encryption",
-                       "publish_cli_sync_network",
-                       "publish_cli_sync_cli_exception",
-                       "publish_cli_sync_unknown",
-                       "publish_cli_sync_unclassified_replication_failure",
-                       "publish_cli_sync_upstream_failed",
-                       "publish_cli_sync_result_has_error",
-                       "publish_cli_sync_result_has_errors",
-                       "publish_cli_sync_result_has_cause",
-                       "publish_cli_sync_result_has_detail",
-                       "publish_cli_sync_result_has_details",
-                       "publish_cli_sync_result_has_message",
-                       "publish_cli_sync_result_has_recoveryhint",
-                       "publish_cli_sync_result_has_reason",
-                       "publish_cli_sync_result_has_phase",
-                       "publish_cli_sync_upstream_cancelled",
-                       "publish_cli_sync_upstream_skipped",
-                       "publish_cli_sync_upstream_interrupted",
-                       "publish_cli_sync_hint_remote_locked",
-                       "publish_cli_sync_hint_node_rejected",
-                       "publish_cli_sync_hint_remote_not_configured",
-                       "publish_cli_sync_hint_replication_not_permitted",
-                       "publish_cli_sync_hint_connection_failed",
-                       "publish_cli_sync_hint_couchdb_error",
-                       "publish_cli_sync_hint_missing_remote",
-                       "publish_cli_sync_hint_invalid_remote",
-                       "publish_cli_sync_hint_database_locked",
-                       "publish_cli_sync_hint_remote_version_mismatch",
-                       "publish_cli_sync_hint_remote_not_found",
-                       "publish_cli_sync_hint_remote_unavailable",
-                       "publish_cli_sync_failed"}
-            return jsonify(error=code if code in allowed else "isolated_sync_failed"), 502
-        actual, read_error = read_encrypted_note(note_path)
-        result["verified_remotely"] = read_error is None and actual == content
-        if not result["verified_remotely"]:
-            return jsonify(error="remote_verification_failed", cli_sync_completed=True), 502
-    return jsonify(result)
+    """Fail closed: never publish to a configured real LiveSync remote.
+
+    Isolated encrypted publication belongs in disposable integration tests,
+    not in a production ingress route.
+    """
+    return jsonify(error="remote_writes_disabled",
+                   remote_writes_enabled=False), 403
 
 
 @app.post("/api/livesync-cli/remote-add-probe")
