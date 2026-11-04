@@ -45,7 +45,7 @@ jobs:
           assert cfg["ports"]["8765/tcp"] is None
           assert cfg["schema"]["mcp_http_token"]=="password"
           assert cfg["options"]["mcp_http_token"]==""
-          for flag in ("enable_files","enable_objects","enable_history","enable_sensors","enable_spoolman","enable_power"):
+          for flag in ("enable_jobqueue","enable_files","enable_objects","enable_history","enable_sensors","enable_spoolman","enable_power"):
               assert cfg["options"][flag] is False, flag
               assert cfg["schema"][flag]=="bool", flag
           dockerfile=(root/"Dockerfile").read_text()
