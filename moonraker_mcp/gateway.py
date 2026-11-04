@@ -331,6 +331,9 @@ class Handler(BaseHTTPRequestHandler):
                     return self.reply(200, parsed, extra)
             except urllib.error.HTTPError as exc:
                 return self.reply(502, {"error": "Upstream MCP error", "status": exc.code})
+            except (PolicyError, ValueError, TypeError, UnicodeError):
+                # Invalid upstream protocol data is a gateway failure, not a client denial.
+                return self.reply(502, {"error": "Invalid upstream MCP response"})
         except urllib.error.HTTPError as exc:
             # File API errors must not reveal Moonraker URLs, API keys or bodies.
             if exc.code == 404:
