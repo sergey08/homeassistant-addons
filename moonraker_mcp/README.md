@@ -9,7 +9,7 @@ Experimental Home Assistant add-on wrapping [lexfrei/mcp-raker](https://github.c
 - `tools/list` is filtered using `read_only_allowlist.json` (4 minimal status tools by default).
 - `tools/call` is independently checked against the same explicit allowlist; unknown tools and unsupported MCP methods fail closed.
 - The upstream image is pinned to `sha256:cdfbb9b4ead2b3f8a253eb55c1996a69cfdbc17088cc111b7d265d8b71f7090e`.
-- The Alpine runtime contains Python, jq, CA certificates and the upstream Go executable. It runs as UID 65534.
+- The Alpine runtime contains Python, jq, CA certificates and the upstream Go executable. The launcher starts as root to read Supervisor-protected options, then starts the long-lived gateway and upstream services as UID 65534.
 
 ## Security / Seguridad
 
@@ -54,6 +54,12 @@ The optional tunnel integration follows the **existing Obsidian Suite add-on** p
 **Español:** el SDK oficial MCP para Python conecta con el contenedor real, negocia el protocolo, descubre las cuatro herramientas predeterminadas y ejecuta la consulta de versión. Una llamada de ejecución de G-code se bloquea con 403. Todo ello se comprueba sin conectar ninguna impresora.
 
 **What remains unverified / Pendiente:** ChatGPT's actual remote registration, credential/tunnel configuration, HTTPS or secure tunnel access, real Home Assistant add-on installation, live Moonraker responses and private-data redaction. The gateway remains a limited Streamable HTTP implementation and is **not** certified production-ready. Never put a token or private endpoint in this repository; secure exposure and printer access require separate authorization.
+
+## Live validation / Validación real (2026-11-04)
+
+On Snapmaker U1 with Moonraker 2.0.0 and firmware `2.0.0-paxx12-23`, authenticated MCP initialization, initialized notification, `tools/list` (four default tools), and read-only `moonraker_printer_info` were verified successfully against the real printer. This does **not** verify operation while the printer is powered off, recovery after power-on, or remote ChatGPT connectivity. A previous Supervisor rebuild reused an older `0.1.0-dev1` image tag; the package version has therefore been incremented to `0.1.0-dev2`. CI checks image launcher identity. Never expose ports by default.
+
+**Español:** validado el funcionamiento real de las cuatro herramientas visibles y la llamada de consulta `moonraker_printer_info` en una Snapmaker U1 encendida. Pendiente comprobar desconexión y reconexión, reconstrucción por Supervisor con la nueva versión y conexión externa segura. Rotar las credenciales usadas en pruebas antes de cualquier exposición.
 
 ## Next / Próximos pasos
 
