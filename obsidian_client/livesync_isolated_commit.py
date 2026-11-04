@@ -49,6 +49,11 @@ def commit_isolated_plan(plan, put_document, *, isolated_test=False,
         raise UnsafeWrite("leaf_update_not_supported")
     if leaf["_id"] == parent["_id"]:
         raise UnsafeWrite("parent_leaf_identity_collision")
+    # LiveSync leaf/parent plans do not carry CouchDB attachment payloads.
+    # Reject even empty attachment fields before issuing the first PUT.
+    for document in (leaf,parent):
+        if "_attachments" in document:
+            raise UnsafeWrite("attachments_not_supported")
     # Never commit tombstones or documents with unresolved conflicts.
     for document in (leaf,parent):
         if (document.get("_deleted") or document.get("deleted")
