@@ -27,6 +27,7 @@ class FakeUpstream(BaseHTTPRequestHandler):
     response_content_type = "application/json"
     sse_extra_lines = None
     session_headers = []
+    response_session_id = None
 
     def do_POST(self):
         if self.path == "/collect":
@@ -93,6 +94,8 @@ class FakeUpstream(BaseHTTPRequestHandler):
             body = ("event: message\n" + "\n".join(lines) + "\ndata: " + body.decode() + "\n\n").encode()
         self.send_response(200)
         self.send_header("Content-Type", self.response_content_type)
+        if self.response_session_id:
+            self.send_header("Mcp-Session-Id", self.response_session_id)
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
@@ -132,6 +135,30 @@ class HTTPGatewayTests(unittest.TestCase):
                 return res.status, json.loads(res.read())
         except urllib.error.HTTPError as err:
             return err.code, json.loads(err.read())
+
+    def test_initialize_returns_upstream_session_header(self):
+        FakeUpstream.response_session_id = "session-from-upstream"
+        try:
+            payload = json.dumps({
+                "jsonrpc": "2.0", "id": 1, "method": "initialize",
+                "params": {"protocolVersion": "2025-06-18",
+                           "capabilities": {},
+                           "clientInfo": {"name": "mock-client", "version": "1.0"}}
+            }).encode()
+            req = urllib.request.Request(
+                "http://127.0.0.1:%s/mcp" % self.gateway.server_port,
+                data=payload,
+                headers={"Authorization": "Bearer ci-secret",
+                         "Content-Type": "application/json",
+                         "Accept": "application/json, text/event-stream"})
+            with urllib.request.urlopen(req, timeout=5) as response:
+                self.assertEqual(response.status, 200)
+                self.assertEqual(response.headers.get("Mcp-Session-Id"),
+                                 "session-from-upstream")
+                body = json.loads(response.read())
+                self.assertEqual(body["result"]["protocolVersion"], "2025-06-18")
+        finally:
+            FakeUpstream.response_session_id = None
 
     def test_session_header_forwarded_across_requests(self):
         initial = len(FakeUpstream.session_headers)
