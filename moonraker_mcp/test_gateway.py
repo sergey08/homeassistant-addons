@@ -1,6 +1,6 @@
 import unittest
 from gateway import check_message, filter_reply, validate_reply, validate_mcp_header, strict_json_loads
-from tool_policy import PolicyError, load_allowed, extend_allowed
+from tool_policy import PolicyError, load_allowed, extend_allowed, filter_tools
 
 
 class GatewayTests(unittest.TestCase):
@@ -116,6 +116,21 @@ class GatewayTests(unittest.TestCase):
             with self.subTest(item=item), self.assertRaises(PolicyError):
                 filter_reply("tools/call", {**base, "result": {"content": [item]}},
                              self.allowed)
+
+    def test_visible_tool_schema_and_duplicate_names(self):
+        valid = {"name": "moonraker_printer_info", "inputSchema": {"type": "object"}}
+        self.assertEqual(filter_tools([valid], self.allowed), [valid])
+        for invalid in (
+            {"name": "moonraker_printer_info"},
+            {"name": "moonraker_printer_info", "inputSchema": {}},
+            {"name": "moonraker_printer_info", "inputSchema": {"type": "array"}},
+            {"name": "moonraker_printer_info", "inputSchema": {"type": "object"},
+             "description": 123},
+        ):
+            with self.subTest(tool=invalid), self.assertRaises(PolicyError):
+                filter_tools([invalid], self.allowed)
+        with self.assertRaises(PolicyError):
+            filter_tools([valid, valid], self.allowed)
 
     def test_upstream_reply_validation(self):
         request = {"jsonrpc": "2.0", "id": 9, "method": "ping"}
