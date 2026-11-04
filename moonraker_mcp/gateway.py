@@ -147,6 +147,12 @@ def filter_reply(method, response, allowed, cursor=None):
             raise PolicyError("Unsupported upstream MCP protocol version")
         if not isinstance(result.get("capabilities"), dict) or not isinstance(result.get("serverInfo"), dict):
             raise PolicyError("Invalid upstream MCP initialize response")
+        server_info = result["serverInfo"]
+        if (not isinstance(server_info.get("name"), str) or not server_info["name"] or
+                not isinstance(server_info.get("version"), str) or not server_info["version"]):
+            raise PolicyError("Invalid upstream MCP server identity")
+        if "instructions" in result and not isinstance(result["instructions"], str):
+            raise PolicyError("Invalid upstream MCP instructions")
         return response
     if method != "tools/list":
         return response
