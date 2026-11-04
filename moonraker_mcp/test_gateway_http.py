@@ -253,6 +253,40 @@ class HTTPGatewayTests(unittest.TestCase):
                 finally:
                     FakeUpstream.response_session_id = None
 
+    def test_mcp_initialize_notification_and_list_sequence(self):
+        FakeUpstream.response_session_id = "lifecycle-test-session"
+        start = len(FakeUpstream.calls)
+        try:
+            steps = [
+                ("initialize", 1,
+                 {"protocolVersion": "2025-06-18", "capabilities": {},
+                  "clientInfo": {"name": "mock-client", "version": "1.0"}}, 200),
+                ("notifications/initialized", None, {}, 202),
+                ("tools/list", 2, {}, 200),
+            ]
+            for method, request_id, params, expected_status in steps:
+                with self.subTest(method=method):
+                    message = {"jsonrpc": "2.0", "method": method, "params": params}
+                    if request_id is not None:
+                        message["id"] = request_id
+                    headers = {"Authorization": "Bearer ci-secret",
+                               "Content-Type": "application/json"}
+                    if method != "initialize":
+                        headers["Mcp-Session-Id"] = "lifecycle-test-session"
+                    req = urllib.request.Request(
+                        "http://127.0.0.1:%s/mcp" % self.gateway.server_port,
+                        data=json.dumps(message).encode(), headers=headers)
+                    with urllib.request.urlopen(req, timeout=5) as response:
+                        self.assertEqual(response.status, expected_status)
+                        if method == "initialize":
+                            self.assertEqual(response.headers.get("Mcp-Session-Id"),
+                                             "lifecycle-test-session")
+                        response.read()
+            self.assertEqual([call["method"] for call in FakeUpstream.calls[start:]],
+                             [step[0] for step in steps])
+        finally:
+            FakeUpstream.response_session_id = None
+
     def test_initialize_returns_upstream_session_header(self):
         FakeUpstream.response_session_id = "session-from-upstream"
         try:
