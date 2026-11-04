@@ -15,7 +15,7 @@ if [ -z "$MCP_HTTP_TOKEN" ]; then
   echo "Configure a nonempty MCP HTTP token" >&2
   exit 1
 fi
-MCP_ALLOWED_PROFILES="$(jq -ecr '[["files", .enable_files], ["objects", .enable_objects], ["history", .enable_history], ["sensors", .enable_sensors], ["spoolman", .enable_spoolman], ["power", .enable_power]] | if all(.[]; .[1] == null or (.[1] | type) == "boolean") then map(select(.[1] == true) | .[0]) else error("Optional MCP profiles must be boolean") end' "$OPTIONS")"
+MCP_ALLOWED_PROFILES="$(jq -ecr '[["jobqueue", .enable_jobqueue], ["files", .enable_files], ["objects", .enable_objects], ["history", .enable_history], ["sensors", .enable_sensors], ["spoolman", .enable_spoolman], ["power", .enable_power]] | if all(.[]; .[1] == null or (.[1] | type) == "boolean") then map(select(.[1] == true) | .[0]) else error("Optional MCP profiles must be boolean") end' "$OPTIONS")"
 export MCP_ALLOWED_PROFILES
 export MCP_HTTP_HOST=127.0.0.1
 export MCP_HTTP_PORT=8766
