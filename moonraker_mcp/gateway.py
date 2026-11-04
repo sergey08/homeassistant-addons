@@ -321,7 +321,8 @@ class Handler(BaseHTTPRequestHandler):
                         self.end_headers()
                         return
                     content_type = upstream.headers.get("Content-Type", "")
-                    if "text/event-stream" in content_type:
+                    media_type = content_type.split(";", 1)[0].strip().lower()
+                    if media_type == "text/event-stream":
                         events = [
                             line[6:].strip() for line in raw.decode().splitlines()
                             if line.startswith("data:")
@@ -329,7 +330,7 @@ class Handler(BaseHTTPRequestHandler):
                         if len(events) != 1:
                             raise PolicyError("Unsupported upstream SSE response")
                         raw = events[0].encode()
-                    elif "application/json" not in content_type:
+                    elif media_type != "application/json":
                         raise PolicyError("Unsupported upstream content type")
                     parsed = filter_reply(method, validate_reply(message, strict_json_loads(raw)), self.allowed,
                                           message.get("params", {}).get("cursor") if method == "tools/list" else None)
