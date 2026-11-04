@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from private_markdown_vault import LocalVaultError, read_note, save_note
+from private_markdown_vault import LocalVaultError, read_note, save_note, list_notes
 
 
 class PrivateMarkdownVaultTests(unittest.TestCase):
@@ -49,6 +49,12 @@ class PrivateMarkdownVaultTests(unittest.TestCase):
         (self.vault / "link").symlink_to(self.backups, target_is_directory=True)
         with self.assertRaisesRegex(LocalVaultError, "symlink_not_allowed"):
             save_note(self.vault, self.backups, "link/trap.md", "unsafe", "create")
+
+    def test_list_only_private_safe_markdown(self):
+        save_note(self.vault, self.backups, "Notes/first.md", "safe", "create")
+        (self.vault / ".hidden.md").write_text("hidden")
+        (self.vault / "Notes" / "link.md").symlink_to(self.vault / "Notes" / "first.md")
+        self.assertEqual(list_notes(self.vault), ["Notes/first.md"])
 
     def test_invalid_revision_and_content(self):
         save_note(self.vault, self.backups, "x.md", "ok", "create")

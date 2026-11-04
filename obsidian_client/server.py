@@ -1275,6 +1275,25 @@ def livesync_cli_local_save():
         return jsonify(error=exc.code), code
 
 
+@app.get("/private-drafts")
+def private_drafts():
+    """Browse isolated local drafts, never the configured remote vault."""
+    from private_markdown_vault import LocalVaultError, list_notes
+    try:
+        with _local_save_lock:
+            notes = list_notes(_PRIVATE_VAULT)
+    except LocalVaultError:
+        return page("<h1>Borradores locales</h1><p>No se pudo abrir el almacén local.</p>"), 409
+    rows = "".join(
+        '<li><a href="remote/new?path=' + quote(name, safe="") + '">' +
+        html.escape(name) + "</a></li>" for name in notes)
+    return page('<h1>Borradores locales / Private drafts</h1>'
+                '<p>Archivos Markdown privados. Sin sincronizar con CouchDB.</p>'
+                '<p><a href="remote/new?path=Nuevo.md">Crear nota / New note</a></p>'
+                '<ul>' + rows + '</ul>'
+                '<p><a href="./">Volver / Back</a></p>')
+
+
 @app.get("/remote/new")
 def remote_new_draft():
     """Create an offline Markdown draft; never write to CouchDB."""
@@ -1598,7 +1617,8 @@ def home():
     root = vault_dir()
     status = ('<p><a href="api/demo">Offline example / Ejemplo aislado (JSON)</a> · '
               '<a href="api/connection">CouchDB diagnostics / Diagnóstico CouchDB (JSON)</a> · '
-              '<a href="livesync/setup">Configuración LiveSync</a></p>')
+              '<a href="livesync/setup">Configuración LiveSync</a> · '
+              '<a href="private-drafts">Borradores locales / Private drafts</a></p>')
     if not root.is_dir():
         cfg = options()
         if cfg.get("livesync_encryption_enabled"):

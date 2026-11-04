@@ -125,3 +125,21 @@ def save_note(root, backup_root, name, content, mode, expected_sha256=None):
             os.unlink(tmp)
     return {"path": name, "sha256": hashlib.sha256(data).hexdigest(),
             "status": "saved_private_markdown_only", "remote_synced": False}
+
+
+def list_notes(root, *, limit=500):
+    """List only ordinary Markdown files under the isolated private vault."""
+    base = _root(root)
+    names = []
+    for candidate in base.rglob("*.md"):
+        relative = candidate.relative_to(base)
+        if (any(part.startswith(".") for part in relative.parts)
+                or any(part.is_symlink() for part in [base / Path(*relative.parts[:i])
+                                                     for i in range(1, len(relative.parts) + 1)])
+                or not candidate.is_file()
+                or not candidate.resolve(strict=False).is_relative_to(base)):
+            continue
+        names.append(relative.as_posix())
+        if len(names) >= limit:
+            break
+    return sorted(names, key=str.casefold)

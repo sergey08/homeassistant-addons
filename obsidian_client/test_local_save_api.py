@@ -200,6 +200,14 @@ class LocalSaveTests(unittest.TestCase):
         self.assertEqual(response.json["content"], "# Hello")
         self.assertFalse(response.json["remote_synced"])
 
+    def test_private_drafts_page_lists_saved_markdown(self):
+        self.assertEqual(self.post().status_code, 200)
+        page = self.client.get("/private-drafts")
+        self.assertEqual(page.status_code, 200)
+        self.assertIn("Notes/New.md", page.get_data(as_text=True))
+        self.assertIn("remote/new?path=Notes%2FNew.md", page.get_data(as_text=True))
+        self.assertIn("Sin sincronizar", page.get_data(as_text=True))
+
     def test_invalid_path_blocked(self):
         response = self.post({**self.payload, "path": "../secret.md"})
         self.assertEqual(response.status_code, 400)
