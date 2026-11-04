@@ -131,6 +131,33 @@ class HTTPGatewayTests(unittest.TestCase):
         except urllib.error.HTTPError as err:
             return err.code, json.loads(err.read())
 
+    def test_duplicate_accept_header_is_rejected(self):
+        payload = json.dumps({"jsonrpc": "2.0", "id": 1, "method": "ping",
+                              "params": {}}).encode()
+        req = urllib.request.Request(
+            "http://127.0.0.1:%s/" % self.gateway.server_port,
+            data=payload,
+            headers={"Authorization": "Bearer ci-secret",
+                     "Content-Type": "application/json", "Accept": "application/json"})
+        req.add_unredirected_header("Accept", "text/event-stream")
+        # urllib replaces duplicate fields; use http.client for literal duplicates.
+        import http.client
+        connection = http.client.HTTPConnection("127.0.0.1", self.gateway.server_port, timeout=5)
+        try:
+            connection.putrequest("POST", "/")
+            connection.putheader("Authorization", "Bearer ci-secret")
+            connection.putheader("Content-Type", "application/json")
+            connection.putheader("Content-Length", str(len(payload)))
+            connection.putheader("Accept", "application/json")
+            connection.putheader("Accept", "text/event-stream")
+            connection.endheaders(payload)
+            response = connection.getresponse()
+            self.assertEqual(response.status, 400)
+            self.assertEqual(response.headers.get("Cache-Control"), "no-store")
+            response.read()
+        finally:
+            connection.close()
+
     def test_http_errors_are_not_cacheable_or_verbose(self):
         payload = json.dumps({"jsonrpc": "2.0", "id": 1, "method": "ping",
                               "params": {}}).encode()
