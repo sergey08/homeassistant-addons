@@ -3,7 +3,13 @@ on:
   workflow_dispatch:
   push:
     branches: [main, feature/markdown-local-vault]
+    paths:
+      - 'obsidian_suite/**'
+      - '.github/workflows/obsidian-mcp-local-vault.yml'
   pull_request:
+    paths:
+      - 'obsidian_suite/**'
+      - '.github/workflows/obsidian-mcp-local-vault.yml'
 permissions:
   contents: read
 jobs:
