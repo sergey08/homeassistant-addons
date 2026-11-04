@@ -9,6 +9,7 @@ import os
 import re
 import urllib.error
 import urllib.request
+import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from moonraker_files import FileAccessError, list_gcodes, gcode_metadata, gcode_preview
 from tool_policy import PolicyError, authorize_call, extend_allowed, filter_tools, load_allowed
@@ -247,10 +248,31 @@ class Handler(BaseHTTPRequestHandler):
                                            "isError": True}})
 
     def do_POST(self):
-        # Remote MCP is server-to-server. Reject browser origins to prevent
-        # DNS rebinding and cross-site requests to a privately hosted gateway.
-        if self.headers.get_all("Origin", []):
-            return self.reply(403, {"error": "Origin is not permitted"})
+        # The official MCP SDK sends an Origin header even for a local HTTP
+        # client. Accept only a syntactically valid, same-authority Origin.
+        # Never reflect an arbitrary Origin or add permissive CORS headers.
+        origins = self.headers.get_all("Origin", [])
+        hosts = self.headers.get_all("Host", [])
+        if len(origins) > 1 or len(hosts) != 1:
+            return self.reply(403, {"error": "Invalid request origin"})
+        if origins:
+            try:
+                parsed = urllib.parse.urlsplit(origins[0])
+                host = hosts[0]
+                valid = (
+                    parsed.scheme in ("http", "https")
+                    and parsed.netloc
+                    and parsed.hostname
+                    and parsed.username is None
+                    and parsed.password is None
+                    and not parsed.path and not parsed.query and not parsed.fragment
+                    and parsed.netloc.lower() == host.lower()
+                    and (parsed.scheme == "https" or parsed.hostname in ("localhost", "127.0.0.1", "::1"))
+                )
+            except ValueError:
+                valid = False
+            if not valid:
+                return self.reply(403, {"error": "Origin is not permitted"})
         if self.path not in ("/", "/mcp"):
             return self.reply(404, {"error": "Not found"})
         if len(self.headers.get_all("Authorization", [])) != 1:
