@@ -275,11 +275,6 @@ class Handler(BaseHTTPRequestHandler):
                         raw = events[0].encode()
                     elif "application/json" not in content_type:
                         raise PolicyError("Unsupported upstream content type")
-                    if not raw.strip() and method == "notifications/initialized":
-                        self.send_response(202)
-                        self.send_header("Content-Length", "0")
-                        self.end_headers()
-                        return
                     parsed = filter_reply(method, validate_reply(message, strict_json_loads(raw)), self.allowed,
                                           message.get("params", {}).get("cursor") if method == "tools/list" else None)
                     extra = {}
