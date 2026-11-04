@@ -5,6 +5,7 @@ document body, use the same revision read for validation, and treat 409 as
 a conflict; never retry with a newly fetched revision automatically.
 """
 import re
+from copy import deepcopy
 
 _REV = re.compile(r"[1-9][0-9]*-[0-9a-fA-F]{32}\Z")
 
@@ -23,7 +24,7 @@ def require_matching_revision(expected_revision, observed_revision):
 
 
 def prepare_conditional_document(original, replacement, expected_revision):
-    """Return a new candidate body; do not mutate either input."""
+    """Return a detached candidate body, including nested metadata."""
     if not isinstance(original, dict) or not isinstance(replacement, dict):
         raise RevisionConflict("invalid_document")
     document_id = original.get("_id")
@@ -34,7 +35,7 @@ def prepare_conditional_document(original, replacement, expected_revision):
         raise RevisionConflict("identity_or_revision_changed")
     if replacement.get("_deleted") or replacement.get("deleted"):
         raise RevisionConflict("deletion_not_supported")
-    return dict(replacement)
+    return deepcopy(replacement)
 
 
 def require_successful_put(status_code, response):
