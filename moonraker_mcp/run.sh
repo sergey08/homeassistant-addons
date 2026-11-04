@@ -11,7 +11,7 @@ MOONRAKER_API_KEY="$(jq -er 'if .moonraker_api_key == null then "" else .moonrak
 export MOONRAKER_API_KEY
 MCP_HTTP_TOKEN="$(jq -er 'if .mcp_http_token == null then "" else .mcp_http_token | select(type=="string") end' "$OPTIONS")"
 export MCP_HTTP_TOKEN
-MCP_ENABLE_TUNNEL="$(jq -er 'if .enable_tunnel == null then false else .enable_tunnel | select(type=="boolean") end' "$OPTIONS")"
+MCP_ENABLE_TUNNEL="$(jq -r 'if .enable_tunnel == null then "false" elif (.enable_tunnel | type) == "boolean" then (.enable_tunnel | tostring) else error("enable_tunnel must be boolean") end' "$OPTIONS")"
 MCP_TUNNEL_ID="$(jq -er 'if .tunnel_id == null then "" else .tunnel_id | select(type=="string") end' "$OPTIONS")"
 export MCP_TUNNEL_ID
 if [ -z "$MCP_HTTP_TOKEN" ]; then
