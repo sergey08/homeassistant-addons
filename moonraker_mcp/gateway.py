@@ -95,6 +95,10 @@ def check_message(message, allowed):
             raise PolicyError("Unsupported MCP protocol version")
         if not isinstance(params.get("capabilities"), dict) or not isinstance(params.get("clientInfo"), dict):
             raise PolicyError("Invalid MCP initialize parameters")
+        client_info = params["clientInfo"]
+        if (not isinstance(client_info.get("name"), str) or not client_info["name"] or
+                not isinstance(client_info.get("version"), str) or not client_info["version"]):
+            raise PolicyError("Invalid MCP client identity")
     if method == "tools/call":
         params = message.get("params")
         if not isinstance(params, dict):
