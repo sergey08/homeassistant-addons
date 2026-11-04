@@ -104,6 +104,60 @@ class TestIsolatedCommit(unittest.TestCase):
             commit_isolated_plan(plan(),fake_put,isolated_test=True)
         self.assertEqual(calls,["h:+abc","notes/example.md"])
 
+    def test_leaf_failure_never_attempts_parent_or_retries(self):
+        for status, payload, expected_error in (
+                (409, {"error":"conflict"}, "remote_revision_conflict"),
+                (503, {"error":"unavailable"}, "remote_write_not_confirmed"),
+                (201, {"ok":True,"id":"h:+abc","rev":"2-"+"c"*32},
+                 "unexpected_revision_generation")):
+            candidate=plan()
+            original=deepcopy(candidate)
+            calls=[]
+            def fake_put(doc):
+                calls.append(doc["_id"])
+                return status,payload
+            with self.subTest(status=status,payload=payload), self.assertRaisesRegex(
+                    RevisionConflict,expected_error):
+                commit_isolated_plan(candidate,fake_put,isolated_test=True)
+            self.assertEqual(calls,["h:+abc"])
+            self.assertEqual(candidate,original)
+
+    def test_parent_failure_never_retries_or_mutates_input(self):
+        for status,payload,expected_error in (
+                (409, {"error":"conflict"}, "remote_revision_conflict"),
+                (503, {"error":"unavailable"}, "remote_write_not_confirmed")):
+            candidate=plan()
+            original=deepcopy(candidate)
+            calls=[]
+            def fake_put(doc):
+                calls.append(doc["_id"])
+                if doc["type"]=="leaf":
+                    return 201,{"ok":True,"id":doc["_id"],"rev":"1-"+"c"*32}
+                return status,payload
+            with self.subTest(status=status), self.assertRaisesRegex(
+                    RevisionConflict,expected_error):
+                commit_isolated_plan(candidate,fake_put,isolated_test=True)
+            self.assertEqual(calls,["h:+abc","notes/example.md"])
+            self.assertEqual(candidate,original)
+
+    def test_transport_exceptions_stop_without_retry_or_parent_fallback(self):
+        for fail_kind in ("leaf","parent"):
+            candidate=plan()
+            original=deepcopy(candidate)
+            calls=[]
+            def fake_put(doc):
+                calls.append(doc["_id"])
+                if (doc["type"]=="leaf") == (fail_kind=="leaf"):
+                    raise ConnectionError("synthetic_network_disconnect")
+                return 201,{"ok":True,"id":doc["_id"],"rev":"1-"+"c"*32}
+            with self.subTest(fail_kind=fail_kind), self.assertRaisesRegex(
+                    ConnectionError,"synthetic_network_disconnect"):
+                commit_isolated_plan(candidate,fake_put,isolated_test=True)
+            expected_calls=(["h:+abc"] if fail_kind=="leaf" else
+                            ["h:+abc","notes/example.md"])
+            self.assertEqual(calls,expected_calls)
+            self.assertEqual(candidate,original)
+
     def test_new_parent_create_uses_generation_one(self):
         candidate=plan()
         del candidate["parent"]["_rev"]
