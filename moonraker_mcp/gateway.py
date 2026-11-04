@@ -243,6 +243,10 @@ class Handler(BaseHTTPRequestHandler):
                                            "isError": True}})
 
     def do_POST(self):
+        # Remote MCP is server-to-server. Reject browser origins to prevent
+        # DNS rebinding and cross-site requests to a privately hosted gateway.
+        if self.headers.get_all("Origin", []):
+            return self.reply(403, {"error": "Origin is not permitted"})
         if self.path not in ("/", "/mcp"):
             return self.reply(404, {"error": "Not found"})
         if len(self.headers.get_all("Authorization", [])) != 1:
