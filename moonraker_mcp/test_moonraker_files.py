@@ -101,6 +101,41 @@ class FileApiTests(unittest.TestCase):
             gcode_preview("http://printer.local:7125", "test.gcode",
                           opener=lambda req, timeout: RawResponse(b"x" * 16385))
 
+    def test_preview_rejects_server_ignoring_range(self):
+        """A server returning HTTP 200 with a full file must not bypass the cap."""
+        import threading
+        from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+        from moonraker_files import MAX_GCODE_PREVIEW_BYTES
+
+        class IgnoreRange(BaseHTTPRequestHandler):
+            seen_range = None
+            def do_GET(self):
+                type(self).seen_range = self.headers.get("Range")
+                payload = b"G" * (MAX_GCODE_PREVIEW_BYTES + 2048)
+                self.send_response(200)
+                self.send_header("Content-Type", "application/octet-stream")
+                self.send_header("Content-Length", str(len(payload)))
+                self.end_headers()
+                try:
+                    self.wfile.write(payload)
+                except (BrokenPipeError, ConnectionResetError):
+                    pass
+            def log_message(self, *args):
+                pass
+
+        server = ThreadingHTTPServer(("127.0.0.1", 0), IgnoreRange)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            with self.assertRaises(FileAccessError):
+                gcode_preview("http://127.0.0.1:%s" % server.server_port,
+                              "part.gcode", api_key="secret")
+            self.assertEqual(IgnoreRange.seen_range, "bytes=0-16383")
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=5)
+
     def test_preview_never_reads_beyond_limit(self):
         class BoundedResponse:
             def __enter__(self): return self
