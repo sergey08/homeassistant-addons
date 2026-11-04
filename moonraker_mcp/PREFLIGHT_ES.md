@@ -110,9 +110,28 @@ El usuario ha elegido expresamente reutilizar el **mismo mecanismo OpenAI Secure
 - El complemento Home Assistant sigue con arranque manual y el mapeo externo del puerto 8765 sin publicar (`null`) por defecto. Un cliente túnel ejecutado fuera de su espacio de red no puede acceder a un puerto no publicado: **hay que diseñar y verificar un canal interno entre ambos procesos** antes de integrar el túnel. No resolverlo publicando el puerto en el router.
 - El `tunnel-client` se conectará de forma **saliente** al servicio de túneles. Su destino local debe apuntar exclusivamente al gateway filtrado; nunca al `mcp-raker` sin filtrar ni a la API Moonraker.
 - No escribir en GitHub el Tunnel ID privado, claves, tokens, rutas secretas ni direcciones internas. Guardarlos únicamente en configuración local protegida.
-- **Compatibilidad de autenticación pendiente:** el gateway actual exige `Authorization: Bearer <mcp_http_token>` en cada POST. Comprobar si el cliente de túnel puede añadir ese encabezado al destino local de manera segura. Si no puede, no desactivar sin más la autenticación; diseñar un adaptador local con privilegios mínimos o una identidad autenticada equivalente.
+- **Autenticación: reutilizar el patrón probado con el MCP de SAP Cloud Connector.** El perfil de `tunnel-client` configura `extra_headers` y `discovery_extra_headers` con `Authorization: file:<ruta privada>`, donde el fichero contiene la cabecera completa `Bearer <token>` (permisos `0600`). Mantener el mismo token en la opción local `mcp_http_token` del gateway, sin exponerlo en GitHub ni en registros. No hace falta eliminar autenticación ni escribir una credencial en el YAML.
+- **Separación de equipos:** los túneles SSH/SAP anteriores se ejecutan en una máquina Debian distinta de Home Assistant. En aquel entorno, el proxy Bearer escuchaba en loopback y el `tunnel-client` apuntaba a `http://127.0.0.1:<puerto>/mcp`. Para Moonraker conservaremos ese esquema en el host Debian: un proxy local en loopback con destino exclusivamente al gateway filtrado del complemento en HA.
+- **Conectividad Debian → HA:** el proxy de Debian debe alcanzar el gateway de HA por un enlace LAN/VPN privado y controlado. El puerto `8765` del complemento sigue sin mapear por defecto; para conectar dos hosts distintos será imprescindible habilitar expresamente un acceso de red privado y restringido (o un canal privado equivalente). **No** implica abrir puertos en el router ni publicar un servicio en Internet. La topología de red concreta se verificará antes del despliegue; no asumir que `127.0.0.1` del Debian apunta a HA.
 - Probar de forma independiente las solicitudes `initialize`, `notifications/initialized`, `tools/list`, `tools/call` autorizadas y denegadas a través del túnel, con un servicio de prueba **sin impresora**.
 - Solo con autorización explícita: preparar el túnel, instalar el complemento, conectar Moonraker y registrar el servidor en ChatGPT; son decisiones separadas. La selección de arquitectura de túnel **no autoriza el despliegue**.
+
+### Configuración de referencia (plantilla, sin credenciales reales)
+
+Reutilizar en el Debian los mismos campos ya comprobados en el perfil del MCP SAP, pero con identidad y archivos exclusivos para Moonraker:
+
+```yaml
+# Perfil exclusivo de tunnel-client para Moonraker MCP.
+# Completar con los campos de identidad/endpoint del perfil existente.
+extra_headers:
+  Authorization: file:/home/ivan/.config/moonraker-mcp/tunnel-authorization
+discovery_extra_headers:
+  Authorization: file:/home/ivan/.config/moonraker-mcp/tunnel-authorization
+```
+
+El archivo `tunnel-authorization` (modo `0600`) debe contener una única línea `Bearer <token-privado>`, con valor idéntico al configurado como `mcp_http_token` en HA. El destino HTTP del túnel apuntará al **proxy local restringido de Debian**; el proxy comunicará con `/mcp` del gateway de HA y nunca con Moonraker ni el upstream sin filtrar. Conservar el flujo `doctor` y `health` del `tunnel-client` utilizado con SAP para las pruebas.
+
+**No reutilizar literalmente** los puertos, nombres de perfil ni rutas de autenticación de SAP: crear recursos independientes; no modificar sus perfiles en funcionamiento. Este documento define el patrón, no confirma que exista ya el enlace de red Debian → HA ni que se haya desplegado el túnel.
 
 ### Criterio de avance
 
