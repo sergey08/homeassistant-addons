@@ -330,7 +330,7 @@ class GatewayTests(unittest.TestCase):
         for name in ("moonraker_files_list", "moonraker_files_metadata",
                      "moonraker_files_preview"):
             with self.subTest(name=name):
-                response = {"result": {"tools": [{"name": name, "description": "upstream"}]}}
+                response = {"result": {"tools": [{"name": name, "description": "upstream", "inputSchema": {"type": "object"}}]}}
                 disabled = filter_reply("tools/list", response, self.allowed)
                 self.assertEqual(disabled["result"]["tools"], [])
                 enabled = filter_reply("tools/list", response,
