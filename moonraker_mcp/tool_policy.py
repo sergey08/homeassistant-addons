@@ -8,6 +8,7 @@ from pathlib import Path
 
 POLICY_PATH = Path(__file__).with_name("read_only_allowlist.json")
 OPTIONAL_PROFILES = {
+    "jobqueue": frozenset(("moonraker_jobqueue_status",)),
     "files": frozenset(("moonraker_files_list", "moonraker_files_metadata", "moonraker_files_preview")),
     "objects": frozenset(("moonraker_objects_list", "moonraker_objects_query")),
     "history": frozenset(("moonraker_history_list", "moonraker_history_job", "moonraker_history_totals")),
