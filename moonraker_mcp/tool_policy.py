@@ -60,6 +60,11 @@ def filter_tools(tools, allowed):
             raise PolicyError("Duplicate upstream tool name")
         seen.add(name)
         if name in allowed:
+            schema = tool.get("inputSchema")
+            if not isinstance(schema, dict) or schema.get("type") != "object":
+                raise PolicyError("Invalid upstream tool input schema")
+            if "description" in tool and not isinstance(tool["description"], str):
+                raise PolicyError("Invalid upstream tool description")
             visible.append(tool)
     return visible
 
