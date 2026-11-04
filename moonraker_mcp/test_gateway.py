@@ -79,6 +79,20 @@ class GatewayTests(unittest.TestCase):
         valid = {**base, "result": {**base["result"], "instructions": "Read-only tools"}}
         self.assertEqual(filter_reply("initialize", valid, self.allowed), valid)
 
+    def test_upstream_tool_call_content_validation(self):
+        base = {"jsonrpc": "2.0", "id": 1}
+        valid = {**base, "result": {"content": [
+            {"type": "text", "text": "printer ready"}], "isError": False}}
+        self.assertEqual(filter_reply("tools/call", valid, self.allowed), valid)
+        for result in (
+            {}, {"content": {}}, {"content": ["text"]},
+            {"content": [{"type": "text", "text": None}]},
+            {"content": [{"text": "missing type"}]},
+            {"content": [], "isError": "false"},
+        ):
+            with self.subTest(result=result), self.assertRaises(PolicyError):
+                filter_reply("tools/call", {**base, "result": result}, self.allowed)
+
     def test_upstream_reply_validation(self):
         request = {"jsonrpc": "2.0", "id": 9, "method": "ping"}
         valid = {"jsonrpc": "2.0", "id": 9, "result": {}}
