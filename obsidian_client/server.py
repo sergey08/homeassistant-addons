@@ -1224,6 +1224,27 @@ _local_save_lock = Lock()
 _PRIVATE_VAULT = "/data/obsidian-client-markdown"
 _PRIVATE_BACKUPS = "/data/obsidian-client-backups"
 
+# Opt-in only: the MCP's already-provisioned LiveSync Markdown vault.
+# No second synchronizer is started. The legacy shared MCP path must exist.
+_MCP_SHARED_VAULT = "/share/obsidian-shared-vault"
+
+
+def editor_markdown_vault():
+    """Resolve a fixed storage mode; never infer arbitrary vault paths."""
+    from private_markdown_vault import LocalVaultError
+    from pathlib import Path
+    mode = options().get("editor_storage_mode", "private")
+    if mode == "private":
+        return _PRIVATE_VAULT
+    if mode != "mcp_shared":
+        raise LocalVaultError("unsupported_editor_storage_mode")
+    root = Path(_MCP_SHARED_VAULT)
+    if (not root.is_dir() or root.is_symlink()
+            or root.resolve(strict=True) != root):
+        raise LocalVaultError("mcp_shared_vault_unavailable")
+    return str(root)
+
+
 
 @app.get("/api/livesync-cli/local-note")
 def livesync_cli_local_note():
@@ -1232,10 +1253,10 @@ def livesync_cli_local_note():
     name = request.args.get("path", "")
     try:
         with _local_save_lock:
-            note = read_note(_PRIVATE_VAULT, name)
+            note = read_note(editor_markdown_vault(), name)
         return jsonify(**note, remote_synced=False)
     except LocalVaultError as exc:
-        code = 404 if exc.code == "note_not_found" else 400
+        code = 404 if exc.code == "note_not_found" else 409 if exc.code == "mcp_shared_vault_unavailable" else 400
         return jsonify(error=exc.code), code
 
 
@@ -1265,13 +1286,13 @@ def livesync_cli_local_save():
                 revision = sha256(expected.encode("utf-8")).hexdigest()
             else:
                 revision = None
-            result = save_note(_PRIVATE_VAULT, _PRIVATE_BACKUPS, name, content, mode,
+            result = save_note(editor_markdown_vault(), _PRIVATE_BACKUPS, name, content, mode,
                                expected_sha256=revision)
         return jsonify(**result)
     except LocalVaultError as exc:
         code = (409 if exc.code in ("note_exists", "revision_conflict",
                                    "expected_revision_required", "note_not_found")
-                else 413 if exc.code == "note_too_large" else 400)
+                else 413 if exc.code == "note_too_large" else 409 if exc.code == "mcp_shared_vault_unavailable" else 400)
         return jsonify(error=exc.code), code
 
 
@@ -1281,14 +1302,14 @@ def private_drafts():
     from private_markdown_vault import LocalVaultError, list_notes
     try:
         with _local_save_lock:
-            notes = list_notes(_PRIVATE_VAULT)
+            notes = list_notes(editor_markdown_vault())
     except LocalVaultError:
         return page("<h1>Borradores locales</h1><p>No se pudo abrir el almacén local.</p>"), 409
     rows = "".join(
         '<li><a href="remote/new?path=' + quote(name, safe="") + '">' +
         html.escape(name) + "</a></li>" for name in notes)
-    return page('<h1>Borradores locales / Private drafts</h1>'
-                '<p>Archivos Markdown privados. Sin sincronizar con CouchDB.</p>'
+    return page('<h1>Notas Markdown / Markdown notes</h1>'
+                '<p>Las notas compartidas se sincronizan mediante el MCP; los borradores privados no.</p>'
                 '<p><a href="remote/new?path=Nuevo.md">Crear nota / New note</a></p>'
                 '<ul>' + rows + '</ul>'
                 '<p><a href="./">Volver / Back</a></p>')
@@ -1306,10 +1327,10 @@ def remote_new_draft():
     path_json = json.dumps(requested, ensure_ascii=True).replace("<", "\\u003c")
     return page(
         '<p><a href="../">← Volver</a></p><h2>Nueva nota (borrador)</h2>'
-        '<p class="muted">El guardado local requiere activar el CLI. No se sincroniza con la bóveda remota.</p>'
+        '<p class="muted">Se guarda como archivo Markdown. En modo compartido, el MCP se encarga de sincronizar mediante LiveSync.</p>'
         '<h3>' + html.escape(requested) + '</h3>'
         '<textarea id="editor" style="width:100%;height:50vh;font:14px monospace"></textarea>'
-        '<p><button id="saveLocal" type="button">Guardar localmente (sin sincronizar)</button> '
+        '<p><button id="saveLocal" type="button">Guardar Markdown</button> '
         '<button id="export" type="button">Exportar .md</button></p>'
         '<p id="saveStatus" role="status"></p>'
         '<pre id="preview" style="white-space:pre-wrap"></pre>'
@@ -1328,7 +1349,7 @@ def remote_new_draft():
         'if((dirty||draft)&&draft!==data.content&&confirm("Recuperar borrador anterior?"))editor.value=draft;'
         'else try{sessionStorage.removeItem(key)}catch(_){}'
         'document.getElementById("preview").textContent=editor.value;'
-        'document.getElementById("saveStatus").textContent="Nota local cargada (sin sincronizar)";'
+        'document.getElementById("saveStatus").textContent="Nota Markdown local cargada";'
         '}}).catch(()=>{}).finally(()=>{loadingLocal=false});'
         'document.getElementById("saveLocal").onclick=async()=>{'
         'if(loadingLocal||saving){document.getElementById("saveStatus").textContent="Espera a finalizar la operación anterior";return;}'
@@ -1341,7 +1362,7 @@ def remote_new_draft():
         'expected_content:savedContent,content:submitted})});'
         'const data=await r.json();if(!r.ok)throw Error(data.error||"save_failed");'
         'savedContent=submitted;dirty=editor.value!==submitted;'
-        'status.textContent="Guardado localmente. Aún NO sincronizado con Obsidian.";'
+        'status.textContent="Archivo Markdown guardado. LiveSync gestiona la sincronización solo en modo compartido.";'
         'try{if(!dirty)sessionStorage.removeItem(key);else refresh()}catch(_){}'
         '}catch(e){status.textContent="No guardado: "+e.message}'
         'finally{saving=false;document.getElementById("saveLocal").disabled=false}};'
@@ -1426,7 +1447,7 @@ def remote_edit_draft():
     script_data = json.dumps({"path": requested, "content": content, "needs_remote_load": cli_fallback}, ensure_ascii=True).replace("<", "\\u003c")
     body = (
         '<p><a href="../">← Volver</a></p><h2>Borrador Markdown</h2>'
-        '<p class="muted">Guardar crea una copia local aislada; no sincroniza con LiveSync.</p>'
+        '<p class="muted">El guardado escribe Markdown local; en modo compartido LiveSync sincroniza mediante el MCP.</p>'
         '<h3>' + html.escape(requested) + '</h3>'
         '<textarea id="editor" style="width:100%;height:50vh;font:14px monospace"></textarea>'
         '<p><button type="button" id="copyDraft">Copiar Markdown</button> '
