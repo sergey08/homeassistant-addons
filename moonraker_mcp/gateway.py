@@ -153,6 +153,11 @@ def filter_reply(method, response, allowed, cursor=None):
             raise PolicyError("Invalid upstream MCP server identity")
         if "instructions" in result and not isinstance(result["instructions"], str):
             raise PolicyError("Invalid upstream MCP instructions")
+        # Upstream instructions are untrusted and unnecessary for this fixed,
+        # read-only gateway. Never relay them as guidance to an MCP client.
+        if "instructions" in result:
+            response = dict(response, result={key: value for key, value in result.items()
+                                               if key != "instructions"})
         return response
     if method == "tools/call":
         result = response.get("result")
