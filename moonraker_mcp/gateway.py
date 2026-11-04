@@ -323,14 +323,13 @@ class Handler(BaseHTTPRequestHandler):
                     content_type = upstream.headers.get("Content-Type", "")
                     media_type = content_type.split(";", 1)[0].strip().lower()
                     if media_type == "text/event-stream":
-                        # Accept exactly one SSE event with one JSON-RPC data field.
-                        # Reject multiple events, multiline data and control fields
-                        # rather than silently selecting one response.
+                        # The pinned upstream emits standard SSE event/id fields.
+                        # Permit them while requiring exactly one JSON-RPC data line.
                         lines = raw.decode("utf-8").splitlines()
                         events = [line[5:].lstrip(" ") for line in lines
                                   if line.startswith("data:")]
                         if (len(events) != 1 or
-                                any(line and not line.startswith(("data:", ":"))
+                                any(line and not line.startswith(("data:", "event:", "id:", "retry:", ":"))
                                     for line in lines)):
                             raise PolicyError("Unsupported upstream SSE response")
                         raw = events[0].encode("utf-8")
