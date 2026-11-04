@@ -1,11 +1,10 @@
 {
   "policy_version": 1,
-  "description": "Privacy-first default read-only status profile. History, power, sensors and Spoolman disabled pending privacy review.",
+  "description": "Privacy-first four-tool status profile. Job queue, history, power, sensors and Spoolman require opt-in.",
   "allowed_tools": [
     "moonraker_mcp_version",
     "moonraker_server_info",
     "moonraker_printer_info",
-    "moonraker_temperature_store",
-    "moonraker_jobqueue_status"
+    "moonraker_temperature_store"
   ]
 }
