@@ -163,6 +163,8 @@ def filter_reply(method, response, allowed, cursor=None):
         for item in result["content"]:
             if not isinstance(item, dict) or not isinstance(item.get("type"), str):
                 raise PolicyError("Invalid upstream MCP content item")
+            if item["type"] not in ("text", "image", "audio", "resource_link", "resource"):
+                raise PolicyError("Unsupported upstream MCP content type")
             if item["type"] == "text" and not isinstance(item.get("text"), str):
                 raise PolicyError("Invalid upstream MCP text content")
             if item["type"] in ("image", "audio"):
