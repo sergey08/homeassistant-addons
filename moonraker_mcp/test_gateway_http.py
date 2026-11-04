@@ -25,6 +25,7 @@ class FakeUpstream(BaseHTTPRequestHandler):
     negotiated_protocol_version = None
     initialize_instructions = None
     response_content_type = "application/json"
+    sse_extra_lines = None
 
     def do_POST(self):
         if self.path == "/collect":
@@ -85,6 +86,9 @@ class FakeUpstream(BaseHTTPRequestHandler):
         if self.malformed_reply is not None:
             response = self.malformed_reply
         body = json.dumps(response).encode()
+        if self.response_content_type == "text/event-stream":
+            lines = self.sse_extra_lines or []
+            body = ("event: message\\n" + "\\n".join(lines) + "\\ndata: " + body.decode() + "\\n\\n").encode()
         self.send_response(200)
         self.send_header("Content-Type", self.response_content_type)
         self.send_header("Content-Length", str(len(body)))
@@ -203,6 +207,26 @@ class HTTPGatewayTests(unittest.TestCase):
                         self.assertNotIn("internal-printer", json.dumps(body))
         finally:
             Handler.allowed = original_allowed
+
+    def test_sse_metadata_and_ambiguous_events_over_http(self):
+        original_type = FakeUpstream.response_content_type
+        original_lines = FakeUpstream.sse_extra_lines
+        try:
+            FakeUpstream.response_content_type = "text/event-stream"
+            FakeUpstream.sse_extra_lines = ["id: 42", ": keepalive"]
+            status, body = self.request("ping")
+            self.assertEqual(status, 200)
+            self.assertIn("result", body)
+            for extra in (["data: {\"unexpected\": true}"],
+                          ["unknown-field: unsafe"]):
+                with self.subTest(extra=extra):
+                    FakeUpstream.sse_extra_lines = extra
+                    status, body = self.request("ping")
+                    self.assertEqual(status, 502)
+                    self.assertEqual(body, {"error": "Invalid upstream MCP response"})
+        finally:
+            FakeUpstream.response_content_type = original_type
+            FakeUpstream.sse_extra_lines = original_lines
 
     def test_upstream_content_type_requires_exact_media_type(self):
         original = FakeUpstream.response_content_type
