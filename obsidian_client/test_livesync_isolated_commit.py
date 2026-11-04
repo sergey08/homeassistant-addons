@@ -50,6 +50,29 @@ class TestIsolatedCommit(unittest.TestCase):
                 commit_isolated_plan(plan(),lambda x:calls.append(x),**kwargs)
             self.assertFalse(calls)
 
+    def test_isolated_transport_rejects_write_enabled_plans(self):
+        for flag in (True, 1, "true", None):
+            candidate=plan()
+            candidate["write_supported"]=flag
+            calls=[]
+            with self.subTest(flag=flag), self.assertRaisesRegex(
+                    UnsafeWrite, "production_write_plan_forbidden"):
+                commit_isolated_plan(candidate,lambda doc:calls.append(doc),
+                                     isolated_test=True)
+            self.assertEqual(calls,[])
+
+    def test_explicitly_read_only_plan_still_commits_in_disposable_test(self):
+        candidate=plan()
+        candidate["write_supported"]=False
+        calls=[]
+        def fake_put(doc):
+            calls.append(doc["_id"])
+            rev="1-"+"c"*32 if doc["type"]=="leaf" else "2-"+"b"*32
+            return 201,{"ok":True,"id":doc["_id"],"rev":rev}
+        result=commit_isolated_plan(candidate,fake_put,isolated_test=True)
+        self.assertEqual(result["status"],"committed_in_disposable_test_only")
+        self.assertEqual(calls,["h:+abc","notes/example.md"])
+
     def test_stale_parent_revision_stops_without_retry(self):
         calls=[]
         def fake_put(doc):

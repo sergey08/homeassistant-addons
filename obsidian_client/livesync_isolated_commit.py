@@ -27,6 +27,10 @@ def commit_isolated_plan(plan, put_document, *, isolated_test=False,
     # Validate and commit one private snapshot. A transport callback may hold
     # an external reference to the caller's plan and mutate it between PUTs.
     plan=deepcopy(plan)
+    # The offline planner must never advertise production write support.
+    # Reject even truthy non-bool claims before sending a disposable PUT.
+    if "write_supported" in plan and plan["write_supported"] is not False:
+        raise UnsafeWrite("production_write_plan_forbidden")
     leaf,parent=plan.get("leaf"),plan.get("parent")
     if not isinstance(leaf,dict) or not isinstance(parent,dict):
         raise UnsafeWrite("invalid_write_plan")
