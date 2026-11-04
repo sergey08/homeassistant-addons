@@ -80,6 +80,56 @@ jobs:
           echo 'Provenance labels are informational; matching them to audited source remains a separate verification gate.'
       - name: Build DEV container (no deployment)
         run: docker build --pull --tag moonraker-mcp:dev ./moonraker_mcp
+      - name: Smoke-test Supervisor root-only options with unprivileged gateway
+        run: |
+          python3 - <<'PY'
+          import json, os, subprocess, tempfile, time, urllib.error, urllib.request
+          with tempfile.TemporaryDirectory() as tmp:
+              os.chmod(tmp, 0o700)
+              path=os.path.join(tmp, "options.json")
+              with open(path, "w") as out:
+                  json.dump({"moonraker_url":"http://127.0.0.1:7125",
+                             "moonraker_api_key":"",
+                             "mcp_http_token":"ci-supervisor-token",
+                             "enable_tunnel":False},out)
+              os.chmod(path, 0o600)
+              container="moonraker-mcp-supervisor-permissions"
+              subprocess.run(["docker","run","-d","--name",container,
+                              "-p","127.0.0.1:18769:8765",
+                              "-v",tmp+":/data:ro","moonraker-mcp:dev"],
+                             check=True,capture_output=True)
+              try:
+                  for attempt in range(40):
+                      probe=urllib.request.Request(
+                          "http://127.0.0.1:18769/mcp",
+                          data=b'{"jsonrpc":"2.0","id":1,"method":"ping"}',
+                          headers={"Content-Type":"application/json"})
+                      try:
+                          urllib.request.urlopen(probe,timeout=2)
+                      except urllib.error.HTTPError as exc:
+                          if exc.code == 401:
+                              exc.read()
+                              print("Root-only Supervisor config loaded; authenticated gateway ready")
+                              break
+                          raise
+                      except (urllib.error.URLError, TimeoutError):
+                          time.sleep(0.25)
+                  else:
+                      raise AssertionError("Gateway did not start with root-only Supervisor config")
+                  identity=subprocess.run(
+                      ["docker","exec",container,"sh","-c",
+                       "for p in $(pidof python3 mcp-raker); do grep '^Uid:' /proc/$p/status; done"],
+                      capture_output=True,text=True,check=True)
+                  lines=[x.strip() for x in identity.stdout.splitlines() if x.startswith("Uid:")]
+                  assert lines and all(x.split()[1] == "65534" for x in lines), lines
+                  print("Gateway and upstream processes run without root privileges")
+              except BaseException:
+                  log=subprocess.run(["docker","logs",container],capture_output=True,text=True)
+                  print(log.stdout,log.stderr)
+                  raise
+              finally:
+                  subprocess.run(["docker","rm","-f",container],capture_output=True)
+          PY
       - name: Verify startup rejects invalid permission settings
         run: |
           python3 - <<'PY'
