@@ -14,9 +14,7 @@ ingress_port: 8099
 panel_icon: mdi:notebook-outline
 panel_title: Obsidian
 map:
-  - share:ro
-  - type: all_app_configs
-    read_only: false
+  - share:rw
 options:
   vault_path: /share/obsidian-client/vault
   couchdb_url: ""
