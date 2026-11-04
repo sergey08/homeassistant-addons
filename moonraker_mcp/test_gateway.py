@@ -228,8 +228,8 @@ class GatewayTests(unittest.TestCase):
 
     def test_filter_listing(self):
         response = {"jsonrpc": "2.0", "id": 3, "result": {"tools": [
-            {"name": "moonraker_printer_info"},
-            {"name": "moonraker_print_start"},
+            {"name": "moonraker_printer_info", "inputSchema": {"type": "object"}},
+            {"name": "moonraker_print_start", "inputSchema": {"type": "object"}},
         ]}}
         result = filter_reply("tools/list", response, self.allowed)
         self.assertEqual([x["name"] for x in result["result"]["tools"]],
@@ -265,10 +265,10 @@ class GatewayTests(unittest.TestCase):
     def test_duplicate_and_malformed_upstream_tools_rejected(self):
         from tool_policy import filter_tools
         for tools in (
-            [{"name": "moonraker_printer_info"}, {"name": "moonraker_printer_info"}],
-            [{"name": "moonraker_printer_info"}, {"name": "moonraker_gcode_script"},
-             {"name": "moonraker_gcode_script"}],
-            [{"name": "moonraker_printer_info"}, {"description": "no name"}],
+            [{"name": "moonraker_printer_info", "inputSchema": {"type": "object"}}, {"name": "moonraker_printer_info", "inputSchema": {"type": "object"}}],
+            [{"name": "moonraker_printer_info", "inputSchema": {"type": "object"}}, {"name": "moonraker_gcode_script", "inputSchema": {"type": "object"}},
+             {"name": "moonraker_gcode_script", "inputSchema": {"type": "object"}}],
+            [{"name": "moonraker_printer_info", "inputSchema": {"type": "object"}}, {"description": "no name"}],
         ):
             with self.subTest(tools=tools), self.assertRaises(PolicyError):
                 filter_tools(tools, self.allowed)
@@ -340,8 +340,8 @@ class GatewayTests(unittest.TestCase):
                 self.assertNotIn("upstream", [tool.get("description") for tool in enabled["result"]["tools"]])
 
     def test_pagination_preserves_cursor_and_filters_every_page(self):
-        response = {"result": {"tools": [{"name": "moonraker_printer_info"},
-                                          {"name": "moonraker_gcode_script"}],
+        response = {"result": {"tools": [{"name": "moonraker_printer_info", "inputSchema": {"type": "object"}},
+                                          {"name": "moonraker_gcode_script", "inputSchema": {"type": "object"}}],
                                "nextCursor": "page-2"}}
         filtered = filter_reply("tools/list", response, self.allowed)
         self.assertEqual(filtered["result"]["nextCursor"], "page-2")
