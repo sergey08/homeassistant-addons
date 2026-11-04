@@ -36,4 +36,12 @@ def select_storage(options: dict, default_vault: Path, shared_root: Path = Path(
         if not path:
             raise ValueError("Local mode requires vault_path inside /share")
         return mode, select_vault(path, default_vault, shared_root), False
+    shared = str(options.get("livesync_shared_vault_path", "")).strip()
+    if shared:
+        if not options.get("enable_livesync", False):
+            raise ValueError("Shared LiveSync vault requires enable_livesync")
+        selected = select_vault(shared, default_vault, shared_root)
+        if not any(selected.rglob("*.md")):
+            raise ValueError("Shared LiveSync vault has no Markdown files; migrate first")
+        return mode, selected, True
     return mode, default_vault, bool(options.get("enable_livesync", False))
