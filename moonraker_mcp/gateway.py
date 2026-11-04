@@ -395,6 +395,18 @@ class Handler(BaseHTTPRequestHandler):
         return self.reply(405, {"error": "Only POST is supported"},
                           {"Allow": "POST"})
 
+    def do_HEAD(self):
+        # A HEAD response must never include a body.
+        authorization = self.headers.get_all("Authorization", [])
+        authorized = (len(authorization) == 1 and hmac.compare_digest(
+            authorization[0], "Bearer " + self.token))
+        self.send_response(405 if authorized else 401)
+        self.send_header("Content-Length", "0")
+        self.send_header("Cache-Control", "no-store")
+        if authorized:
+            self.send_header("Allow", "POST")
+        self.end_headers()
+
     def do_GET(self):
         self.reject_unsupported_method()
 
