@@ -22,6 +22,7 @@ class FakeUpstream(BaseHTTPRequestHandler):
     spoof_local_files = False
     malformed_result = None
     malformed_reply = None
+    negotiated_protocol_version = None
 
     def do_POST(self):
         if self.path == "/collect":
@@ -68,6 +69,8 @@ class FakeUpstream(BaseHTTPRequestHandler):
             result = {"content": [{"type": "text", "text": "ok"}], "isError": False}
         else:
             result = {"ok": True}
+        if method == "initialize" and self.negotiated_protocol_version:
+            result["protocolVersion"] = self.negotiated_protocol_version
         response = ({"jsonrpc": "2.0", "id": message.get("id"),
                      "error": {"code": -32603, "message": "Simulated upstream error"}}
                     if self.jsonrpc_error else
@@ -388,6 +391,19 @@ class HTTPGatewayTests(unittest.TestCase):
             with self.subTest(method=method), self.assertRaises(urllib.error.HTTPError) as ctx:
                 urllib.request.urlopen(req, timeout=5)
             self.assertEqual(ctx.exception.code, 405)
+
+    def test_initialize_accepts_compatible_negotiated_protocol_version(self):
+        original = FakeUpstream.negotiated_protocol_version
+        try:
+            FakeUpstream.negotiated_protocol_version = "2025-03-26"
+            status, response = self.request(
+                "initialize",
+                {"protocolVersion": "2025-06-18", "capabilities": {},
+                 "clientInfo": {"name": "test", "version": "1"}})
+            self.assertEqual(status, 200)
+            self.assertEqual(response["result"]["protocolVersion"], "2025-03-26")
+        finally:
+            FakeUpstream.negotiated_protocol_version = original
 
     def test_invalid_jsonrpc_errors_are_rejected_with_502(self):
         original = FakeUpstream.malformed_reply
