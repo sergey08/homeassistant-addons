@@ -435,7 +435,7 @@ jobs:
                   names={x["name"] for x in result["result"]["tools"]}
                   base=set(json.load(open("moonraker_mcp/read_only_allowlist.json"))["allowed_tools"])
                   history={"moonraker_history_list","moonraker_history_job","moonraker_history_totals"}
-                  assert len(base)==5,base
+                  assert len(base)==4,base
                   assert "moonraker_objects_query" not in names
                   assert "moonraker_objects_list" not in names
                   assert names==base|history,(names,base|history)
