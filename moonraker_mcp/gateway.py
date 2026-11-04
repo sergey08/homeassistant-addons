@@ -395,6 +395,9 @@ class Handler(BaseHTTPRequestHandler):
         return self.reply(405, {"error": "Only POST is supported"},
                           {"Allow": "POST"})
 
+    def do_OPTIONS(self):
+        self.reject_unsupported_method()
+
     def do_HEAD(self):
         # A HEAD response must never include a body.
         authorization = self.headers.get_all("Authorization", [])
