@@ -17,9 +17,17 @@ Experimental Home Assistant add-on wrapping [lexfrei/mcp-raker](https://github.c
 
 The HTTP gateway is a prototype. Docker CI validates MCP initialization, tool listing, authentication and denied operations without connecting to a real printer. **A successful test does not certify that all 5 default allowed operations are side-effect free.** Review each tool's implementation and parameters before deployment.
 
-The gateway supports a restricted subset of MCP Streamable HTTP: authenticated POST requests, JSON or single-event SSE upstream responses, and filtered `tools/list` pagination using cursors. It does **not** support GET event streams, DELETE session termination, streaming/multiple SSE events or full session lifecycle management. Pagination support is not equivalent to full Streamable HTTP compliance. Test compatibility with the intended ChatGPT client before deployment. Test compatibility with the intended ChatGPT client before deployment.
+The gateway supports a restricted subset of MCP Streamable HTTP: authenticated POST requests, JSON or single-event SSE upstream responses, and filtered `tools/list` pagination using cursors. It does **not** support GET event streams, DELETE session termination, streaming/multiple SSE events or full session lifecycle management. Pagination support is not equivalent to full Streamable HTTP compliance. Test compatibility with the intended ChatGPT client before deployment.
 
 A strong `mcp_http_token` is required. Home Assistant's add-on port mapping defaults to `null`. Never place credentials in GitHub. Do not use the raw upstream MCP endpoint from outside the container.
+
+## ChatGPT connection requirements / Requisitos de conexión con ChatGPT
+
+**No direct ChatGPT connection has been tested.** A green CI run validates the local gateway and pinned upstream in Docker, not external MCP registration or access through the Internet. The Home Assistant add-on is only a host for this service; it does not route queries through Home Assistant entities.
+
+Before any remote connection, confirm the intended ChatGPT client accepts this limited MCP HTTP implementation, design an HTTPS endpoint with valid TLS, keep bearer authentication, and restrict network exposure. Do not forward the raw upstream port 8766 or publish port 8765 by default. Session lifecycle, long-running SSE streams, and other unsupported transport features may require implementation changes. Obtain explicit approval separately for installation, printer connectivity, and remote exposure.
+
+**Español:** No se ha probado la conexión directa desde ChatGPT. CI valida el gateway y el servidor original en Docker, no el registro remoto del MCP. Antes de conectarlo hay que comprobar compatibilidad real, HTTPS, autenticación y restricciones de acceso. Instalar, conectar la impresora y abrir acceso remoto requieren autorizaciones independientes.
 
 ## Next / Próximos pasos
 
