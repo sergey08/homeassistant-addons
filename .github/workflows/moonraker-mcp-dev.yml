@@ -523,3 +523,58 @@ jobs:
                   subprocess.run(["docker","rm","-f","moonraker-mcp-history-ci"],
                                  capture_output=True)
           PY
+
+      - name: Official MCP Python SDK client smoke test (no printer)
+        run: |
+          python3 -m pip install 'mcp==1.30.0'
+          python3 - <<'PY'
+          import asyncio, json, os, subprocess, tempfile
+          from mcp import ClientSession
+          from mcp.client.streamable_http import streamablehttp_client
+
+          async def main():
+              with tempfile.TemporaryDirectory() as tmp:
+                  os.chmod(tmp, 0o755)
+                  with open(os.path.join(tmp, "options.json"), "w") as out:
+                      json.dump({
+                          "moonraker_url": "http://127.0.0.1:7125",
+                          "moonraker_api_key": "",
+                          "mcp_http_token": "ci-sdk-test-token",
+                      }, out)
+                  subprocess.run([
+                      "docker", "run", "-d", "--name", "moonraker-mcp-sdk-ci",
+                      "-p", "127.0.0.1:18767:8765",
+                      "-v", tmp + ":/data:ro", "moonraker-mcp:dev",
+                  ], check=True, capture_output=True)
+                  try:
+                      # SDK client, not a hand-written HTTP/JSON-RPC request.
+                      for attempt in range(20):
+                          try:
+                              async with streamablehttp_client(
+                                  "http://127.0.0.1:18767/mcp",
+                                  headers={"Authorization": "Bearer ci-sdk-test-token"},
+                                  timeout=10,
+                                  terminate_on_close=False,
+                              ) as (read, write, _):
+                                  async with ClientSession(read, write) as session:
+                                      initialized = await session.initialize()
+                                      assert initialized.capabilities.tools is not None
+                                      assert initialized.capabilities.resources is None
+                                      assert initialized.capabilities.prompts is None
+                                      listed = await session.list_tools()
+                                      names = {tool.name for tool in listed.tools}
+                                      with open("moonraker_mcp/read_only_allowlist.json") as policy:
+                                          expected = set(json.load(policy)["allowed_tools"])
+                                      assert names == expected, (names, expected)
+                                      print("Official MCP SDK connected and discovered", len(names), "read-only tools")
+                              break
+                          except (OSError, ConnectionError):
+                              if attempt == 19:
+                                  raise
+                              await asyncio.sleep(1)
+                  finally:
+                      subprocess.run(["docker", "rm", "-f", "moonraker-mcp-sdk-ci"],
+                                     capture_output=True)
+
+          asyncio.run(main())
+          PY
