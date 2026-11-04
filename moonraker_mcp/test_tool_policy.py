@@ -38,9 +38,9 @@ class ToolPolicyTests(unittest.TestCase):
 
     def test_filters_listing(self):
         tools = [
-            {"name": "moonraker_printer_info", "inputSchema": {}},
-            {"name": "moonraker_gcode_script", "inputSchema": {}},
-            {"name": "moonraker_new_future_tool", "inputSchema": {}},
+            {"name": "moonraker_printer_info", "inputSchema": {"type": "object"}},
+            {"name": "moonraker_gcode_script", "inputSchema": {"type": "object"}},
+            {"name": "moonraker_new_future_tool", "inputSchema": {"type": "object"}},
         ]
         self.assertEqual(
             [t["name"] for t in policy.filter_tools(tools, self.allowed)],
