@@ -24,6 +24,7 @@ class FakeUpstream(BaseHTTPRequestHandler):
     malformed_reply = None
     negotiated_protocol_version = None
     initialize_instructions = None
+    initialize_capabilities = None
     response_content_type = "application/json"
     sse_extra_lines = None
     session_headers = []
@@ -70,7 +71,9 @@ class FakeUpstream(BaseHTTPRequestHandler):
                                             "description": "untrusted upstream",
                                             "inputSchema": {"type": "object"}})
         elif method == "initialize":
-            result = {"protocolVersion": "2025-06-18", "capabilities": {}, "serverInfo": {"name": "fake", "version": "1"}}
+            result = {"protocolVersion": "2025-06-18",
+                      "capabilities": (self.initialize_capabilities if self.initialize_capabilities is not None else {}),
+                      "serverInfo": {"name": "fake", "version": "1"}}
         elif method == "tools/call":
             result = {"content": [{"type": "text", "text": "ok"}], "isError": False}
         else:
@@ -611,6 +614,26 @@ class HTTPGatewayTests(unittest.TestCase):
                     self.assertEqual(body, {"error": "Invalid upstream MCP response"})
         finally:
             FakeUpstream.response_content_type = original
+
+    def test_initialize_does_not_advertise_unsupported_upstream_features_over_http(self):
+        original = FakeUpstream.initialize_capabilities
+        try:
+            FakeUpstream.initialize_capabilities = {
+                "tools": {"listChanged": True},
+                "resources": {"subscribe": True, "listChanged": True},
+                "prompts": {"listChanged": True},
+                "logging": {},
+            }
+            status, body = self.request("initialize", {
+                "protocolVersion": "2025-06-18", "capabilities": {},
+                "clientInfo": {"name": "test", "version": "1"}})
+            self.assertEqual(status, 200)
+            self.assertEqual(body["result"]["capabilities"], {"tools": {}})
+            self.assertIn("serverInfo", body["result"])
+            self.assertNotIn("resources", body["result"]["capabilities"])
+            self.assertNotIn("prompts", body["result"]["capabilities"])
+        finally:
+            FakeUpstream.initialize_capabilities = original
 
     def test_initialize_strips_untrusted_upstream_instructions_over_http(self):
         original = FakeUpstream.initialize_instructions
