@@ -44,3 +44,9 @@
 - Sin credenciales en repositorios, logs ni documentación.
 - Conexión remota deshabilitada hasta contar con HTTPS y autenticación probadas.
 - Instalación y publicación requieren decisiones independientes del usuario.
+
+## Decisión pendiente: cola de impresión por defecto
+
+La herramienta `moonraker_jobqueue_status` está habilitada actualmente entre las cinco herramientas básicas. Su respuesta puede contener nombres de archivos de impresión y, por tanto, información privada. **Propuesta para la siguiente revisión de código:** retirarla del perfil predeterminado y añadir una opción booleana `enable_jobqueue: false`, independiente del historial. Esta propuesta aún **no está implementada**; no debe afirmarse que la cola esté desactivada por defecto.
+
+La modificación deberá actualizar de forma coordinada `read_only_allowlist.json`, `tool_policy.py`, `config.yaml`, `run.sh`, documentación y pruebas de CI (incluida la prueba Docker que actualmente espera cinco herramientas). Verificar expresamente que `tools/list` oculta la herramienta y `tools/call` devuelve 403 sin permiso, y que el perfil activado solo permite la consulta GET correspondiente. No activar el perfil ni conectar una impresora durante estas pruebas.
