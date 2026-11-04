@@ -49,6 +49,7 @@ jobs:
               assert cfg["options"][flag] is False, flag
               assert cfg["schema"][flag]=="bool", flag
           dockerfile=(root/"Dockerfile").read_text()
+          assert 'USER root' in dockerfile
           assert 'ENTRYPOINT ["/run.sh"]' in dockerfile
           for file in ("Dockerfile","run.sh","gateway.py","tool_policy.py",
                        "moonraker_files.py","read_only_allowlist.json","README.md"):
@@ -80,6 +81,9 @@ jobs:
           echo 'Provenance labels are informational; matching them to audited source remains a separate verification gate.'
       - name: Build DEV container (no deployment)
         run: docker build --pull --tag moonraker-mcp:dev ./moonraker_mcp
+      - name: Verify runtime image launcher identity
+        run: |
+          test "$(docker image inspect moonraker-mcp:dev --format '{{.Config.User}}')" = root
       - name: Smoke-test Supervisor root-only options with unprivileged gateway
         run: |
           python3 - <<'PY'
