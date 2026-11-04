@@ -11,6 +11,9 @@ MOONRAKER_API_KEY="$(jq -er 'if .moonraker_api_key == null then "" else .moonrak
 export MOONRAKER_API_KEY
 MCP_HTTP_TOKEN="$(jq -er 'if .mcp_http_token == null then "" else .mcp_http_token | select(type=="string") end' "$OPTIONS")"
 export MCP_HTTP_TOKEN
+MCP_ENABLE_TUNNEL="$(jq -er 'if .enable_tunnel == null then false else .enable_tunnel | select(type=="boolean") end' "$OPTIONS")"
+MCP_TUNNEL_ID="$(jq -er 'if .tunnel_id == null then "" else .tunnel_id | select(type=="string") end' "$OPTIONS")"
+export MCP_TUNNEL_ID
 if [ -z "$MCP_HTTP_TOKEN" ]; then
   echo "Configure a nonempty MCP HTTP token" >&2
   exit 1
@@ -28,6 +31,19 @@ tail -f /dev/null > /tmp/moonraker-stdin &
 KEEPALIVE_PID=$!
 /usr/local/bin/mcp-raker < /tmp/moonraker-stdin &
 UPSTREAM_PID=$!
-trap 'kill "$UPSTREAM_PID" "$KEEPALIVE_PID" 2>/dev/null || true' EXIT INT TERM
+TUNNEL_PID=""
+cleanup() {
+  if [ -n "$TUNNEL_PID" ]; then
+    kill "$TUNNEL_PID" 2>/dev/null || true
+  fi
+  kill "$UPSTREAM_PID" "$KEEPALIVE_PID" 2>/dev/null || true
+}
+trap cleanup EXIT INT TERM
 cd /opt/moonraker-mcp
+if [ "$MCP_ENABLE_TUNNEL" = "true" ]; then
+  # Dedicated loopback bridge injects the bearer token without passing it in
+  # tunnel-client command arguments or exposing an unauthenticated HA port.
+  python3 -u tunnel_runtime.py &
+  TUNNEL_PID=$!
+fi
 python3 -u gateway.py
