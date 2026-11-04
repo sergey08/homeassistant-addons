@@ -77,7 +77,9 @@ class GatewayTests(unittest.TestCase):
             filter_reply("initialize", {**base, "result": {
                 **base["result"], "instructions": ["invalid"]}}, self.allowed)
         valid = {**base, "result": {**base["result"], "instructions": "Read-only tools"}}
-        self.assertEqual(filter_reply("initialize", valid, self.allowed), valid)
+        self.assertEqual(filter_reply("initialize", valid, self.allowed), base)
+        self.assertIn("instructions", valid["result"],
+                      "Filtering must not mutate the upstream response")
 
     def test_upstream_tool_call_content_validation(self):
         base = {"jsonrpc": "2.0", "id": 1}
