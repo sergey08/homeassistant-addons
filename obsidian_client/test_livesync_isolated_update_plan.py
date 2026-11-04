@@ -2,6 +2,7 @@
 import base64
 import hashlib
 import unittest
+from unittest.mock import patch
 from livesync_chunk_identity import legacy_chunk_id
 from livesync_crypto import decrypt_hkdf_string
 from livesync_isolated_update_plan import prepare_isolated_note_update
@@ -28,6 +29,17 @@ def build(**kwargs):
         remote_writes_enabled=kwargs.get("remote_writes_enabled",False))
 
 class TestOfflineUpdate(unittest.TestCase):
+    def test_deleted_or_conflicted_parent_rejected_before_encryption(self):
+        for field,value in (("_deleted",True),("deleted",True),
+                            ("_conflicts",["3-"+"b"*32])):
+            original=parent()
+            original[field]=value
+            with self.subTest(field=field), patch(
+                    "livesync_isolated_update_plan.encrypt_hkdf_string") as encrypt:
+                with self.assertRaisesRegex(UnsafeWrite,"deleted_or_conflicted_parent"):
+                    build(existing_parent=original)
+                encrypt.assert_not_called()
+
     def test_builds_encrypted_leaf_and_cas_parent_without_mutation(self):
         original=parent()
         plan=build(existing_parent=original)
