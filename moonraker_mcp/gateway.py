@@ -41,6 +41,9 @@ LOCAL_FILE_TOOLS = {
 }
 SAFE_HEADER_VALUE = re.compile(r"^[A-Za-z0-9._-]{1,128}$")
 SUPPORTED_PROTOCOL_VERSIONS = frozenset(("2025-03-26", "2025-06-18"))
+# A newer client may propose 2025-11-25 during initialize. Negotiate back
+# to the upstream-compatible 2025-06-18; do not claim 2025-11-25 support.
+CLIENT_INITIALIZE_VERSIONS = SUPPORTED_PROTOCOL_VERSIONS | {"2025-11-25"}
 
 
 def validate_mcp_header(value):
@@ -92,7 +95,7 @@ def check_message(message, allowed):
             raise PolicyError("Invalid MCP tools/list cursor")
     if method == "initialize":
         params = message.get("params")
-        if not isinstance(params, dict) or params.get("protocolVersion") not in SUPPORTED_PROTOCOL_VERSIONS:
+        if not isinstance(params, dict) or params.get("protocolVersion") not in CLIENT_INITIALIZE_VERSIONS:
             raise PolicyError("Unsupported MCP protocol version")
         if not isinstance(params.get("capabilities"), dict) or not isinstance(params.get("clientInfo"), dict):
             raise PolicyError("Invalid MCP initialize parameters")
@@ -318,7 +321,9 @@ class Handler(BaseHTTPRequestHandler):
             message = strict_json_loads(self.rfile.read(length))
             method = check_message(message, self.allowed)
             protocol_version = self.headers.get("MCP-Protocol-Version")
-            if protocol_version and protocol_version not in SUPPORTED_PROTOCOL_VERSIONS:
+            permitted_versions = (CLIENT_INITIALIZE_VERSIONS if method == "initialize"
+                                  else SUPPORTED_PROTOCOL_VERSIONS)
+            if protocol_version and protocol_version not in permitted_versions:
                 return self.reply(400, {"error": "Unsupported MCP protocol version"})
             if method == "initialize" and protocol_version and protocol_version != message["params"]["protocolVersion"]:
                 return self.reply(400, {"error": "MCP protocol version header does not match initialize request"})
@@ -362,8 +367,14 @@ class Handler(BaseHTTPRequestHandler):
                 "Accept": "application/json, text/event-stream",
             }
             headers.update(validated_headers)
+            upstream_message = message
+            if method == "initialize" and message["params"]["protocolVersion"] == "2025-11-25":
+                upstream_message = dict(message, params=dict(
+                    message["params"], protocolVersion="2025-06-18"))
+                if "MCP-Protocol-Version" in headers:
+                    headers["MCP-Protocol-Version"] = "2025-06-18"
             req = urllib.request.Request(
-                self.upstream, data=json.dumps(message).encode(), headers=headers
+                self.upstream, data=json.dumps(upstream_message).encode(), headers=headers
             )
             try:
                 with UPSTREAM_OPENER.open(req, timeout=25) as upstream:
