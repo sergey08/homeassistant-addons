@@ -66,3 +66,19 @@ Las pruebas automatizadas verifican que `tools/list` no anuncia la herramienta s
 | HTTPS público | No implementado en el add-on | Diseñar TLS y controles de exposición antes de publicar una URL |
 
 **Conclusión:** CI verde significa que el transporte limitado funciona en Docker, **no** que ChatGPT pueda registrar o utilizar el servidor MCP remoto. No instalar, mapear puertos, publicar una URL ni conectar la impresora sin autorización expresa.
+
+
+## Revisión de compatibilidad y seguridad — noviembre de 2026
+
+Fuentes oficiales consultadas:
+- OpenAI, servidores MCP personalizados: https://help.openai.com/es-es/articles/12584461-connecting-custom-mcp-servers-in-chatgpt
+- Especificación MCP 2025-11-25: https://modelcontextprotocol.io/specification/2025-11-25/basic/transports
+- Especificación MCP draft (revisión 2026-07-28): https://github.com/modelcontextprotocol/modelcontextprotocol/blob/main/docs/specification/draft/basic/transports/streamable-http.mdx
+
+**Hallazgo de producto:** ChatGPT ofrece conexión a MCP remoto mediante URL HTTPS o Secure MCP Tunnel, sujeto a disponibilidad/permisos de cuenta y espacio de trabajo. No se debe abrir el puerto de Moonraker. Priorizar la evaluación del túnel seguro antes de cualquier exposición pública del gateway.
+
+**Hallazgo de protocolo:** existe una revisión MCP 2026-07-28 con un transporte diferente, sin sesiones de protocolo ni endpoint GET de stream. **El gateway actual NO implementa esa revisión**, solo acepta 2025-03-26 y 2025-06-18. No ampliar versiones nominalmente sin implementar y probar su esquema de mensajes; verificar cuál exige el cliente real.
+
+**Seguridad de origen:** la especificación 2025-11-25 exige comprobar Origin y rechazar valores no válidos. En DEV, el gateway rechaza todas las solicitudes POST que incluyan Origin (403), adecuado como política restrictiva para pruebas servidor-a-servidor; confirmar si el cliente/túnel envía una cabecera Origin antes de declarar compatibilidad.
+
+**Próxima decisión técnica:** determinar el mecanismo de autenticación ofrecido por la conexión personalizada (sin autenticación, bearer o OAuth), el transporte/versiones negociados y disponibilidad del túnel en la cuenta; después decidir si se necesita un adaptador. No desplegar ni conectar la impresora durante la revisión.
