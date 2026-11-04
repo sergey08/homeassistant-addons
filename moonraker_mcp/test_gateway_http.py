@@ -62,6 +62,8 @@ class FakeUpstream(BaseHTTPRequestHandler):
                                             "inputSchema": {}})
         elif method == "initialize":
             result = {"protocolVersion": "2025-06-18", "capabilities": {}, "serverInfo": {"name": "fake", "version": "1"}}
+        elif method == "tools/call":
+            result = {"content": [{"type": "text", "text": "ok"}], "isError": False}
         else:
             result = {"ok": True}
         response = ({"jsonrpc": "2.0", "id": message.get("id"),
