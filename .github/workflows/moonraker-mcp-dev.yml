@@ -116,7 +116,9 @@ jobs:
                               print("Root-only Supervisor config loaded; authenticated gateway ready")
                               break
                           raise
-                      except (urllib.error.URLError, TimeoutError):
+                      except (urllib.error.URLError, TimeoutError, ConnectionResetError, ConnectionAbortedError, BrokenPipeError):
+                          # The gateway can reset a TCP probe while its listener initializes.
+                          # Retry only during the bounded startup readiness window.
                           time.sleep(0.25)
                   else:
                       raise AssertionError("Gateway did not start with root-only Supervisor config")
