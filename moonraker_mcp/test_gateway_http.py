@@ -136,6 +136,24 @@ class HTTPGatewayTests(unittest.TestCase):
         except urllib.error.HTTPError as err:
             return err.code, json.loads(err.read())
 
+    def test_options_is_authenticated_and_not_forwarded(self):
+        for authorized in (False, True):
+            with self.subTest(authorized=authorized):
+                before = len(FakeUpstream.calls)
+                headers = ({"Authorization": "Bearer ci-secret"}
+                           if authorized else {})
+                req = urllib.request.Request(
+                    "http://127.0.0.1:%s/mcp" % self.gateway.server_port,
+                    headers=headers, method="OPTIONS")
+                with self.assertRaises(urllib.error.HTTPError) as raised:
+                    urllib.request.urlopen(req, timeout=5)
+                response = raised.exception
+                self.assertEqual(response.code, 405 if authorized else 401)
+                self.assertEqual(response.headers.get("Cache-Control"), "no-store")
+                self.assertIsNone(response.headers.get("Access-Control-Allow-Origin"))
+                response.read()
+                self.assertEqual(len(FakeUpstream.calls), before)
+
     def test_head_is_authenticated_and_bodyless(self):
         for authorized in (False, True):
             with self.subTest(authorized=authorized):
