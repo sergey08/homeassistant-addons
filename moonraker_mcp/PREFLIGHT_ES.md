@@ -45,11 +45,11 @@
 - Conexión remota deshabilitada hasta contar con HTTPS y autenticación probadas.
 - Instalación y publicación requieren decisiones independientes del usuario.
 
-## Decisión pendiente: cola de impresión por defecto
+## Cola de impresión: permiso opcional (implementado en DEV)
 
-La herramienta `moonraker_jobqueue_status` está habilitada actualmente entre las cuatro herramientas básicas. Su respuesta puede contener nombres de archivos de impresión y, por tanto, información privada. **Implementado en DEV:** se ha retirado del perfil predeterminado y se ha añadido `enable_jobqueue: false`, independiente del historial. Pendiente de completar la validación de CI.
+La herramienta `moonraker_jobqueue_status` **no está habilitada por defecto**: el perfil básico contiene cuatro herramientas y `enable_jobqueue: false`. La cola puede revelar nombres de archivos de impresión y se mantiene como permiso independiente.
 
-La validación debe comprobar de forma coordinada `read_only_allowlist.json`, `tool_policy.py`, `config.yaml`, `run.sh`, documentación y pruebas de CI (incluida la prueba Docker que actualmente espera cinco herramientas). Verificar expresamente que `tools/list` oculta la herramienta y `tools/call` devuelve 403 sin permiso, y que el perfil activado solo permite la consulta GET correspondiente. No activar el perfil ni conectar una impresora durante estas pruebas.
+Las pruebas automatizadas verifican que `tools/list` no anuncia la herramienta sin permiso, que `tools/call` la rechaza y que el perfil opcional permite consultarla. La CI también comprueba que los siete perfiles opcionales permanezcan desactivados en la configuración inicial. Activar este perfil requiere autorización expresa; no se ha probado con una impresora real.
 
 ## Matriz de compatibilidad MCP remoto (revisión estática, DEV)
 
