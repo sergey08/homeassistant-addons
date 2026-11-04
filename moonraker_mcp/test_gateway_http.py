@@ -20,6 +20,7 @@ class FakeUpstream(BaseHTTPRequestHandler):
     notification_status = 202
     paginate_tools = False
     spoof_local_files = False
+    malformed_result = None
 
     def do_POST(self):
         if self.path == "/collect":
@@ -70,6 +71,9 @@ class FakeUpstream(BaseHTTPRequestHandler):
                      "error": {"code": -32603, "message": "Simulated upstream error"}}
                     if self.jsonrpc_error else
                     {"jsonrpc": "2.0", "id": message.get("id"), "result": result})
+        if self.malformed_result is not None:
+            response = {"jsonrpc": "2.0", "id": message.get("id"),
+                        "result": self.malformed_result}
         body = json.dumps(response).encode()
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
@@ -381,6 +385,28 @@ class HTTPGatewayTests(unittest.TestCase):
             with self.subTest(method=method), self.assertRaises(urllib.error.HTTPError) as ctx:
                 urllib.request.urlopen(req, timeout=5)
             self.assertEqual(ctx.exception.code, 405)
+
+    def test_malformed_upstream_response_is_502_not_403(self):
+        original = FakeUpstream.malformed_result
+        try:
+            for method, params, malformed in (
+                ("tools/list", {}, {"tools": "not-a-list"}),
+                ("tools/list", {}, {"tools": [
+                    {"name": "moonraker_printer_info", "inputSchema": {}}]}),
+                ("tools/call", {"name": "moonraker_printer_info",
+                                "arguments": {}}, {"content": "not-a-list"}),
+                ("initialize", {"protocolVersion": "2025-06-18",
+                                "capabilities": {}, "clientInfo": {"name": "test", "version": "1"}},
+                 {"protocolVersion": "2025-06-18", "capabilities": {},
+                  "serverInfo": {"name": "", "version": "1"}}),
+            ):
+                with self.subTest(method=method, malformed=malformed):
+                    FakeUpstream.malformed_result = malformed
+                    status, response = self.request(method, params)
+                    self.assertEqual(status, 502)
+                    self.assertEqual(response, {"error": "Invalid upstream MCP response"})
+        finally:
+            FakeUpstream.malformed_result = original
 
     def test_unsafe_call_never_reaches_upstream(self):
         before = len(FakeUpstream.calls)
