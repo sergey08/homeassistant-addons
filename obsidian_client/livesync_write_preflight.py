@@ -24,7 +24,10 @@ def validate_write_request(path, content, expected_revision, *, creating=False):
         raise UnsafeWrite("invalid_path")
     if not isinstance(content, str):
         raise UnsafeWrite("invalid_content")
-    encoded = content.encode("utf-8")
+    try:
+        encoded = content.encode("utf-8")
+    except UnicodeError as exc:
+        raise UnsafeWrite("invalid_content_encoding") from exc
     if len(encoded) > MAX_NOTE_BYTES:
         raise UnsafeWrite("content_too_large")
     if creating:
@@ -57,7 +60,13 @@ def validate_update_snapshot(path, proposed_content, expected_revision,
         raise UnsafeWrite("current_content_invalid")
     if expected_revision != current_revision:
         raise UnsafeWrite("revision_conflict")
-    digest = hashlib.sha256(current_content.encode("utf-8")).hexdigest()
+    try:
+        current_encoded = current_content.encode("utf-8")
+    except UnicodeError as exc:
+        raise UnsafeWrite("current_content_encoding_invalid") from exc
+    if len(current_encoded) > MAX_NOTE_BYTES:
+        raise UnsafeWrite("current_content_too_large")
+    digest = hashlib.sha256(current_encoded).hexdigest()
     if digest != expected_content_sha256:
         raise UnsafeWrite("content_conflict")
     return candidate

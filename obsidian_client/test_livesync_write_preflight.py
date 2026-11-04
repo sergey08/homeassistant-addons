@@ -32,6 +32,10 @@ class TestWritePreflight(unittest.TestCase):
         with self.assertRaises(UnsafeWrite):
             validate_write_request("Nota.md", "a" * 2_000_001, None, creating=True)
 
+    def test_invalid_unicode_content_rejected_cleanly(self):
+        with self.assertRaisesRegex(UnsafeWrite, "invalid_content_encoding"):
+            validate_write_request("Nota.md", "bad" + chr(0xD800), None, creating=True)
+
     def test_create_does_not_accept_revision(self):
         with self.assertRaises(UnsafeWrite):
             validate_write_request("Nota.md", "texto", "1-" + "a" * 32, creating=True)
@@ -63,6 +67,15 @@ class TestOptimisticSnapshot(unittest.TestCase):
     def test_invalid_hash_fails_closed(self):
         with self.assertRaisesRegex(UnsafeWrite, "expected_hash_invalid"):
             self.check(expected_content_sha256="INVALID")
+
+    def test_invalid_unicode_current_snapshot_rejected_cleanly(self):
+        with self.assertRaisesRegex(UnsafeWrite, "current_content_encoding_invalid"):
+            self.check(current_content="bad" + chr(0xD800))
+
+    def test_oversized_current_snapshot_is_rejected(self):
+        giant="x"*2_000_001
+        with self.assertRaisesRegex(UnsafeWrite, "current_content_too_large"):
+            self.check(current_content=giant)
 
     def test_invalid_current_revision_fails_closed(self):
         with self.assertRaisesRegex(UnsafeWrite, "current_revision_invalid"):
