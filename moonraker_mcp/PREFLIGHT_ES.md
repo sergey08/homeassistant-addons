@@ -82,3 +82,16 @@ Fuentes oficiales consultadas:
 **Seguridad de origen:** la especificación 2025-11-25 exige comprobar Origin y rechazar valores no válidos. En DEV, el gateway rechaza todas las solicitudes POST que incluyan Origin (403), adecuado como política restrictiva para pruebas servidor-a-servidor; confirmar si el cliente/túnel envía una cabecera Origin antes de declarar compatibilidad.
 
 **Próxima decisión técnica:** determinar el mecanismo de autenticación ofrecido por la conexión personalizada (sin autenticación, bearer o OAuth), el transporte/versiones negociados y disponibilidad del túnel en la cuenta; después decidir si se necesita un adaptador. No desplegar ni conectar la impresora durante la revisión.
+
+
+## Bloqueo de producto: permisos de cuenta para MCP personalizado
+
+**Revisado el 4 de noviembre de 2026** en la documentación oficial de OpenAI:
+- Español: https://help.openai.com/es-es/articles/12584461-connecting-custom-mcp-servers-in-chatgpt
+- Inglés: https://help.openai.com/en/articles/12584461-connecting-custom-mcp-servers-in-chatgpt
+
+La documentación en inglés permite conectar MCP personalizado de lectura/obtención en Pro y reserva MCP completo a Business/Enterprise/Edu. El texto en español habla de MCP completo para Business/Enterprise/Edu sin confirmar la disponibilidad de conexiones MCP personalizadas para Plus. **No existe confirmación documental de compatibilidad en Plus**.
+
+**Puerta de decisión antes de desplegar:** verificar en la propia interfaz de la cuenta que aparece `Complementos > + > Añadir servidor MCP personalizado`, o que la plataforma permite otro flujo compatible con el plan. No asumir disponibilidad de Secure MCP Tunnel ni autenticación configurable por el simple hecho de que estén documentados para otros planes. Si la opción no está disponible, detener la integración con ChatGPT y conservar la PR como desarrollo experimental hasta que haya una vía admitida. No cambiar el plan ni contratar nada sin autorización expresa.
+
+Si el usuario dispone del alta MCP, verificar experimentalmente en un entorno simulado el transporte, versión y mecanismo de autenticación ANTES de conectar Moonraker. Mantener puerto 8765 sin publicar, sin abrir puertos externos y sin instalar hasta autorización expresa.
