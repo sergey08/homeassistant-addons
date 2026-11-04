@@ -33,6 +33,11 @@ def commit_isolated_plan(plan, put_document, *, isolated_test=False,
         raise UnsafeWrite("invalid_chunk_id")
     if not isinstance(parent.get("_id"),str) or not parent["_id"]:
         raise UnsafeWrite("invalid_parent_id")
+    # A leaf is always newly created; never overwrite an existing chunk.
+    if "_rev" in leaf:
+        raise UnsafeWrite("leaf_update_not_supported")
+    if leaf["_id"] == parent["_id"]:
+        raise UnsafeWrite("parent_leaf_identity_collision")
     # Never commit tombstones or documents with unresolved conflicts.
     for document in (leaf,parent):
         if (document.get("_deleted") or document.get("deleted")
