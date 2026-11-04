@@ -143,6 +143,17 @@ class HTTPGatewayTests(unittest.TestCase):
         finally:
             Handler.allowed = original_allowed
 
+    def test_upstream_mcp_network_failures_are_sanitized(self):
+        for failure in (urllib.error.URLError("internal-upstream secret"),
+                        TimeoutError("internal-upstream secret")):
+            with self.subTest(failure=type(failure).__name__):
+                with patch("gateway.UPSTREAM_OPENER.open", side_effect=failure):
+                    status, body = self.request("ping")
+                self.assertEqual(status, 502)
+                self.assertEqual(body, {"error": "Upstream unavailable"})
+                self.assertNotIn("secret", json.dumps(body))
+                self.assertNotIn("internal-upstream", json.dumps(body))
+
     def test_file_api_network_failures_are_mcp_tool_errors(self):
         original_allowed = Handler.allowed
         try:
