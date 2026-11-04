@@ -28,9 +28,11 @@ export MOONRAKER_TOKEN_FILE=/data/moonraker-token.json
 # Keep stdin open: upstream serves both stdio and HTTP and exits when stdio closes.
 mkfifo /run/moonraker-stdin
 chown 65534:65534 /run/moonraker-stdin
-su-exec 65534:65534 tail -f /dev/null > /run/moonraker-stdin &
+# Redirections are executed by the shell, so run the shells as the
+# unprivileged FIFO owner as well. Supervisor containers may lack DAC override.
+su-exec 65534:65534 sh -c 'exec tail -f /dev/null > /run/moonraker-stdin' &
 KEEPALIVE_PID=$!
-su-exec 65534:65534 /usr/local/bin/mcp-raker < /run/moonraker-stdin &
+su-exec 65534:65534 sh -c 'exec /usr/local/bin/mcp-raker < /run/moonraker-stdin' &
 UPSTREAM_PID=$!
 TUNNEL_PID=""
 cleanup() {
