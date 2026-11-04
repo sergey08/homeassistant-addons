@@ -42,6 +42,9 @@ def prepare_isolated_note_update(path, proposed_content, existing_parent,
     validate_update_snapshot(path,proposed_content,expected_revision,
                              existing_parent.get("_rev"),expected_content_sha256,
                              current_content)
+    current_size=existing_parent.get("size")
+    if type(current_size) is not int or current_size!=len(current_content.encode("utf-8")):
+        raise UnsafeWrite("old_size_mismatch")
     if not proposed_content or js_utf16_code_units(proposed_content)>1000:
         raise UnsafeWrite("unsupported_chunk_count")
     if not isinstance(passphrase,str) or not passphrase:

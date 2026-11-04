@@ -29,6 +29,31 @@ def build(**kwargs):
         remote_writes_enabled=kwargs.get("remote_writes_enabled",False))
 
 class TestOfflineUpdate(unittest.TestCase):
+    def test_invalid_or_mismatched_current_size_rejected_before_encryption(self):
+        size=len(BEFORE.encode("utf-8"))
+        for value in (None,True,-1,str(size),float(size),size-1,size+1):
+            original=parent()
+            original["size"]=value
+            with self.subTest(size=value), patch(
+                    "livesync_isolated_update_plan.encrypt_hkdf_string") as encrypt:
+                with self.assertRaisesRegex(UnsafeWrite,"old_size_mismatch"):
+                    build(existing_parent=original)
+                encrypt.assert_not_called()
+
+    def test_current_size_uses_utf8_bytes(self):
+        content="Caf\u00e9 \U0001f30d"
+        original=parent()
+        original["children"]=["h:"+legacy_chunk_id(content,PASS)]
+        original["size"]=len(content.encode("utf-8"))
+        digest=hashlib.sha256(content.encode("utf-8")).hexdigest()
+        plan=build(existing_parent=original,current_content=content,
+                   expected_content_sha256=digest)
+        self.assertEqual(plan["parent"]["size"],len(AFTER.encode("utf-8")))
+        original["size"]=len(content)
+        with self.assertRaisesRegex(UnsafeWrite,"old_size_mismatch"):
+            build(existing_parent=original,current_content=content,
+                  expected_content_sha256=digest)
+
     def test_unchanged_chunk_identity_rejected_before_encryption(self):
         with patch("livesync_isolated_update_plan.encrypt_hkdf_string") as encrypt:
             with self.assertRaisesRegex(UnsafeWrite,"unchanged_chunk_identity"):
