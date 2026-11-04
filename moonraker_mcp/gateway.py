@@ -292,6 +292,13 @@ class Handler(BaseHTTPRequestHandler):
                 return self.reply(400, {"error": "Unsupported MCP protocol version"})
             if method == "initialize" and protocol_version and protocol_version != message["params"]["protocolVersion"]:
                 return self.reply(400, {"error": "MCP protocol version header does not match initialize request"})
+            # Validate session/protocol headers before any local file-tool dispatch.
+            # Local tools do not traverse the upstream forwarding path.
+            validated_headers = {}
+            for key in FORWARD_HEADERS:
+                value = self.headers.get(key)
+                if value:
+                    validated_headers[key] = validate_mcp_header(value)
             if method == "tools/call" and message["params"]["name"] in LOCAL_FILE_TOOLS:
                 name = message["params"]["name"]
                 args = message["params"].get("arguments", {})
@@ -324,10 +331,7 @@ class Handler(BaseHTTPRequestHandler):
                 "Content-Type": "application/json",
                 "Accept": "application/json, text/event-stream",
             }
-            for key in FORWARD_HEADERS:
-                value = self.headers.get(key)
-                if value:
-                    headers[key] = validate_mcp_header(value)
+            headers.update(validated_headers)
             req = urllib.request.Request(
                 self.upstream, data=json.dumps(message).encode(), headers=headers
             )
