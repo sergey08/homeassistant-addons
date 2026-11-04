@@ -17,6 +17,25 @@ class TestConditionalRevisionContract(unittest.TestCase):
         self.assertIsNot(candidate, self.updated)
         self.assertNotIn("children", self.original)
 
+    def test_candidate_mutations_cannot_change_inputs(self):
+        self.original["metadata"]={"tags":["original"]}
+        self.updated["metadata"]=self.original["metadata"]
+        candidate=prepare_conditional_document(self.original,self.updated,self.rev)
+        candidate["children"].append("extra-leaf")
+        candidate["metadata"]["tags"].append("candidate-only")
+        self.assertEqual(self.updated["children"],["synthetic-leaf"])
+        self.assertEqual(self.updated["metadata"],{"tags":["original"]})
+        self.assertEqual(self.original["metadata"],{"tags":["original"]})
+
+    def test_input_mutations_cannot_change_prepared_candidate(self):
+        self.original["metadata"]={"tags":["original"]}
+        self.updated["metadata"]=self.original["metadata"]
+        candidate=prepare_conditional_document(self.original,self.updated,self.rev)
+        self.updated["children"].append("extra-leaf")
+        self.original["metadata"]["tags"].append("input-only")
+        self.assertEqual(candidate["children"],["synthetic-leaf"])
+        self.assertEqual(candidate["metadata"],{"tags":["original"]})
+
     def test_stale_revision_is_rejected(self):
         with self.assertRaisesRegex(RevisionConflict, "revision_conflict"):
             prepare_conditional_document(self.original, self.updated, "6-" + "b" * 32)
