@@ -154,6 +154,18 @@ def filter_reply(method, response, allowed, cursor=None):
         if "instructions" in result and not isinstance(result["instructions"], str):
             raise PolicyError("Invalid upstream MCP instructions")
         return response
+    if method == "tools/call":
+        result = response.get("result")
+        if not isinstance(result, dict) or not isinstance(result.get("content"), list):
+            raise PolicyError("Invalid upstream MCP tool result")
+        if "isError" in result and not isinstance(result["isError"], bool):
+            raise PolicyError("Invalid upstream MCP tool error flag")
+        for item in result["content"]:
+            if not isinstance(item, dict) or not isinstance(item.get("type"), str):
+                raise PolicyError("Invalid upstream MCP content item")
+            if item["type"] == "text" and not isinstance(item.get("text"), str):
+                raise PolicyError("Invalid upstream MCP text content")
+        return response
     if method != "tools/list":
         return response
     if not isinstance(response, dict) or not isinstance(response.get("result"), dict):
