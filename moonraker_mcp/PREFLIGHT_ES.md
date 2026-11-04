@@ -17,7 +17,7 @@
 4. Verificar que el puerto externo 8765 permanece **sin publicar** en la configuración inicial del complemento.
 5. Preparar un token MCP aleatorio, único y suficientemente largo, almacenado solo en la configuración privada del complemento.
 6. Mantener `enable_objects`, `enable_history`, `enable_sensors`, `enable_spoolman` y `enable_power` en `false`.
-7. Revisar con el usuario la exposición de `moonraker_server_info` (metadatos), `moonraker_jobqueue_status` (nombres de trabajos) y el resto de herramientas básicas.
+7. Revisar con el usuario la exposición de `moonraker_server_info` (metadatos), `moonraker_jobqueue_status` (nombres de trabajos, ahora opcional) y las herramientas básicas.
 8. Confirmar explícitamente la autorización del usuario **antes** de instalar el complemento DEV, iniciar un contenedor conectado a la impresora o abrir un puerto.
 
 ## Plan de ensayo tras aprobación explícita
@@ -31,7 +31,7 @@
 
 ## Ficheros de Moonraker: fases separadas
 
-- **Fase 1 (por defecto):** cinco consultas básicas de estado; `enable_files: false`.
+- **Fase 1 (por defecto):** cuatro consultas básicas de estado; `enable_files: false`.
 - **Fase 2 (requiere nueva aprobación):** activar `enable_files` para listar G-code, consultar metadatos y obtener una vista previa de 16 KiB como máximo.
 - **Fuera del alcance actual:** lectura de `printer.cfg`, archivos de configuración, registros, descarga completa, escritura, subida, borrado y ejecución de G-code. Cualquier ampliación necesitará una revisión de permisos independiente.
 - Antes de activar la fase 2, inspeccionar las respuestas de prueba para evitar divulgar nombres de trabajos, rutas y comentarios sensibles.
@@ -47,6 +47,6 @@
 
 ## Decisión pendiente: cola de impresión por defecto
 
-La herramienta `moonraker_jobqueue_status` está habilitada actualmente entre las cinco herramientas básicas. Su respuesta puede contener nombres de archivos de impresión y, por tanto, información privada. **Propuesta para la siguiente revisión de código:** retirarla del perfil predeterminado y añadir una opción booleana `enable_jobqueue: false`, independiente del historial. Esta propuesta aún **no está implementada**; no debe afirmarse que la cola esté desactivada por defecto.
+La herramienta `moonraker_jobqueue_status` está habilitada actualmente entre las cuatro herramientas básicas. Su respuesta puede contener nombres de archivos de impresión y, por tanto, información privada. **Implementado en DEV:** se ha retirado del perfil predeterminado y se ha añadido `enable_jobqueue: false`, independiente del historial. Pendiente de completar la validación de CI.
 
-La modificación deberá actualizar de forma coordinada `read_only_allowlist.json`, `tool_policy.py`, `config.yaml`, `run.sh`, documentación y pruebas de CI (incluida la prueba Docker que actualmente espera cinco herramientas). Verificar expresamente que `tools/list` oculta la herramienta y `tools/call` devuelve 403 sin permiso, y que el perfil activado solo permite la consulta GET correspondiente. No activar el perfil ni conectar una impresora durante estas pruebas.
+La validación debe comprobar de forma coordinada `read_only_allowlist.json`, `tool_policy.py`, `config.yaml`, `run.sh`, documentación y pruebas de CI (incluida la prueba Docker que actualmente espera cinco herramientas). Verificar expresamente que `tools/list` oculta la herramienta y `tools/call` devuelve 403 sin permiso, y que el perfil activado solo permite la consulta GET correspondiente. No activar el perfil ni conectar una impresora durante estas pruebas.
