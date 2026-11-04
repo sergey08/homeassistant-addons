@@ -103,6 +103,38 @@ class TestIsolatedCommit(unittest.TestCase):
                                      isolated_test=True)
             self.assertEqual(calls,[])
 
+    def test_expected_parent_revision_must_match_before_leaf_put(self):
+        for expected in ("2-"+"b"*32, "invalid", None):
+            candidate=plan()
+            candidate["expected_parent_revision"]=expected
+            calls=[]
+            with self.subTest(expected=expected), self.assertRaises(RevisionConflict):
+                commit_isolated_plan(candidate,lambda doc:calls.append(doc),
+                                     isolated_test=True)
+            self.assertEqual(calls,[])
+
+    def test_expected_parent_revision_requires_existing_parent_revision(self):
+        candidate=plan()
+        del candidate["parent"]["_rev"]
+        candidate["expected_parent_revision"]="1-"+"a"*32
+        calls=[]
+        with self.assertRaises(RevisionConflict):
+            commit_isolated_plan(candidate,lambda doc:calls.append(doc),
+                                 isolated_test=True)
+        self.assertEqual(calls,[])
+
+    def test_matching_expected_parent_revision_keeps_leaf_first_protocol(self):
+        candidate=plan()
+        candidate["expected_parent_revision"]=candidate["parent"]["_rev"]
+        calls=[]
+        def put(doc):
+            calls.append(doc["_id"])
+            rev="1-"+"c"*32 if doc["type"]=="leaf" else "2-"+"b"*32
+            return 201,{"ok":True,"id":doc["_id"],"rev":rev}
+        result=commit_isolated_plan(candidate,put,isolated_test=True)
+        self.assertEqual(result["status"],"committed_in_disposable_test_only")
+        self.assertEqual(calls,["h:+abc","notes/example.md"])
+
     def test_deleted_or_conflicted_documents_rejected_before_any_put(self):
         for kind in ("leaf", "parent"):
             for field, value in (("_deleted", True), ("deleted", True),
