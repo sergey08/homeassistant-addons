@@ -1,5 +1,6 @@
 """Test-only commit protocol checks, with an in-memory transport."""
 import unittest
+from copy import deepcopy
 from livesync_isolated_commit import commit_isolated_plan
 from livesync_write_preflight import UnsafeWrite
 from livesync_revision_contract import RevisionConflict
@@ -13,6 +14,24 @@ def plan():
 
 
 class TestIsolatedCommit(unittest.TestCase):
+    def test_external_plan_mutation_cannot_change_validated_commit(self):
+        candidate=plan()
+        candidate["parent"]["nested"]={"tags":["original"]}
+        expected=deepcopy(candidate)
+        sent=[]
+        def mutating_put(doc):
+            sent.append(deepcopy(doc))
+            if doc["type"]=="leaf":
+                candidate["parent"]["_id"]="other.md"
+                candidate["parent"]["_rev"]="9-"+"d"*32
+                candidate["parent"]["children"].append("h:+injected")
+                candidate["parent"]["nested"]["tags"].append("injected")
+                return 201,{"ok":True,"id":doc["_id"],"rev":"1-"+"c"*32}
+            return 201,{"ok":True,"id":doc["_id"],"rev":"2-"+"b"*32}
+        result=commit_isolated_plan(candidate,mutating_put,isolated_test=True)
+        self.assertEqual(sent,[expected["leaf"],expected["parent"]])
+        self.assertEqual(result["parent_id"],expected["parent"]["_id"])
+
     def test_leaf_first_and_parent_last(self):
         calls=[]
         def fake_put(doc):
