@@ -392,6 +392,19 @@ class HTTPGatewayTests(unittest.TestCase):
                 urllib.request.urlopen(req, timeout=5)
             self.assertEqual(ctx.exception.code, 405)
 
+    def test_initialize_rejects_unknown_negotiated_protocol_version(self):
+        original = FakeUpstream.negotiated_protocol_version
+        try:
+            FakeUpstream.negotiated_protocol_version = "2099-01-01"
+            status, response = self.request(
+                "initialize",
+                {"protocolVersion": "2025-06-18", "capabilities": {},
+                 "clientInfo": {"name": "test", "version": "1"}})
+            self.assertEqual(status, 502)
+            self.assertEqual(response, {"error": "Invalid upstream MCP response"})
+        finally:
+            FakeUpstream.negotiated_protocol_version = original
+
     def test_initialize_accepts_compatible_negotiated_protocol_version(self):
         original = FakeUpstream.negotiated_protocol_version
         try:
