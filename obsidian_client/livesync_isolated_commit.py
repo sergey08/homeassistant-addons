@@ -24,6 +24,9 @@ def commit_isolated_plan(plan, put_document, *, isolated_test=False,
         raise UnsafeWrite("transport_required")
     if not isinstance(plan,dict) or plan.get("write_order")!=("leaf","parent"):
         raise UnsafeWrite("invalid_write_plan")
+    # Validate and commit one private snapshot. A transport callback may hold
+    # an external reference to the caller's plan and mutate it between PUTs.
+    plan=deepcopy(plan)
     leaf,parent=plan.get("leaf"),plan.get("parent")
     if not isinstance(leaf,dict) or not isinstance(parent,dict):
         raise UnsafeWrite("invalid_write_plan")
