@@ -136,6 +136,24 @@ class HTTPGatewayTests(unittest.TestCase):
         except urllib.error.HTTPError as err:
             return err.code, json.loads(err.read())
 
+    def test_browser_origin_is_rejected_without_upstream_access(self):
+        before = len(FakeUpstream.calls)
+        message = {"jsonrpc": "2.0", "id": 1, "method": "ping"}
+        for origin in ("https://untrusted.example", "null"):
+            with self.subTest(origin=origin):
+                req = urllib.request.Request(
+                    "http://127.0.0.1:%s/mcp" % self.gateway.server_port,
+                    data=json.dumps(message).encode(),
+                    headers={"Authorization": "Bearer ci-secret",
+                             "Content-Type": "application/json",
+                             "Origin": origin})
+                with self.assertRaises(urllib.error.HTTPError) as raised:
+                    urllib.request.urlopen(req, timeout=5)
+                self.assertEqual(raised.exception.code, 403)
+                self.assertEqual(raised.exception.headers.get("Cache-Control"), "no-store")
+                raised.exception.read()
+        self.assertEqual(len(FakeUpstream.calls), before)
+
     def test_put_patch_are_authenticated_and_not_forwarded(self):
         for method in ("PUT", "PATCH"):
             for authorized in (False, True):
