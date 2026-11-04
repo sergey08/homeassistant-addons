@@ -131,6 +131,24 @@ class HTTPGatewayTests(unittest.TestCase):
         except urllib.error.HTTPError as err:
             return err.code, json.loads(err.read())
 
+    def test_rejects_client_accepting_only_sse(self):
+        payload = json.dumps({"jsonrpc": "2.0", "id": 1, "method": "ping",
+                              "params": {}}).encode()
+        for accept, expected in (("text/event-stream", 406),
+                                 ("application/json, text/event-stream", 200)):
+            with self.subTest(accept=accept):
+                req = urllib.request.Request(
+                    "http://127.0.0.1:%s/" % self.gateway.server_port,
+                    data=payload,
+                    headers={"Authorization": "Bearer ci-secret",
+                             "Content-Type": "application/json", "Accept": accept})
+                try:
+                    with urllib.request.urlopen(req, timeout=5) as res:
+                        status = res.status
+                except urllib.error.HTTPError as exc:
+                    status = exc.code
+                self.assertEqual(status, expected)
+
     def test_local_file_tool_success_uses_mcp_content_format(self):
         original_allowed = Handler.allowed
         try:
