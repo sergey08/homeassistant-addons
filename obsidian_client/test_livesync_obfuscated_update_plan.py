@@ -2,6 +2,7 @@
 import base64
 import hashlib
 import unittest
+from unittest.mock import patch
 from livesync_encrypted_metadata_fixture import (
     encode_parent_metadata_fixture,decode_parent_metadata_fixture)
 from livesync_obfuscated_parent_identity import legacy_obfuscated_parent_id
@@ -33,6 +34,22 @@ def prepare(parent=None,**kwargs):
         SECRET,SALT,modified_millis=kwargs.pop("modified_millis",300),**kwargs)
 
 class TestOfflineObfuscatedUpdate(unittest.TestCase):
+    def test_unchanged_chunk_identity_rejected_before_encryption(self):
+        parent=fixture()
+        with patch("livesync_obfuscated_update_plan.encrypt_hkdf_string") as encrypt:
+            with self.assertRaisesRegex(UnsafeWrite,"unchanged_chunk_identity"):
+                prepare(parent,proposed_content=OLD)
+            encrypt.assert_not_called()
+
+    def test_colliding_chunk_identity_rejected_before_encryption(self):
+        parent=fixture()
+        old_chunk=legacy_chunk_id(OLD,SECRET)
+        with patch("livesync_obfuscated_update_plan.legacy_chunk_id",return_value=old_chunk), \
+                patch("livesync_obfuscated_update_plan.encrypt_hkdf_string") as encrypt:
+            with self.assertRaisesRegex(UnsafeWrite,"unchanged_chunk_identity"):
+                prepare(parent)
+            encrypt.assert_not_called()
+
     def test_safe_plan_preserves_revision_and_encrypted_envelope(self):
         old=fixture()
         plan=prepare(old)
