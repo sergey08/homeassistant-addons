@@ -26,11 +26,11 @@ export MOONRAKER_ENABLE_ADMIN=false
 export MOONRAKER_TOKEN_FILE=/data/moonraker-token.json
 # Keep upstream bound to loopback. Never expose its unfiltered tool set.
 # Keep stdin open: upstream serves both stdio and HTTP and exits when stdio closes.
-mkfifo /tmp/moonraker-stdin
-chown 65534:65534 /tmp/moonraker-stdin
-su-exec 65534:65534 tail -f /dev/null > /tmp/moonraker-stdin &
+mkfifo /run/moonraker-stdin
+chown 65534:65534 /run/moonraker-stdin
+su-exec 65534:65534 tail -f /dev/null > /run/moonraker-stdin &
 KEEPALIVE_PID=$!
-su-exec 65534:65534 /usr/local/bin/mcp-raker < /tmp/moonraker-stdin &
+su-exec 65534:65534 /usr/local/bin/mcp-raker < /run/moonraker-stdin &
 UPSTREAM_PID=$!
 TUNNEL_PID=""
 cleanup() {
