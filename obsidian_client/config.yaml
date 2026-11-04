@@ -15,6 +15,8 @@ panel_icon: mdi:notebook-outline
 panel_title: Obsidian
 map:
   - share:ro
+  - type: all_app_configs
+    read_only: false
 options:
   vault_path: /share/obsidian-client/vault
   couchdb_url: ""
@@ -24,6 +26,7 @@ options:
   livesync_encryption_enabled: false
   livesync_e2ee_passphrase: ""
   livesync_cli_enabled: false
+  editor_storage_mode: private
 schema:
   vault_path: str
   couchdb_url: str?
@@ -33,3 +36,4 @@ schema:
   livesync_encryption_enabled: bool
   livesync_e2ee_passphrase: password?
   livesync_cli_enabled: bool
+  editor_storage_mode: list(private|mcp_shared)
