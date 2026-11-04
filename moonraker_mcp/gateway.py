@@ -387,11 +387,19 @@ class Handler(BaseHTTPRequestHandler):
             self.log_error("MCP upstream communication failed")
             return self.reply(502, {"error": "Upstream unavailable"})
 
+    def reject_unsupported_method(self):
+        authorization = self.headers.get_all("Authorization", [])
+        if len(authorization) != 1 or not hmac.compare_digest(
+                authorization[0], "Bearer " + self.token):
+            return self.reply(401, {"error": "Unauthorized"})
+        return self.reply(405, {"error": "Only POST is supported"},
+                          {"Allow": "POST"})
+
     def do_GET(self):
-        self.reply(405, {"error": "Only POST is supported"})
+        self.reject_unsupported_method()
 
     def do_DELETE(self):
-        self.reply(405, {"error": "Only POST is supported"})
+        self.reject_unsupported_method()
 
 
 if __name__ == "__main__":
