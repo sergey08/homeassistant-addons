@@ -1219,75 +1219,60 @@ def remote_note_content():
 from threading import Lock
 _local_save_lock = Lock()
 
+# The existing editor endpoints now persist Markdown in a private /data vault.
+# No real /share files, configured remote, or LiveSync CLI database is modified.
+_PRIVATE_VAULT = "/data/obsidian-client-markdown"
+_PRIVATE_BACKUPS = "/data/obsidian-client-backups"
+
+
 @app.get("/api/livesync-cli/local-note")
 def livesync_cli_local_note():
-    """Read a Markdown note from the isolated CLI database, never from CouchDB."""
-    from livesync_cli_bridge import CLIUnavailable, list_local_note_paths, read_local_note
-    from livesync_write_preflight import validate_write_request, UnsafeWrite
-    if options().get("livesync_cli_enabled") is not True:
-        return jsonify(error="cli_disabled"), 403
-    path = request.args.get("path", "")
+    """Read local Markdown from the private experimental vault."""
+    from private_markdown_vault import LocalVaultError, read_note
+    name = request.args.get("path", "")
     try:
-        validate_write_request(path, "", None, creating=True)
-        binary, database = "/opt/livesync-cli/dist/index.cjs", "/data/livesync-client"
         with _local_save_lock:
-            metadata = list_local_note_paths(binary, database)
-            if path not in metadata:
-                return jsonify(error="local_note_not_found"), 404
-            if metadata[path]["conflict"]:
-                return jsonify(error="cli_local_conflict"), 409
-            content = read_local_note(binary, database, path)
-        return jsonify(path=path, content=content, remote_synced=False)
-    except (UnsafeWrite, ValueError):
-        return jsonify(error="invalid_note"), 400
-    except CLIUnavailable:
-        return jsonify(error="local_note_unavailable"), 409
+            note = read_note(_PRIVATE_VAULT, name)
+        return jsonify(**note, remote_synced=False)
+    except LocalVaultError as exc:
+        code = 404 if exc.code == "note_not_found" else 400
+        return jsonify(error=exc.code), code
 
 
 @app.post("/api/livesync-cli/local-save")
 def livesync_cli_local_save():
-    """Explicit LOCAL-only note save; never replicates to CouchDB."""
-    from livesync_cli_bridge import (
-        CLIUnavailable, safe_create_local_note, safe_update_local_note,
-    )
-    from livesync_write_preflight import validate_write_request, UnsafeWrite
-    if options().get("livesync_cli_enabled") is not True:
-        return jsonify(error="cli_disabled"), 403
+    """Save private Markdown atomically; remote synchronization is disabled."""
+    from private_markdown_vault import LocalVaultError, read_note, save_note
     if request.headers.get("X-Obsidian-Client-Action") != "local-save":
         return jsonify(error="missing_action_header"), 403
     if request.headers.get("Sec-Fetch-Site") not in (None, "same-origin"):
         return jsonify(error="cross_origin_blocked"), 403
-    # HA ingress may rewrite the internal Host. Trust browser fetch metadata
-    # rather than comparing public Origin with the internal proxy hostname.
     if request.headers.get("Origin") and request.headers.get("Sec-Fetch-Site") != "same-origin":
         return jsonify(error="cross_origin_blocked"), 403
     if request.mimetype != "application/json" or request.content_length is None or request.content_length > 2_100_000:
         return jsonify(error="invalid_request"), 400
     payload = request.get_json(silent=True)
-    if not isinstance(payload, dict):
+    if not isinstance(payload, dict) or set(payload) - {"path", "content", "mode", "expected_content"}:
         return jsonify(error="invalid_request"), 400
-    if set(payload) - {"path", "content", "mode", "expected_content"}:
-        return jsonify(error="unexpected_fields"), 400
-    note_path = payload.get("path")
-    content = payload.get("content")
-    mode = payload.get("mode")
-    if mode not in ("create", "update"):
-        return jsonify(error="invalid_mode"), 400
+    name, content, mode = payload.get("path"), payload.get("content"), payload.get("mode")
     try:
-        validate_write_request(note_path, content, None, creating=True)
-        binary = "/opt/livesync-cli/dist/index.cjs"
-        database = "/data/livesync-client"
         with _local_save_lock:
-            if mode == "create":
-                safe_create_local_note(binary, database, note_path, content)
+            if mode == "update":
+                expected = payload.get("expected_content")
+                if not isinstance(expected, str):
+                    return jsonify(error="expected_content_required"), 409
+                from hashlib import sha256
+                revision = sha256(expected.encode("utf-8")).hexdigest()
             else:
-                safe_update_local_note(binary, database, note_path, payload.get("expected_content"), content)
-    except (UnsafeWrite, ValueError):
-        return jsonify(error="invalid_note"), 400
-    except CLIUnavailable as exc:
-        # Do not disclose credentials, note text or process stderr.
-        return jsonify(error=str(exc)), 409
-    return jsonify(status="saved_locally_only", remote_synced=False, path=note_path)
+                revision = None
+            result = save_note(_PRIVATE_VAULT, _PRIVATE_BACKUPS, name, content, mode,
+                               expected_sha256=revision)
+        return jsonify(**result)
+    except LocalVaultError as exc:
+        code = (409 if exc.code in ("note_exists", "revision_conflict",
+                                   "expected_revision_required", "note_not_found")
+                else 413 if exc.code == "note_too_large" else 400)
+        return jsonify(error=exc.code), code
 
 
 @app.get("/remote/new")
