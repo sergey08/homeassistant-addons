@@ -158,6 +158,18 @@ class TestIsolatedCommit(unittest.TestCase):
         self.assertEqual(result["status"],"committed_in_disposable_test_only")
         self.assertEqual(calls,["h:+abc","notes/example.md"])
 
+    def test_attachments_rejected_before_any_disposable_put(self):
+        for kind in ("leaf", "parent"):
+            for value in ({}, {"a.txt":{"data":"YQ==","content_type":"text/plain"}}):
+                candidate=plan()
+                candidate[kind]["_attachments"]=value
+                calls=[]
+                with self.subTest(kind=kind,value=value), self.assertRaisesRegex(
+                        UnsafeWrite, "attachments_not_supported"):
+                    commit_isolated_plan(candidate,lambda doc:calls.append(doc),
+                                         isolated_test=True)
+                self.assertEqual(calls,[])
+
     def test_deleted_or_conflicted_documents_rejected_before_any_put(self):
         for kind in ("leaf", "parent"):
             for field, value in (("_deleted", True), ("deleted", True),
