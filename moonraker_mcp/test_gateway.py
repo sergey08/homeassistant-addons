@@ -280,13 +280,13 @@ class GatewayTests(unittest.TestCase):
 
     def test_privacy_sensitive_tools_disabled_by_default(self):
         excluded = (
-            "moonraker_history_list", "moonraker_history_job",
+            "moonraker_jobqueue_status", "moonraker_history_list", "moonraker_history_job",
             "moonraker_history_totals", "moonraker_power_status",
             "moonraker_sensors_info", "moonraker_sensors_list",
             "moonraker_sensors_measurements", "moonraker_spoolman_status",
             "moonraker_spoolman_get_spool",
         )
-        self.assertEqual(len(self.allowed), 5)
+        self.assertEqual(len(self.allowed), 4)
         for name in excluded:
             with self.subTest(name=name), self.assertRaises(PolicyError):
                 check_message({"jsonrpc": "2.0", "id": 1, "method": "tools/call",
@@ -298,16 +298,16 @@ class GatewayTests(unittest.TestCase):
         )["result"]["tools"], [])
 
     def test_optional_profiles_require_explicit_opt_in(self):
-        self.assertEqual(len(self.allowed), 5)
+        self.assertEqual(len(self.allowed), 4)
         self.assertEqual(extend_allowed(self.allowed, []), self.allowed)
         history = extend_allowed(self.allowed, ["history"])
-        self.assertEqual(len(history), 8)
+        self.assertEqual(len(history), 7)
         self.assertIn("moonraker_history_job", history)
         self.assertNotIn("moonraker_spoolman_status", history)
         all_profiles = extend_allowed(
             self.allowed, ["history", "sensors", "spoolman", "power"])
-        self.assertEqual(len(all_profiles), 14)
-        self.assertEqual(len(extend_allowed(self.allowed, ["objects", "history", "sensors", "spoolman", "power"])), 16)
+        self.assertEqual(len(all_profiles), 13)
+        self.assertEqual(len(extend_allowed(self.allowed, ["jobqueue", "objects", "history", "sensors", "spoolman", "power"])), 16)
         for invalid in (["admin"], ["history", "admin"], "history", [None]):
             with self.subTest(invalid=invalid), self.assertRaises(PolicyError):
                 extend_allowed(self.allowed, invalid)
