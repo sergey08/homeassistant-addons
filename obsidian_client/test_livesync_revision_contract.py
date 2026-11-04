@@ -52,6 +52,25 @@ class TestConditionalRevisionContract(unittest.TestCase):
         with self.assertRaisesRegex(RevisionConflict, "deletion_not_supported"):
             prepare_conditional_document(self.original, dict(self.updated, deleted=True), self.rev)
 
+    def test_deleted_source_or_replacement_is_rejected(self):
+        for kind in ("original", "replacement"):
+            for flag in ("_deleted", "deleted"):
+                source=dict(self.original)
+                updated=dict(self.updated)
+                (source if kind=="original" else updated)[flag]=True
+                with self.subTest(kind=kind,flag=flag), self.assertRaisesRegex(
+                        RevisionConflict, "deletion_not_supported"):
+                    prepare_conditional_document(source,updated,self.rev)
+
+    def test_unresolved_conflicts_in_source_or_replacement_are_rejected(self):
+        for kind in ("original", "replacement"):
+            source=dict(self.original)
+            updated=dict(self.updated)
+            (source if kind=="original" else updated)["_conflicts"]=["8-"+"b"*32]
+            with self.subTest(kind=kind), self.assertRaisesRegex(
+                    RevisionConflict, "unresolved_document_conflict"):
+                prepare_conditional_document(source,updated,self.rev)
+
     def test_conflict_never_returns_success(self):
         with self.assertRaisesRegex(RevisionConflict, "remote_revision_conflict"):
             require_successful_put(409, {"error": "conflict"})
