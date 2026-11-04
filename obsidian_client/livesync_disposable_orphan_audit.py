@@ -61,6 +61,10 @@ def audit_disposable_chunk_references(parents, leaves, *, isolated_test=False,
                 leaf_id in leaf_ids or leaf_id in seen_parents):
             raise UnsafeWrite("invalid_leaf_snapshot")
         _require_valid_optional_revision(leaf)
+        # These disposable encrypted leaves are created once, never updated.
+        # A later generation indicates an unsupported overwrite history.
+        if "_rev" in leaf and not leaf["_rev"].startswith("1-"):
+            raise UnsafeWrite("overwritten_leaf_snapshot")
         if "_attachments" in leaf:
             raise UnsafeWrite("attachments_not_supported")
         if leaf.get("_deleted") or leaf.get("deleted") or leaf.get("_conflicts"):
