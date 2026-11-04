@@ -62,6 +62,25 @@ class DisposableOrphanAuditTests(unittest.TestCase):
                     [parent(["h:+present"])],[leaf("h:+present")],
                     isolated_test=isolated,snapshot_complete=complete)
 
+    def test_invalid_optional_revisions_fail_closed(self):
+        for kind in ("parent", "leaf"):
+            for rev in (None, "", "1-invalid", "0-"+"a"*32,
+                        "1-"+"g"*32, 123, ["invalid"]):
+                parents=[parent(["h:+kept"])]
+                leaves=[leaf("h:+kept")]
+                (parents[0] if kind=="parent" else leaves[0])["_rev"]=rev
+                with self.subTest(kind=kind,rev=rev), self.assertRaisesRegex(
+                        UnsafeWrite,"invalid_snapshot_revision"):
+                    audit(parents,leaves)
+
+    def test_valid_optional_revisions_do_not_change_report(self):
+        parents=[dict(parent(["h:+winner"]),_rev="2-"+"a"*32)]
+        leaves=[dict(leaf("h:+winner"),_rev="1-"+"b"*32),
+                dict(leaf("h:+loser"),_rev="1-"+"c"*32)]
+        result=audit(parents,leaves)
+        self.assertEqual(result["unreferenced_leaf_candidates"],("h:+loser",))
+        self.assertIs(result["deletion_permitted"],False)
+
     def test_attachment_metadata_is_not_a_safe_audit_snapshot(self):
         for kind in ("parent", "leaf"):
             for value in ({}, {"file.bin":{"stub":True}}):

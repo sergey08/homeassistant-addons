@@ -5,6 +5,15 @@ are meaningful only if the caller supplies a complete isolated snapshot.
 A real LiveSync vault may have other references and replication in flight.
 """
 from livesync_write_preflight import UnsafeWrite
+from livesync_revision_contract import RevisionConflict, require_matching_revision
+
+
+def _require_valid_optional_revision(document):
+    if "_rev" in document:
+        try:
+            require_matching_revision(document["_rev"], document["_rev"])
+        except RevisionConflict as exc:
+            raise UnsafeWrite("invalid_snapshot_revision") from exc
 
 
 def audit_disposable_chunk_references(parents, leaves, *, isolated_test=False,
@@ -30,6 +39,7 @@ def audit_disposable_chunk_references(parents, leaves, *, isolated_test=False,
         if (not isinstance(parent_id,str) or not parent_id or
                 parent_id in seen_parents or not isinstance(children,(list,tuple))):
             raise UnsafeWrite("invalid_parent_snapshot")
+        _require_valid_optional_revision(parent)
         seen_parents.add(parent_id)
         if "_attachments" in parent:
             raise UnsafeWrite("attachments_not_supported")
@@ -50,6 +60,7 @@ def audit_disposable_chunk_references(parents, leaves, *, isolated_test=False,
         if (not isinstance(leaf_id,str) or not leaf_id.startswith("h:+") or
                 leaf_id in leaf_ids or leaf_id in seen_parents):
             raise UnsafeWrite("invalid_leaf_snapshot")
+        _require_valid_optional_revision(leaf)
         if "_attachments" in leaf:
             raise UnsafeWrite("attachments_not_supported")
         if leaf.get("_deleted") or leaf.get("deleted") or leaf.get("_conflicts"):
