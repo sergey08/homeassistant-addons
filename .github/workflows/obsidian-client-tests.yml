@@ -769,6 +769,17 @@ jobs:
                       raise AssertionError("Stale update unexpectedly succeeded")
                   except urllib.error.HTTPError as error:
                       assert error.code==409, "Expected CouchDB 409 on stale revision"
+                  # A rejected stale write must not replace the committed
+                  # parent, change its revision or redirect its chunk links.
+                  with urllib.request.urlopen(urllib.request.Request(
+                          parent_url,headers={"Authorization":auth}),timeout=10) as response:
+                      after_rejected_update=json.load(response)
+                  assert after_rejected_update["_rev"]!=revision, (
+                      "Successful CAS update did not advance parent revision")
+                  assert after_rejected_update["children"]==update["parent"]["children"], (
+                      "Rejected stale write changed encrypted parent references")
+                  assert after_rejected_update["mtime"]==update["parent"]["mtime"], (
+                      "Rejected stale write altered parent timestamp")
                   with tempfile.TemporaryDirectory() as updated_reader:
                       install_official_cli_settings(config,updated_reader)
                       register_remote(cli,updated_reader,config)
