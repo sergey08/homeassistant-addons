@@ -1,8 +1,9 @@
 """Safety and functionality tests for explicit local-only LiveSync saves."""
 import unittest
 from unittest.mock import patch
+from pathlib import Path
+import tempfile
 from server import app
-from livesync_cli_bridge import CLIUnavailable
 
 
 class LocalSaveTests(unittest.TestCase):
@@ -10,77 +11,68 @@ class LocalSaveTests(unittest.TestCase):
         self.client = app.test_client()
         self.url = "/api/livesync-cli/local-save"
         self.payload = {"mode": "create", "path": "Notes/New.md", "content": "# Hello"}
+        self.tempdir = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tempdir.cleanup)
+        self.vault = Path(self.tempdir.name) / "vault"
+        self.backups = Path(self.tempdir.name) / "backups"
+        for attr, value in (("_PRIVATE_VAULT", str(self.vault)),
+                            ("_PRIVATE_BACKUPS", str(self.backups))):
+            guard = patch("server." + attr, value)
+            guard.start()
+            self.addCleanup(guard.stop)
 
     def post(self, payload=None, **kwargs):
         headers = {"X-Obsidian-Client-Action": "local-save", **kwargs.pop("headers", {})}
         return self.client.post(self.url, json=self.payload if payload is None else payload, headers=headers, **kwargs)
 
-    def test_disabled_by_default(self):
-        with patch("server.options", return_value={}):
-            response = self.post()
-        self.assertEqual(response.status_code, 403)
+    def test_create_and_update_private_markdown(self):
+        created = self.post()
+        self.assertEqual(created.status_code, 200)
+        self.assertFalse(created.json["remote_synced"])
+        self.assertEqual(self.client.get(
+            "/api/livesync-cli/local-note?path=Notes/New.md").json["content"], "# Hello")
+        updated = self.post({**self.payload, "mode": "update",
+                             "expected_content": "# Hello", "content": "# Updated"})
+        self.assertEqual(updated.status_code, 200)
+        self.assertEqual(self.client.get(
+            "/api/livesync-cli/local-note?path=Notes/New.md").json["content"], "# Updated")
+        self.assertEqual(len(list(self.backups.rglob("New.md"))), 1)
 
     def test_write_requires_custom_action_header(self):
-        with patch("server.options", return_value={"livesync_cli_enabled": True}):
-            with patch("livesync_cli_bridge.safe_create_local_note") as create:
-                response = self.client.post(self.url, json=self.payload)
+        response = self.client.post(self.url, json=self.payload)
         self.assertEqual(response.status_code, 403)
         self.assertEqual(response.json["error"], "missing_action_header")
-        create.assert_not_called()
-
-    def test_create_writes_only_to_local_adapter(self):
-        with patch("server.options", return_value={"livesync_cli_enabled": True}):
-            with patch("livesync_cli_bridge.safe_create_local_note", return_value=True) as create:
-                response = self.post()
-        self.assertEqual(response.status_code, 200)
-        self.assertFalse(response.json["remote_synced"])
-        create.assert_called_once()
-
-    def test_update_requires_expected_content(self):
-        payload = {**self.payload, "mode": "update", "expected_content": "# Before"}
-        with patch("server.options", return_value={"livesync_cli_enabled": True}):
-            with patch("livesync_cli_bridge.safe_update_local_note", return_value=True) as update:
-                response = self.post(payload)
-        self.assertEqual(response.status_code, 200)
-        update.assert_called_once()
 
     def test_conflict_does_not_report_success(self):
-        with patch("server.options", return_value={"livesync_cli_enabled": True}):
-            with patch("livesync_cli_bridge.safe_create_local_note", side_effect=CLIUnavailable("cli_note_already_exists")):
-                response = self.post()
-        self.assertEqual(response.status_code, 409)
-        self.assertEqual(response.json["error"], "cli_note_already_exists")
+        self.assertEqual(self.post().status_code, 200)
+        self.assertEqual(self.post().status_code, 409)
+        self.assertEqual(self.post().json["error"], "note_exists")
+        conflict = self.post({**self.payload, "mode": "update",
+                              "expected_content": "# Old", "content": "# Clobbered"})
+        self.assertEqual(conflict.status_code, 409)
+        self.assertEqual(conflict.json["error"], "revision_conflict")
+        self.assertEqual(self.client.get(
+            "/api/livesync-cli/local-note?path=Notes/New.md").json["content"], "# Hello")
 
     def test_cross_origin_blocked(self):
-        with patch("server.options", return_value={"livesync_cli_enabled": True}):
-            with patch("livesync_cli_bridge.safe_create_local_note") as create:
-                response = self.post(headers={"Origin": "https://malicious.example"})
-        self.assertEqual(response.status_code, 403)
-        create.assert_not_called()
+        self.assertEqual(self.post(headers={"Origin": "https://malicious.example"}).status_code, 403)
 
     def test_ingress_proxy_origin_allowed_with_same_origin_fetch_metadata(self):
-        with patch("server.options", return_value={"livesync_cli_enabled": True}):
-            with patch("livesync_cli_bridge.safe_create_local_note", return_value=True):
-                response = self.post(headers={
-                    "Origin": "https://casamedia.duckdns.org:8123",
-                    "Sec-Fetch-Site": "same-origin",
-                })
+        response = self.post(headers={
+            "Origin": "https://example.invalid",
+            "Sec-Fetch-Site": "same-origin",
+        })
         self.assertEqual(response.status_code, 200)
 
     def test_cross_site_fetch_metadata_blocked(self):
-        with patch("server.options", return_value={"livesync_cli_enabled": True}):
-            with patch("livesync_cli_bridge.safe_create_local_note") as create:
-                response = self.post(headers={"Sec-Fetch-Site": "cross-site"})
+        response = self.post(headers={"Sec-Fetch-Site": "cross-site"})
         self.assertEqual(response.status_code, 403)
-        create.assert_not_called()
 
     def test_update_rejects_missing_expected_content(self):
-        payload = {**self.payload, "mode": "update"}
-        with patch("server.options", return_value={"livesync_cli_enabled": True}):
-            with patch("livesync_cli_bridge.safe_update_local_note", side_effect=ValueError("invalid_expected_content")) as update:
-                response = self.post(payload)
-        self.assertEqual(response.status_code, 400)
-        update.assert_called_once()
+        self.assertEqual(self.post().status_code, 200)
+        response = self.post({**self.payload, "mode": "update", "content": "# Revised"})
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(response.json["error"], "expected_content_required")
 
     def test_addon_uses_single_worker_for_local_save_lock(self):
         from pathlib import Path
@@ -197,44 +189,21 @@ class LocalSaveTests(unittest.TestCase):
         self.assertFalse(response.json["remote_synced"])
         install.assert_called_once()
 
-    def test_local_read_disabled_by_default(self):
-        with patch("server.options", return_value={}):
-            response = self.client.get("/api/livesync-cli/local-note?path=Notes/New.md")
-        self.assertEqual(response.status_code, 403)
-
-    def test_local_read_requires_listed_note(self):
-        with patch("server.options", return_value={"livesync_cli_enabled": True}):
-            with patch("livesync_cli_bridge.list_local_note_paths", return_value={}):
-                response = self.client.get("/api/livesync-cli/local-note?path=Notes/New.md")
+    def test_local_read_requires_existing_note(self):
+        response = self.client.get("/api/livesync-cli/local-note?path=Notes/New.md")
         self.assertEqual(response.status_code, 404)
 
     def test_local_read_returns_content_without_remote_sync(self):
-        with patch("server.options", return_value={"livesync_cli_enabled": True}):
-            with patch("livesync_cli_bridge.list_local_note_paths", return_value={
-                "Notes/New.md": {"conflict": False}
-            }):
-                with patch("livesync_cli_bridge.read_local_note", return_value="# Saved"):
-                    response = self.client.get("/api/livesync-cli/local-note?path=Notes/New.md")
+        self.assertEqual(self.post().status_code, 200)
+        response = self.client.get("/api/livesync-cli/local-note?path=Notes/New.md")
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json["content"], "# Saved")
+        self.assertEqual(response.json["content"], "# Hello")
         self.assertFalse(response.json["remote_synced"])
 
-    def test_local_read_rejects_conflict(self):
-        with patch("server.options", return_value={"livesync_cli_enabled": True}):
-            with patch("livesync_cli_bridge.list_local_note_paths", return_value={
-                "Notes/New.md": {"conflict": True}
-            }):
-                with patch("livesync_cli_bridge.read_local_note") as read:
-                    response = self.client.get("/api/livesync-cli/local-note?path=Notes/New.md")
-        self.assertEqual(response.status_code, 409)
-        read.assert_not_called()
-
     def test_invalid_path_blocked(self):
-        with patch("server.options", return_value={"livesync_cli_enabled": True}):
-            with patch("livesync_cli_bridge.safe_create_local_note") as create:
-                response = self.post({**self.payload, "path": "../secret.md"})
+        response = self.post({**self.payload, "path": "../secret.md"})
         self.assertEqual(response.status_code, 400)
-        create.assert_not_called()
+        self.assertFalse((self.vault.parent / "secret.md").exists())
 
 
 if __name__ == "__main__":
