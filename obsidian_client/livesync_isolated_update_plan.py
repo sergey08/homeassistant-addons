@@ -50,6 +50,10 @@ def prepare_isolated_note_update(path, proposed_content, existing_parent,
     if existing_parent["children"]!=[old_leaf]:
         raise UnsafeWrite("old_chunk_identity_mismatch")
     leaf_id="h:"+legacy_chunk_id(proposed_content,passphrase)
+    # The isolated protocol creates fresh leaves; verified chunk reuse is
+    # unsupported, including unchanged content and hash collisions.
+    if leaf_id == old_leaf:
+        raise UnsafeWrite("unchanged_chunk_identity")
     leaf={"_id":leaf_id,"type":"leaf","e_":True,
           "data":encrypt_hkdf_string(proposed_content,passphrase,pbkdf2_salt_b64)}
     candidate=dict(existing_parent)

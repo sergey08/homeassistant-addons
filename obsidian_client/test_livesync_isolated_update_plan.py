@@ -21,7 +21,7 @@ def parent():
             "size":len(BEFORE.encode()),"ctime":1,"mtime":2,"eden":{}}
 def build(**kwargs):
     return prepare_isolated_note_update(
-        PATH, AFTER, kwargs.get("existing_parent",parent()),
+        PATH, kwargs.get("proposed_content",AFTER), kwargs.get("existing_parent",parent()),
         kwargs.get("current_content",BEFORE),
         kwargs.get("expected_revision",REV),
         kwargs.get("expected_content_sha256",hashlib.sha256(BEFORE.encode()).hexdigest()),
@@ -29,6 +29,21 @@ def build(**kwargs):
         remote_writes_enabled=kwargs.get("remote_writes_enabled",False))
 
 class TestOfflineUpdate(unittest.TestCase):
+    def test_unchanged_chunk_identity_rejected_before_encryption(self):
+        with patch("livesync_isolated_update_plan.encrypt_hkdf_string") as encrypt:
+            with self.assertRaisesRegex(UnsafeWrite,"unchanged_chunk_identity"):
+                build(proposed_content=BEFORE)
+            encrypt.assert_not_called()
+
+    def test_colliding_chunk_identity_rejected_before_encryption(self):
+        original=parent()
+        old_chunk=legacy_chunk_id(BEFORE,PASS)
+        with patch("livesync_isolated_update_plan.legacy_chunk_id",return_value=old_chunk), \
+                patch("livesync_isolated_update_plan.encrypt_hkdf_string") as encrypt:
+            with self.assertRaisesRegex(UnsafeWrite,"unchanged_chunk_identity"):
+                build(existing_parent=original)
+            encrypt.assert_not_called()
+
     def test_backdated_update_rejected_before_encryption(self):
         with patch("livesync_isolated_update_plan.encrypt_hkdf_string") as encrypt:
             with self.assertRaisesRegex(UnsafeWrite,"backdated_update"):
