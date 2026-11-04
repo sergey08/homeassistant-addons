@@ -37,7 +37,8 @@ def audit_disposable_chunk_references(parents, leaves, *, isolated_test=False,
         parent_id=parent.get("_id")
         children=parent.get("children")
         if (not isinstance(parent_id,str) or not parent_id or
-                parent_id in seen_parents or not isinstance(children,(list,tuple))):
+                parent_id.startswith("h:") or parent_id in seen_parents or
+                not isinstance(children,(list,tuple))):
             raise UnsafeWrite("invalid_parent_snapshot")
         _require_valid_optional_revision(parent)
         seen_parents.add(parent_id)
@@ -47,7 +48,7 @@ def audit_disposable_chunk_references(parents, leaves, *, isolated_test=False,
             raise UnsafeWrite("unsafe_parent_snapshot")
         parent_chunks=set()
         for chunk_id in children:
-            if not isinstance(chunk_id,str) or not chunk_id.startswith("h:+"):
+            if not isinstance(chunk_id,str) or not chunk_id.startswith("h:+") or len(chunk_id)<=3:
                 raise UnsafeWrite("invalid_chunk_reference")
             if chunk_id in parent_chunks:
                 raise UnsafeWrite("duplicate_parent_chunk_reference")
@@ -58,6 +59,7 @@ def audit_disposable_chunk_references(parents, leaves, *, isolated_test=False,
             raise UnsafeWrite("unsupported_leaf_document")
         leaf_id=leaf.get("_id")
         if (not isinstance(leaf_id,str) or not leaf_id.startswith("h:+") or
+                len(leaf_id)<=3 or
                 leaf_id in leaf_ids or leaf_id in seen_parents):
             raise UnsafeWrite("invalid_leaf_snapshot")
         _require_valid_optional_revision(leaf)

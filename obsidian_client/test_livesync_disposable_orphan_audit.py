@@ -106,6 +106,22 @@ class DisposableOrphanAuditTests(unittest.TestCase):
                         UnsafeWrite,"attachments_not_supported"):
                     audit(parents,leaves)
 
+    def test_empty_chunk_suffix_rejected_in_references_and_leaves(self):
+        cases=(
+            ([parent(["h:+"])],[leaf("h:+good")]),
+            ([parent(["h:+good"])],[leaf("h:+")]),
+        )
+        for parents,leaves in cases:
+            with self.subTest(parents=parents,leaves=leaves), self.assertRaises(UnsafeWrite):
+                audit(parents,leaves)
+
+    def test_parent_cannot_use_reserved_leaf_namespace(self):
+        for bad_id in ("h:+chunk","h:parent"):
+            parents=[parent(["h:+good"],bad_id)]
+            with self.subTest(bad_id=bad_id), self.assertRaisesRegex(
+                    UnsafeWrite,"invalid_parent_snapshot"):
+                audit(parents,[leaf("h:+good")])
+
     def test_duplicate_or_corrupt_documents_fail_closed(self):
         cases=[
             ([parent(["h:+same"]),parent(["h:+same"])],[leaf("h:+same")]),
