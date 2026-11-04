@@ -150,7 +150,7 @@ class HTTPGatewayTests(unittest.TestCase):
                              "Mcp-Session-Id": invalid})
                 with self.assertRaises(urllib.error.HTTPError) as raised:
                     urllib.request.urlopen(req, timeout=5)
-                self.assertEqual(raised.exception.code, 400)
+                self.assertEqual(raised.exception.code, 403)
                 raised.exception.read()
                 self.assertEqual(len(FakeUpstream.calls), before)
 
