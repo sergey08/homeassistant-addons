@@ -253,6 +253,26 @@ class HTTPGatewayTests(unittest.TestCase):
                 finally:
                     FakeUpstream.response_session_id = None
 
+    def test_tool_call_rejects_malformed_session_before_upstream(self):
+        for session_id in ("bad session", "bad/session", "x" * 129):
+            with self.subTest(session_id=session_id[:24]):
+                before = len(FakeUpstream.calls)
+                message = {"jsonrpc": "2.0", "id": 17,
+                           "method": "tools/call",
+                           "params": {"name": "moonraker_printer_info",
+                                      "arguments": {}}}
+                req = urllib.request.Request(
+                    "http://127.0.0.1:%s/mcp" % self.gateway.server_port,
+                    data=json.dumps(message).encode(),
+                    headers={"Authorization": "Bearer ci-secret",
+                             "Content-Type": "application/json",
+                             "Mcp-Session-Id": session_id})
+                with self.assertRaises(urllib.error.HTTPError) as raised:
+                    urllib.request.urlopen(req, timeout=5)
+                self.assertEqual(raised.exception.code, 403)
+                raised.exception.read()
+                self.assertEqual(len(FakeUpstream.calls), before)
+
     def test_mcp_initialize_notification_and_list_sequence(self):
         FakeUpstream.response_session_id = "lifecycle-test-session"
         start = len(FakeUpstream.calls)
