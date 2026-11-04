@@ -398,6 +398,13 @@ class Handler(BaseHTTPRequestHandler):
     def do_OPTIONS(self):
         self.reject_unsupported_method()
 
+    def do_PUT(self):
+        self.reject_unsupported_method()
+
+    def do_PATCH(self):
+        self.reject_unsupported_method()
+
+
     def do_HEAD(self):
         # A HEAD response must never include a body.
         authorization = self.headers.get_all("Authorization", [])
