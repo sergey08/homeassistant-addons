@@ -194,6 +194,11 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def file_tool_error(self, request_id, message):
+        return self.reply(200, {"jsonrpc": "2.0", "id": request_id,
+                                "result": {"content": [{"type": "text", "text": message}],
+                                           "isError": True}})
+
     def do_POST(self):
         if self.path not in ("/", "/mcp"):
             return self.reply(404, {"error": "Not found"})
@@ -222,19 +227,26 @@ class Handler(BaseHTTPRequestHandler):
             if method == "tools/call" and message["params"]["name"] in LOCAL_FILE_TOOLS:
                 name = message["params"]["name"]
                 args = message["params"].get("arguments", {})
-                if name == "moonraker_files_list":
-                    if args:
-                        raise PolicyError("Unexpected file list arguments")
-                    result = list_gcodes(os.environ["MOONRAKER_URL"], os.environ.get("MOONRAKER_API_KEY", ""))
-                else:
-                    if set(args) != {"filename"}:
-                        raise PolicyError("Expected only filename")
-                    if name == "moonraker_files_preview":
-                        result = gcode_preview(os.environ["MOONRAKER_URL"], args["filename"],
-                                               os.environ.get("MOONRAKER_API_KEY", ""))
+                try:
+                    if name == "moonraker_files_list":
+                        if args:
+                            raise PolicyError("Unexpected file list arguments")
+                        result = list_gcodes(os.environ["MOONRAKER_URL"], os.environ.get("MOONRAKER_API_KEY", ""))
                     else:
-                        result = gcode_metadata(os.environ["MOONRAKER_URL"], args["filename"],
-                                                os.environ.get("MOONRAKER_API_KEY", ""))
+                        if set(args) != {"filename"}:
+                            raise PolicyError("Expected only filename")
+                        if name == "moonraker_files_preview":
+                            result = gcode_preview(os.environ["MOONRAKER_URL"], args["filename"],
+                                                   os.environ.get("MOONRAKER_API_KEY", ""))
+                        else:
+                            result = gcode_metadata(os.environ["MOONRAKER_URL"], args["filename"],
+                                                    os.environ.get("MOONRAKER_API_KEY", ""))
+                except urllib.error.HTTPError as exc:
+                    error_text = ("Moonraker file not found" if exc.code == 404
+                                  else "Moonraker file service unavailable")
+                    return self.file_tool_error(message["id"], error_text)
+                except (urllib.error.URLError, TimeoutError):
+                    return self.file_tool_error(message["id"], "Moonraker file service unavailable")
                 return self.reply(200, {"jsonrpc": "2.0", "id": message["id"],
                                         "result": {"content": [{"type": "text",
                                                                "text": json.dumps(result, ensure_ascii=False)}],
