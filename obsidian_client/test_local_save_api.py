@@ -206,7 +206,7 @@ class LocalSaveTests(unittest.TestCase):
         self.assertEqual(page.status_code, 200)
         self.assertIn("Notes/New.md", page.get_data(as_text=True))
         self.assertIn("remote/new?path=Notes%2FNew.md", page.get_data(as_text=True))
-        self.assertIn("Sin sincronizar", page.get_data(as_text=True))
+        self.assertIn("los borradores privados no", page.get_data(as_text=True))
 
     def test_mcp_shared_mode_requires_existing_fixed_vault(self):
         with patch("server.options", return_value={"editor_storage_mode": "mcp_shared"}):
