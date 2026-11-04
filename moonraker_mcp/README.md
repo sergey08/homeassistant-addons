@@ -35,6 +35,14 @@ The DEV GitHub Actions workflow starts the real add-on container with a placehol
 
 **Español:** GitHub Actions inicia el contenedor real con una URL Moonraker de prueba y un puerto accesible únicamente desde el propio runner. Comprueba la negociación MCP, las capacidades anunciadas y las herramientas disponibles. Ninguna de estas comprobaciones requiere acceder a la Snapmaker U1. La compatibilidad real desde ChatGPT sigue pendiente, igual que cualquier instalación en Home Assistant.
 
+## Official SDK interoperability / Interoperabilidad con SDK oficial
+
+**Validated in isolated Docker CI (2026-11-04):** the official Python MCP SDK `mcp==1.30.0`, using Streamable HTTP, can establish an authenticated connection to the actual pinned upstream behind the gateway, negotiate an older supported protocol revision, receive the tools-only capabilities, discover the four default tools, and successfully invoke `moonraker_mcp_version`. A second SDK session attempts `moonraker_gcode_script` and verifies rejection with HTTP 403. These checks passed in both GitHub Actions workflows at commit `6e2e06c`.
+
+**Español:** el SDK oficial MCP para Python conecta con el contenedor real, negocia el protocolo, descubre las cuatro herramientas predeterminadas y ejecuta la consulta de versión. Una llamada de ejecución de G-code se bloquea con 403. Todo ello se comprueba sin conectar ninguna impresora.
+
+**What remains unverified / Pendiente:** ChatGPT's actual remote registration, credential/tunnel configuration, HTTPS or secure tunnel access, real Home Assistant add-on installation, live Moonraker responses and private-data redaction. The gateway remains a limited Streamable HTTP implementation and is **not** certified production-ready. Never put a token or private endpoint in this repository; secure exposure and printer access require separate authorization.
+
 ## Next / Próximos pasos
 
 1. **Completed in isolated Docker CI:** authenticated MCP initialization, tool listing, forbidden calls, four-tool default, and explicit history/objects profiles. No printer connection was used.
