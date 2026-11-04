@@ -324,9 +324,6 @@ class Handler(BaseHTTPRequestHandler):
                         raise PolicyError("Unsupported upstream content type")
                     parsed = filter_reply(method, validate_reply(message, strict_json_loads(raw)), self.allowed,
                                           message.get("params", {}).get("cursor") if method == "tools/list" else None)
-                    if method == "initialize" and "result" in parsed:
-                        if parsed["result"]["protocolVersion"] != message["params"]["protocolVersion"]:
-                            raise PolicyError("Upstream MCP protocol version mismatch")
                     extra = {}
                     session = upstream.headers.get("Mcp-Session-Id")
                     if session:
