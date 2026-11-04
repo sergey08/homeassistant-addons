@@ -106,6 +106,21 @@ class DisposableOrphanAuditTests(unittest.TestCase):
                         UnsafeWrite,"attachments_not_supported"):
                     audit(parents,leaves)
 
+    def test_explicit_empty_conflict_metadata_is_rejected(self):
+        for kind in ("parent", "leaf"):
+            for value in ([], None, ""):
+                parents=[parent(["h:+kept"])]
+                leaves=[leaf("h:+kept")]
+                (parents[0] if kind=="parent" else leaves[0])["_conflicts"]=value
+                with self.subTest(kind=kind,value=value), self.assertRaisesRegex(
+                        UnsafeWrite,"unsafe_.*_snapshot"):
+                    audit(parents,leaves)
+
+    def test_absent_conflict_metadata_remains_valid(self):
+        result=audit([parent(["h:+kept"])],[leaf("h:+kept")])
+        self.assertEqual(result["unreferenced_leaf_candidates"],())
+        self.assertIs(result["deletion_permitted"],False)
+
     def test_empty_chunk_suffix_rejected_in_references_and_leaves(self):
         cases=(
             ([parent(["h:+"])],[leaf("h:+good")]),
