@@ -338,6 +338,8 @@ class Handler(BaseHTTPRequestHandler):
                     if session:
                         extra["Mcp-Session-Id"] = validate_mcp_header(session)
                     return self.reply(200, parsed, extra)
+            except (urllib.error.URLError, TimeoutError):
+                return self.reply(502, {"error": "Upstream unavailable"})
             except urllib.error.HTTPError as exc:
                 return self.reply(502, {"error": "Upstream MCP error", "status": exc.code})
             except (PolicyError, ValueError, TypeError, UnicodeError):
