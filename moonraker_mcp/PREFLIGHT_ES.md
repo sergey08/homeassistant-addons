@@ -50,3 +50,19 @@
 La herramienta `moonraker_jobqueue_status` está habilitada actualmente entre las cuatro herramientas básicas. Su respuesta puede contener nombres de archivos de impresión y, por tanto, información privada. **Implementado en DEV:** se ha retirado del perfil predeterminado y se ha añadido `enable_jobqueue: false`, independiente del historial. Pendiente de completar la validación de CI.
 
 La validación debe comprobar de forma coordinada `read_only_allowlist.json`, `tool_policy.py`, `config.yaml`, `run.sh`, documentación y pruebas de CI (incluida la prueba Docker que actualmente espera cinco herramientas). Verificar expresamente que `tools/list` oculta la herramienta y `tools/call` devuelve 403 sin permiso, y que el perfil activado solo permite la consulta GET correspondiente. No activar el perfil ni conectar una impresora durante estas pruebas.
+
+## Matriz de compatibilidad MCP remoto (revisión estática, DEV)
+
+| Requisito | Estado actual | Acción previa a conectar ChatGPT |
+| --- | --- | --- |
+| POST JSON-RPC, initialize, tools/list y tools/call | Implementado y probado en Docker | Confirmar con el cliente ChatGPT previsto |
+| Sesión `Mcp-Session-Id` | Se reenvía y devuelve el encabezado del upstream | Probar ciclo completo y caducidad de sesión |
+| Notificación initialized | Aceptada por POST, devuelve 202 | Probar con el cliente real |
+| SSE | Acepta una respuesta upstream de un único evento; responde al cliente en JSON | Comprobar negociación y compatibilidad; no prometer streaming |
+| GET del endpoint MCP | Devuelve 405 | Comprobar si el cliente admite operación sin GET streaming |
+| DELETE de sesión MCP | Devuelve 405 | Comprobar si el cliente exige cierre explícito |
+| Versiones MCP | Solo `2025-03-26` y `2025-06-18` | Verificar versión negociada por el cliente real |
+| Autenticación | Bearer estático en el gateway | Validar mecanismo de conexión del cliente; no confundir token estático con OAuth |
+| HTTPS público | No implementado en el add-on | Diseñar TLS y controles de exposición antes de publicar una URL |
+
+**Conclusión:** CI verde significa que el transporte limitado funciona en Docker, **no** que ChatGPT pueda registrar o utilizar el servidor MCP remoto. No instalar, mapear puertos, publicar una URL ni conectar la impresora sin autorización expresa.
