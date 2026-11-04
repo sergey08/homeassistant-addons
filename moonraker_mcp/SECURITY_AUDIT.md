@@ -40,9 +40,9 @@ The gateway currently forwards tool results without field-level redaction. The b
 
 | Exposure category | Tools | Data to inspect before deployment |
 | --- | --- | --- |
-| Low / operational | `moonraker_mcp_version`, `moonraker_printer_info`, `moonraker_temperature_store`, `moonraker_jobqueue_status` | Software version, printer state, temperatures, queued filenames |
+| Low / operational | `moonraker_mcp_version`, `moonraker_printer_info`, `moonraker_temperature_store` | Software version, printer state, temperatures; verify device and host identifiers in actual responses |
 | Medium / environment | `moonraker_server_info`, `moonraker_objects_list`, `moonraker_objects_query`, `moonraker_power_status`, `moonraker_sensors_info`, `moonraker_sensors_list`, `moonraker_sensors_measurements` | Host and device metadata, configured object names, sensor/device identifiers, possible paths |
-| Medium / personal or business context | `moonraker_history_list`, `moonraker_history_job`, `moonraker_history_totals`, `moonraker_spoolman_status`, `moonraker_spoolman_get_spool` | Print filenames, job timing, inventory IDs and spool metadata |
+| Medium / personal or business context | `moonraker_jobqueue_status`, `moonraker_history_list`, `moonraker_history_job`, `moonraker_history_totals`, `moonraker_spoolman_status`, `moonraker_spoolman_get_spool` | Print filenames, job timing, inventory IDs and spool metadata |
 
 **Deployment gate:** do not expose this add-on beyond a trusted network or configure it as a ChatGPT connector until the user approves the information that may be disclosed. Consider a smaller default allowlist and optional feature groups (history, sensors, Spoolman) after inspecting actual payloads. HTTP read-only behavior does not guarantee privacy.
 
@@ -56,7 +56,7 @@ The add-on defaults all six optional profile switches (`files`, `objects`, `hist
 
 The default profile **does not expose** `moonraker_objects_list` or `moonraker_objects_query`. Both require the explicit Home Assistant option `enable_objects: true`. The gateway enforces this policy on both `tools/list` and `tools/call`; CI includes denial tests for the default and history-enabled profiles. The object-query tool can still return caller-selected Klipper fields when enabled. This opt-in is a privacy boundary, **not field-level redaction**.
 
-The five default tools are `moonraker_mcp_version`, `moonraker_server_info`, `moonraker_printer_info`, `moonraker_temperature_store`, and `moonraker_jobqueue_status`. With `history` enabled there are 8; with all optional profiles except `objects` there are 14; with all five optional profiles there are 16.
+**Privacy caveat:** `moonraker_jobqueue_status` is enabled by default and may disclose queued filenames even when the optional history profile is disabled. A read-only queue query is not necessarily low-sensitivity. For any future remote ChatGPT connection, inspect its real payload and obtain explicit consent; consider making job-queue access opt-in before deployment.\n\nThe five default tools are `moonraker_mcp_version`, `moonraker_server_info`, `moonraker_printer_info`, `moonraker_temperature_store`, and `moonraker_jobqueue_status`. With `history` enabled there are 8; with all optional profiles except `objects` there are 14; with all five optional profiles there are 16.
 
 **Remaining deployment gate:** verify representative responses and explicit user approval before exposing even default status data to external MCP clients.
 
