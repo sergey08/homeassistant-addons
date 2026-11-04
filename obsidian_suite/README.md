@@ -74,3 +74,23 @@ The directory cannot be `/share` itself, outside `/share`, or a symbolic link. T
 - The add-on's **Configuration** tab is the source of truth for these settings; the Ingress page provides diagnostics, not another configuration form.
 
 For setup details and backups, see [the full documentation](DOCS.md). The storage-mode option requires **version 0.2.3 or later**.
+
+
+## Shared Markdown vault with Obsidian Client (experimental; opt-in only)
+
+The existing MCP LiveSync installation continues to use its legacy vault by default.
+For a future deployment with the independent Obsidian Client, both add-ons can
+mount the same dedicated directory under `/share`. The **MCP is the only
+LiveSync process**. The Client must **not** run its own synchronization.
+
+The experimental MCP configuration key `livesync_shared_vault_path` remains
+empty by default. To opt in, an operator must first back up the existing MCP
+vault, stop any processes writing to it, copy/migrate its Markdown files to
+`/share/obsidian-shared-vault`, verify contents and permissions, then point
+the MCP to that path with `storage_mode=livesync` and `enable_livesync=true`.
+A missing or empty shared directory is intentionally rejected. Never enable
+the Client's `mcp_shared` mode until the MCP has been restarted and its
+LiveSync synchronization with CouchDB has been verified using a disposable
+test note. There is **no automatic migration or production activation** in
+this change. Switching the MCP back to its previous vault does not copy notes
+back; preserve backups and coordinate writes across both add-ons.
