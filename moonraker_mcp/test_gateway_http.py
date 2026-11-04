@@ -24,6 +24,7 @@ class FakeUpstream(BaseHTTPRequestHandler):
     malformed_reply = None
     negotiated_protocol_version = None
     initialize_instructions = None
+    response_content_type = "application/json"
 
     def do_POST(self):
         if self.path == "/collect":
@@ -85,7 +86,7 @@ class FakeUpstream(BaseHTTPRequestHandler):
             response = self.malformed_reply
         body = json.dumps(response).encode()
         self.send_response(200)
-        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Type", self.response_content_type)
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
@@ -202,6 +203,26 @@ class HTTPGatewayTests(unittest.TestCase):
                         self.assertNotIn("internal-printer", json.dumps(body))
         finally:
             Handler.allowed = original_allowed
+
+    def test_upstream_content_type_requires_exact_media_type(self):
+        original = FakeUpstream.response_content_type
+        try:
+            for media_type in ("application/json", "application/json; charset=utf-8"):
+                with self.subTest(media_type=media_type):
+                    FakeUpstream.response_content_type = media_type
+                    status, body = self.request("ping")
+                    self.assertEqual(status, 200)
+                    self.assertIn("result", body)
+            for media_type in ("text/plain; note=application/json",
+                               "application/json-malicious", "application/octet-stream",
+                               "application/x-text-event-stream"):
+                with self.subTest(media_type=media_type):
+                    FakeUpstream.response_content_type = media_type
+                    status, body = self.request("ping")
+                    self.assertEqual(status, 502)
+                    self.assertEqual(body, {"error": "Invalid upstream MCP response"})
+        finally:
+            FakeUpstream.response_content_type = original
 
     def test_initialize_strips_untrusted_upstream_instructions_over_http(self):
         original = FakeUpstream.initialize_instructions
