@@ -40,6 +40,9 @@ class GatewayTests(unittest.TestCase):
             {"protocolVersion": "2024-11-05", "capabilities": {}, "clientInfo": {}},
             {"protocolVersion": "2025-06-18", "capabilities": [] , "clientInfo": {}},
             {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": "client"},
+            {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {}},
+            {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "", "version": "1"}},
+            {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "test", "version": 1}},
         ):
             with self.subTest(params=params), self.assertRaises(PolicyError):
                 check_message({"jsonrpc": "2.0", "id": 1, "method": "initialize",
