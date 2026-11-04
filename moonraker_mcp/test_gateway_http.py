@@ -136,6 +136,24 @@ class HTTPGatewayTests(unittest.TestCase):
         except urllib.error.HTTPError as err:
             return err.code, json.loads(err.read())
 
+    def test_get_delete_cannot_reach_upstream(self):
+        for method in ("GET", "DELETE"):
+            for authorized in (False, True):
+                with self.subTest(method=method, authorized=authorized):
+                    before = len(FakeUpstream.calls)
+                    headers = ({"Authorization": "Bearer ci-secret"}
+                               if authorized else {})
+                    req = urllib.request.Request(
+                        "http://127.0.0.1:%s/mcp" % self.gateway.server_port,
+                        headers=headers, method=method)
+                    with self.assertRaises(urllib.error.HTTPError) as raised:
+                        urllib.request.urlopen(req, timeout=5)
+                    response = raised.exception
+                    self.assertEqual(response.code, 405)
+                    self.assertEqual(response.headers.get("Cache-Control"), "no-store")
+                    response.read()
+                    self.assertEqual(len(FakeUpstream.calls), before)
+
     def test_invalid_client_session_header_never_reaches_upstream(self):
         payload = json.dumps({"jsonrpc": "2.0", "id": 1, "method": "ping",
                               "params": {}}).encode()
