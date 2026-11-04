@@ -27,9 +27,10 @@ export MOONRAKER_TOKEN_FILE=/data/moonraker-token.json
 # Keep upstream bound to loopback. Never expose its unfiltered tool set.
 # Keep stdin open: upstream serves both stdio and HTTP and exits when stdio closes.
 mkfifo /tmp/moonraker-stdin
-tail -f /dev/null > /tmp/moonraker-stdin &
+chown 65534:65534 /tmp/moonraker-stdin
+su-exec 65534:65534 tail -f /dev/null > /tmp/moonraker-stdin &
 KEEPALIVE_PID=$!
-/usr/local/bin/mcp-raker < /tmp/moonraker-stdin &
+su-exec 65534:65534 /usr/local/bin/mcp-raker < /tmp/moonraker-stdin &
 UPSTREAM_PID=$!
 TUNNEL_PID=""
 cleanup() {
@@ -43,7 +44,7 @@ cd /opt/moonraker-mcp
 if [ "$MCP_ENABLE_TUNNEL" = "true" ]; then
   # Dedicated loopback bridge injects the bearer token without passing it in
   # tunnel-client command arguments or exposing an unauthenticated HA port.
-  python3 -u tunnel_runtime.py &
+  su-exec 65534:65534 python3 -u tunnel_runtime.py &
   TUNNEL_PID=$!
 fi
-python3 -u gateway.py
+su-exec 65534:65534 python3 -u gateway.py
