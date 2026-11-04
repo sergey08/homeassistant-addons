@@ -133,6 +133,20 @@ El archivo `tunnel-authorization` (modo `0600`) debe contener una única línea 
 
 **No reutilizar literalmente** los puertos, nombres de perfil ni rutas de autenticación de SAP: crear recursos independientes; no modificar sus perfiles en funcionamiento. Este documento define el patrón, no confirma que exista ya el enlace de red Debian → HA ni que se haya desplegado el túnel.
 
+### Auditoría de conectividad sin cambios en producción (2026-11-04)
+
+Comprobado mediante SSH de solo lectura en el host Debian `dcl-debian`:
+
+- Debian `ens33`: `192.168.5.21`; `wg0`: `10.10.10.1/24` (activo); enlace adicional `10.0.0.1`. Los proxies existentes escuchan exclusivamente en `127.0.0.1:3000`, `:3001`, `:3002`; las interfaces de control de túneles en `127.0.0.1:8081` y `:8082`.
+- Home Assistant en Lenovo: dirección conocida `192.168.1.33`, distinta subred.
+- `ip route get 192.168.1.33` en Debian devuelve `via 192.168.5.1 dev ens33 src 192.168.5.21`: el tráfico no se encamina actualmente por `wg0`.
+- `ping -c 2 -W 1 192.168.1.33` terminó sin respuestas. **Esto no demuestra por sí solo falta de TCP**: ICMP puede estar filtrado.
+- La comprobación HTTP/TCP desde la herramienta SSH en modo solo lectura no pudo ejecutarse, pues `curl` no está permitido por su lista de comandos de lectura. Queda pendiente confirmar TCP a un servicio conocido en HA antes de seleccionar la ruta al gateway.
+
+**Consecuencia:** no publicar `:8765` en el router ni dar por resuelta la comunicación Debian→HA. Elegir una única vía privada: ruta LAN entre `192.168.5.0/24` y `192.168.1.0/24` si la segmentación/firewall la admite, o una ruta privada VPN WireGuard explícitamente autorizada. Verificar TCP y reglas de retorno primero; después establecer el enlace restringido a `/mcp` del gateway en HA y el proxy local del Debian. El esquema `file:` para Bearer queda confirmado por la configuración anterior; no requiere inventar otro método de autenticación.
+
+**No se cambiaron rutas, reglas de firewall, servicios, complementos, puertos ni credenciales durante esta auditoría.**
+
 ### Criterio de avance
 
 La CI Docker con el SDK oficial MCP `mcp==1.30.0` ya ha comprobado autenticación, descubrimiento de cuatro herramientas, consulta de versión y denegación de G-code. Falta el ensayo de extremo a extremo **a través del OpenAI Secure MCP Tunnel**, y después el ensayo controlado en Home Assistant con la Snapmaker U1.
