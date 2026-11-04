@@ -257,10 +257,27 @@ class Handler(BaseHTTPRequestHandler):
             # This gateway only returns JSON to MCP clients. Do not send a
             # representation the client explicitly refuses.
             accept = self.headers.get("Accept", "*/*")
-            accepted = [part.split(";", 1)[0].strip().lower()
-                        for part in accept.split(",")]
-            if not any(media in ("application/json", "application/*", "*/*")
-                       for media in accepted):
+            # Honor explicit q=0 refusals, including wildcard overrides.
+            qualities = {}
+            for item in accept.split(","):
+                segments = [part.strip().lower() for part in item.split(";")]
+                media = segments[0]
+                if not media:
+                    continue
+                quality = 1.0
+                for parameter in segments[1:]:
+                    if parameter.startswith("q="):
+                        try:
+                            quality = float(parameter[2:])
+                        except ValueError:
+                            quality = 0.0
+                        if not 0.0 <= quality <= 1.0:
+                            quality = 0.0
+                qualities[media] = max(qualities.get(media, 0.0), quality)
+            json_quality = next((qualities[media] for media in
+                                 ("application/json", "application/*", "*/*")
+                                 if media in qualities), 0.0)
+            if json_quality <= 0:
                 return self.reply(406, {"error": "MCP gateway requires JSON response acceptance"})
             content_type = self.headers.get("Content-Type", "").split(";", 1)[0].strip().lower()
             if content_type != "application/json":
