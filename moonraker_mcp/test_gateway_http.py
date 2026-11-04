@@ -131,6 +131,28 @@ class HTTPGatewayTests(unittest.TestCase):
         finally:
             Handler.allowed = original_allowed
 
+    def test_file_api_network_failures_are_mcp_tool_errors(self):
+        original_allowed = Handler.allowed
+        try:
+            Handler.allowed = extend_allowed(load_allowed(), ["files"])
+            with patch.dict("os.environ", {"MOONRAKER_URL": "http://127.0.0.1:7125",
+                                           "MOONRAKER_API_KEY": "secret"}):
+                for failure in (urllib.error.URLError("internal-printer secret"),
+                                TimeoutError("internal-printer secret")):
+                    with self.subTest(failure=type(failure).__name__):
+                        with patch("gateway.list_gcodes", side_effect=failure):
+                            status, body = self.request(
+                                "tools/call", {"name": "moonraker_files_list",
+                                               "arguments": {}})
+                        self.assertEqual(status, 200)
+                        self.assertIs(body["result"]["isError"], True)
+                        self.assertEqual(body["result"]["content"][0]["text"],
+                                         "Moonraker file service unavailable")
+                        self.assertNotIn("secret", json.dumps(body))
+                        self.assertNotIn("internal-printer", json.dumps(body))
+        finally:
+            Handler.allowed = original_allowed
+
     def test_file_api_errors_are_sanitized(self):
         original_allowed = Handler.allowed
         try:
