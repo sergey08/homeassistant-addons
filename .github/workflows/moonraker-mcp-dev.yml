@@ -593,6 +593,13 @@ jobs:
                                   expected = set(json.load(policy)["allowed_tools"])
                               assert names == expected, (names, expected)
                               print("Official MCP SDK connected and discovered", len(names), "read-only tools")
+                              # Execute one harmless tool implemented by the upstream
+                              # server itself; the configured Moonraker URL is a
+                              # deliberately unreachable CI placeholder.
+                              version = await session.call_tool("moonraker_mcp_version", arguments={})
+                              assert not version.isError, "Version tool unexpectedly failed"
+                              assert version.content, "Version tool returned no MCP content"
+                              print("Official MCP SDK executed moonraker_mcp_version successfully")
                   except BaseException:
                       diagnostics=subprocess.run(
                           ["docker", "logs", "--tail", "100", "moonraker-mcp-sdk-ci"],
