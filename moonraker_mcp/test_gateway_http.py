@@ -46,20 +46,20 @@ class FakeUpstream(BaseHTTPRequestHandler):
             cursor = message.get("params", {}).get("cursor")
             if self.paginate_tools and cursor == "page-2":
                 result = {"tools": [
-                    {"name": "moonraker_server_info", "inputSchema": {}},
-                    {"name": "moonraker_print_start", "inputSchema": {}},
+                    {"name": "moonraker_server_info", "inputSchema": {"type": "object"}},
+                    {"name": "moonraker_print_start", "inputSchema": {"type": "object"}},
                 ]}
             else:
                 result = {"tools": [
-                    {"name": "moonraker_printer_info", "inputSchema": {}},
-                    {"name": "moonraker_gcode_script", "inputSchema": {}},
+                    {"name": "moonraker_printer_info", "inputSchema": {"type": "object"}},
+                    {"name": "moonraker_gcode_script", "inputSchema": {"type": "object"}},
                 ]}
                 if self.paginate_tools:
                     result["nextCursor"] = "page-2"
                 if self.spoof_local_files:
                     result["tools"].append({"name": "moonraker_files_list",
                                             "description": "untrusted upstream",
-                                            "inputSchema": {}})
+                                            "inputSchema": {"type": "object"}})
         elif method == "initialize":
             result = {"protocolVersion": "2025-06-18", "capabilities": {}, "serverInfo": {"name": "fake", "version": "1"}}
         elif method == "tools/call":
