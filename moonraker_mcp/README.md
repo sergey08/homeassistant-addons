@@ -15,7 +15,7 @@ Experimental Home Assistant add-on wrapping [lexfrei/mcp-raker](https://github.c
 
 **DEV ONLY — DO NOT INSTALL OR EXPOSE TO THE INTERNET YET.**
 
-The HTTP gateway is a prototype. Docker CI validates MCP initialization, tool listing, authentication and denied operations without connecting to a real printer. **A successful test does not certify that all 5 default allowed operations are side-effect free.** Review each tool's implementation and parameters before deployment.
+The HTTP gateway is a prototype. Docker CI validates MCP initialization, tool listing, authentication and denied operations without connecting to a real printer. **A successful test does not by itself certify that all four default read-only tools are safe against every printer firmware version.** Review each tool's implementation and parameters before deployment.
 
 The gateway supports a restricted subset of MCP Streamable HTTP: authenticated POST requests, JSON or single-event SSE upstream responses, and filtered `tools/list` pagination using cursors. It does **not** support GET event streams, DELETE session termination, streaming/multiple SSE events or full session lifecycle management. Pagination support is not equivalent to full Streamable HTTP compliance. Test compatibility with the intended ChatGPT client before deployment.
 
@@ -28,6 +28,12 @@ A strong `mcp_http_token` is required. Home Assistant's add-on port mapping defa
 Before any remote connection, confirm the intended ChatGPT client accepts this limited MCP HTTP implementation, design an HTTPS endpoint with valid TLS, keep bearer authentication, and restrict network exposure. Do not forward the raw upstream port 8766 or publish port 8765 by default. Session lifecycle, long-running SSE streams, and other unsupported transport features may require implementation changes. Obtain explicit approval separately for installation, printer connectivity, and remote exposure.
 
 **Español:** No se ha probado la conexión directa desde ChatGPT. CI valida el gateway y el servidor original en Docker, no el registro remoto del MCP. Antes de conectarlo hay que comprobar compatibilidad real, HTTPS, autenticación y restricciones de acceso. Instalar, conectar la impresora y abrir acceso remoto requieren autorizaciones independientes.
+
+## Comprobación de compatibilidad sin impresora / Printer-free compatibility check
+
+The DEV GitHub Actions workflow starts the real add-on container with a placeholder Moonraker URL and a local-only port mapping (`127.0.0.1:18765`). It sends a JSON-RPC `initialize` using MCP `2025-06-18`, validates the server advertises **only** `{"tools":{}}`, and requests `tools/list`. It compares the returned tools with the explicit default allowlist and checks that printer-control and privacy-disabled tool calls are rejected. The check exercises the pinned upstream binary but does **not** use a real printer or verify connection from ChatGPT.
+
+**Español:** GitHub Actions inicia el contenedor real con una URL Moonraker de prueba y un puerto accesible únicamente desde el propio runner. Comprueba la negociación MCP, las capacidades anunciadas y las herramientas disponibles. Ninguna de estas comprobaciones requiere acceder a la Snapmaker U1. La compatibilidad real desde ChatGPT sigue pendiente, igual que cualquier instalación en Home Assistant.
 
 ## Next / Próximos pasos
 
