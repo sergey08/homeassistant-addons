@@ -33,7 +33,9 @@ class Bridge(http.server.BaseHTTPRequestHandler):
             return self.respond(404, b"")
         # The tunnel-client is the only supported peer of this loopback
         # listener; reject browser-originated requests including DNS rebinding.
-        if self.headers.get_all("Origin", []) or len(self.headers.get_all("Host", [])) != 1:
+        if (self.headers.get_all("Origin", []) or
+                self.headers.get_all("Host", []) not in
+                (["127.0.0.1:8767"], ["localhost:8767"])):
             return self.respond(403, b"")
         length = self.headers.get("Content-Length")
         if self.command == "POST":
