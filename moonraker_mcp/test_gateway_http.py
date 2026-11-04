@@ -135,7 +135,10 @@ class HTTPGatewayTests(unittest.TestCase):
         payload = json.dumps({"jsonrpc": "2.0", "id": 1, "method": "ping",
                               "params": {}}).encode()
         for accept, expected in (("text/event-stream", 406),
-                                 ("application/json, text/event-stream", 200)):
+                                 ("application/json, text/event-stream", 200),
+                                 ("application/json;q=0, text/event-stream", 406),
+                                 ("application/json;q=0, */*;q=1", 406),
+                                 ("application/json;q=0.5", 200)):
             with self.subTest(accept=accept):
                 req = urllib.request.Request(
                     "http://127.0.0.1:%s/" % self.gateway.server_port,
