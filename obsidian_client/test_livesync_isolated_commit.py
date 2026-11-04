@@ -97,6 +97,26 @@ class TestIsolatedCommit(unittest.TestCase):
                                          isolated_test=True)
                 self.assertEqual(calls, [])
 
+    def test_leaf_revision_cannot_overwrite_existing_chunk(self):
+        for rev in ("1-"+"a"*32, None, "invalid"):
+            candidate=plan()
+            candidate["leaf"]["_rev"]=rev
+            calls=[]
+            with self.subTest(rev=rev), self.assertRaisesRegex(
+                    UnsafeWrite, "leaf_update_not_supported"):
+                commit_isolated_plan(candidate,lambda doc:calls.append(doc),
+                                     isolated_test=True)
+            self.assertEqual(calls,[])
+
+    def test_parent_and_leaf_identity_cannot_collide(self):
+        candidate=plan()
+        candidate["parent"]["_id"]=candidate["leaf"]["_id"]
+        calls=[]
+        with self.assertRaisesRegex(UnsafeWrite,"parent_leaf_identity_collision"):
+            commit_isolated_plan(candidate,lambda doc:calls.append(doc),
+                                 isolated_test=True)
+        self.assertEqual(calls,[])
+
     def test_rejects_mismatched_document_or_order_before_write(self):
         for mutation in ("badorder","badleaf","badparent"):
             candidate=plan()
