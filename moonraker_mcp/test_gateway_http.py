@@ -457,6 +457,53 @@ class HTTPGatewayTests(unittest.TestCase):
         finally:
             FakeUpstream.redirect_target = original
 
+    def test_advertised_default_tools_are_callable(self):
+        original = Handler.allowed
+        try:
+            Handler.allowed = load_allowed()
+            status, listing = self.request("tools/list")
+            self.assertEqual(status, 200)
+            names = {tool["name"] for tool in listing["result"]["tools"]}
+            self.assertIn("moonraker_printer_info", names)
+            self.assertNotIn("moonraker_gcode_script", names)
+            for name in names:
+                with self.subTest(name=name):
+                    before = len(FakeUpstream.calls)
+                    status, response = self.request(
+                        "tools/call", {"name": name, "arguments": {}})
+                    self.assertEqual(status, 200)
+                    self.assertIs(response["result"]["isError"], False)
+                    self.assertEqual(len(FakeUpstream.calls), before + 1)
+        finally:
+            Handler.allowed = original
+
+    def test_advertised_file_tools_are_local_and_opt_in(self):
+        original = Handler.allowed
+        try:
+            Handler.allowed = extend_allowed(load_allowed(), ["files"])
+            status, listing = self.request("tools/list")
+            self.assertEqual(status, 200)
+            names = {tool["name"] for tool in listing["result"]["tools"]}
+            self.assertTrue({"moonraker_files_list", "moonraker_files_metadata",
+                             "moonraker_files_preview"}.issubset(names))
+            with patch.dict("os.environ", {"MOONRAKER_URL": "http://127.0.0.1:7125",
+                                           "MOONRAKER_API_KEY": ""}):
+                for name, arguments, target in (
+                    ("moonraker_files_list", {}, "list_gcodes"),
+                    ("moonraker_files_metadata", {"filename": "part.gcode"}, "gcode_metadata"),
+                    ("moonraker_files_preview", {"filename": "part.gcode"}, "gcode_preview"),
+                ):
+                    with self.subTest(name=name):
+                        before = len(FakeUpstream.calls)
+                        with patch("gateway." + target, return_value={"ok": True}):
+                            status, response = self.request(
+                                "tools/call", {"name": name, "arguments": arguments})
+                        self.assertEqual(status, 200)
+                        self.assertIs(response["result"]["isError"], False)
+                        self.assertEqual(len(FakeUpstream.calls), before)
+        finally:
+            Handler.allowed = original
+
     def test_allowed_call_reaches_fake_upstream(self):
         before = len(FakeUpstream.calls)
         status, _ = self.request("tools/call", {
