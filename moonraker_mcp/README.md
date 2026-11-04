@@ -6,7 +6,7 @@ Experimental Home Assistant add-on wrapping [lexfrei/mcp-raker](https://github.c
 
 - Upstream `mcp-raker` runs on **127.0.0.1:8766 inside the container**, never on the published interface.
 - A Python HTTP gateway listens on port **8765** and checks a bearer token.
-- `tools/list` is filtered using `read_only_allowlist.json` (5 minimal status tools by default).
+- `tools/list` is filtered using `read_only_allowlist.json` (4 minimal status tools by default).
 - `tools/call` is independently checked against the same explicit allowlist; unknown tools and unsupported MCP methods fail closed.
 - The upstream image is pinned to `sha256:cdfbb9b4ead2b3f8a253eb55c1996a69cfdbc17088cc111b7d265d8b71f7090e`.
 - The Alpine runtime contains Python, jq, CA certificates and the upstream Go executable. It runs as UID 65534.
@@ -31,7 +31,7 @@ Before any remote connection, confirm the intended ChatGPT client accepts this l
 
 ## Next / Próximos pasos
 
-1. **Completed in isolated Docker CI:** authenticated MCP initialization, tool listing, forbidden calls, five-tool default, and explicit history/objects profiles. No printer connection was used.
+1. **Completed in isolated Docker CI:** authenticated MCP initialization, tool listing, forbidden calls, four-tool default, and explicit history/objects profiles. No printer connection was used.
 2. **Source reviewed:** all sixteen permitted upstream handlers are GET-only or local; OCI revision is checked in CI. This is not a binary provenance attestation.
 3. **Pending:** inspect representative responses for sensitive information, especially server metadata, queued filenames, and optional object queries.
 4. **Pending user approval:** Home Assistant Supervisor installation on amd64 and actual Moonraker connectivity using only safe status queries.
@@ -39,14 +39,14 @@ Before any remote connection, confirm the intended ChatGPT client accepts this l
 
 ## Español
 
-El complemento usa el servidor original `mcp-raker` aislado en el puerto local 8766 y un intermediario HTTP con autenticación y lista explícita de 5 herramientas básicas en el puerto 8765. Las órdenes no permitidas se rechazan antes de llegar al servidor original. **Aún no debe instalarse:** faltan la auditoría funcional de las herramientas autorizadas y las pruebas reales con Home Assistant y la Snapmaker U1.
+El complemento usa el servidor original `mcp-raker` aislado en el puerto local 8766 y un intermediario HTTP con autenticación y lista explícita de 4 herramientas básicas en el puerto 8765. Las órdenes no permitidas se rechazan antes de llegar al servidor original. **Aún no debe instalarse:** faltan la auditoría funcional de las herramientas autorizadas y las pruebas reales con Home Assistant y la Snapmaker U1.
 
 
 ### Default privacy profile (DEV)
 
-Only five tools are enabled by default: MCP version, server info, printer info, temperature store and job queue status. Print history, device power, sensors and Spoolman tools remain disabled pending a separate privacy review. This is a conservative development default, not a finished user-selectable permissions system.
+Only four tools are enabled by default: MCP version, server info, printer info and temperature store. Job queue status requires `enable_jobqueue: true` because queued filenames may be sensitive. Print history, device power, sensors and Spoolman tools remain disabled pending a separate privacy review. This is a conservative development default, not a finished user-selectable permissions system.
 
-**Español:** El perfil inicial permite cinco consultas básicas. Historial de impresiones, dispositivos eléctricos, sensores y Spoolman permanecen deshabilitados hasta revisar los datos expuestos. No instalar todavía.
+**Español:** El perfil inicial permite cuatro consultas básicas. La cola de impresión requiere `enable_jobqueue: true` porque puede revelar nombres de archivos. Historial de impresiones, dispositivos eléctricos, sensores y Spoolman permanecen deshabilitados hasta revisar los datos expuestos. No instalar todavía.
 
 ### Klipper object access / Acceso a objetos Klipper
 
