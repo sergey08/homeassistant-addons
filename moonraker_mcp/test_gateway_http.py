@@ -136,6 +136,31 @@ class HTTPGatewayTests(unittest.TestCase):
         except urllib.error.HTTPError as err:
             return err.code, json.loads(err.read())
 
+    def test_invalid_upstream_session_header_is_rejected(self):
+        payload = json.dumps({
+            "jsonrpc": "2.0", "id": 1, "method": "initialize",
+            "params": {"protocolVersion": "2025-06-18",
+                       "capabilities": {},
+                       "clientInfo": {"name": "mock-client", "version": "1.0"}}
+        }).encode()
+        for invalid in ("session with spaces", "a" * 129, "bad/session"):
+            with self.subTest(invalid=invalid):
+                FakeUpstream.response_session_id = invalid
+                try:
+                    req = urllib.request.Request(
+                        "http://127.0.0.1:%s/mcp" % self.gateway.server_port,
+                        data=payload,
+                        headers={"Authorization": "Bearer ci-secret",
+                                 "Content-Type": "application/json"})
+                    with self.assertRaises(urllib.error.HTTPError) as raised:
+                        urllib.request.urlopen(req, timeout=5)
+                    response = raised.exception
+                    self.assertEqual(response.code, 502)
+                    self.assertIsNone(response.headers.get("Mcp-Session-Id"))
+                    self.assertNotIn(invalid, response.read().decode("utf-8"))
+                finally:
+                    FakeUpstream.response_session_id = None
+
     def test_initialize_returns_upstream_session_header(self):
         FakeUpstream.response_session_id = "session-from-upstream"
         try:
