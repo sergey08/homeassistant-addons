@@ -25,10 +25,33 @@ def build(**kwargs):
         kwargs.get("current_content",BEFORE),
         kwargs.get("expected_revision",REV),
         kwargs.get("expected_content_sha256",hashlib.sha256(BEFORE.encode()).hexdigest()),
-        PASS,SALT,modified_millis=3,
+        PASS,SALT,modified_millis=kwargs.get("modified_millis",3),
         remote_writes_enabled=kwargs.get("remote_writes_enabled",False))
 
 class TestOfflineUpdate(unittest.TestCase):
+    def test_backdated_update_rejected_before_encryption(self):
+        with patch("livesync_isolated_update_plan.encrypt_hkdf_string") as encrypt:
+            with self.assertRaisesRegex(UnsafeWrite,"backdated_update"):
+                build(modified_millis=1)
+            encrypt.assert_not_called()
+
+    def test_invalid_current_modification_time_rejected_before_encryption(self):
+        for value in (None,True,-1,"2",2.5):
+            original=parent()
+            original["mtime"]=value
+            with self.subTest(value=value), patch(
+                    "livesync_isolated_update_plan.encrypt_hkdf_string") as encrypt:
+                with self.assertRaisesRegex(UnsafeWrite,"invalid_modification_time"):
+                    build(existing_parent=original)
+                encrypt.assert_not_called()
+
+    def test_equal_or_later_modification_time_preserves_creation_time(self):
+        for timestamp in (2,3):
+            with self.subTest(timestamp=timestamp):
+                plan=build(modified_millis=timestamp)
+                self.assertEqual(plan["parent"]["mtime"],timestamp)
+                self.assertEqual(plan["parent"]["ctime"],1)
+
     def test_deleted_or_conflicted_parent_rejected_before_encryption(self):
         for field,value in (("_deleted",True),("deleted",True),
                             ("_conflicts",["3-"+"b"*32])):

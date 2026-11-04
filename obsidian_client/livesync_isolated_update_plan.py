@@ -34,6 +34,11 @@ def prepare_isolated_note_update(path, proposed_content, existing_parent,
         raise UnsafeWrite("multichunk_update_not_supported")
     if not isinstance(modified_millis,int) or isinstance(modified_millis,bool) or modified_millis<0:
         raise UnsafeWrite("invalid_timestamp")
+    current_mtime=existing_parent.get("mtime")
+    if type(current_mtime) is not int or current_mtime<0:
+        raise UnsafeWrite("invalid_modification_time")
+    if modified_millis<current_mtime:
+        raise UnsafeWrite("backdated_update")
     validate_update_snapshot(path,proposed_content,expected_revision,
                              existing_parent.get("_rev"),expected_content_sha256,
                              current_content)
