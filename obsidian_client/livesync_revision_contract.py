@@ -33,8 +33,11 @@ def prepare_conditional_document(original, replacement, expected_revision):
     revision = require_matching_revision(expected_revision, original.get("_rev"))
     if replacement.get("_id") != document_id or replacement.get("_rev") != revision:
         raise RevisionConflict("identity_or_revision_changed")
-    if replacement.get("_deleted") or replacement.get("deleted"):
+    if (original.get("_deleted") or original.get("deleted")
+            or replacement.get("_deleted") or replacement.get("deleted")):
         raise RevisionConflict("deletion_not_supported")
+    if original.get("_conflicts") or replacement.get("_conflicts"):
+        raise RevisionConflict("unresolved_document_conflict")
     return deepcopy(replacement)
 
 
