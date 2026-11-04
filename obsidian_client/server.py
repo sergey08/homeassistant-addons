@@ -1226,7 +1226,7 @@ _PRIVATE_BACKUPS = "/data/obsidian-client-backups"
 
 # Opt-in only: the MCP's already-provisioned LiveSync Markdown vault.
 # No second synchronizer is started. The legacy shared MCP path must exist.
-_MCP_SHARED_VAULT = "/app_configs/obsidian_bridge/vault"
+_MCP_SHARED_VAULT = "/share/obsidian-shared-vault"
 
 
 def editor_markdown_vault():
