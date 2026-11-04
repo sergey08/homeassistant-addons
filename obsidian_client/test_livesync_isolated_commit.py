@@ -158,6 +158,48 @@ class TestIsolatedCommit(unittest.TestCase):
             self.assertEqual(calls,expected_calls)
             self.assertEqual(candidate,original)
 
+    def test_competing_updates_cannot_overwrite_first_parent_revision(self):
+        # Two independent plans derive from the same parent revision.
+        # The disposable fake transport applies CouchDB-style CAS to the
+        # parent, while accepting each distinct fresh encrypted leaf.
+        first=plan()
+        second=plan()
+        second["leaf"]["_id"]="h:+other"
+        second["leaf"]["data"]="%=other-encrypted-payload"
+        second["parent"]["children"]=["h:+other"]
+        first_before=deepcopy(first)
+        second_before=deepcopy(second)
+        original_revision=first["parent"]["_rev"]
+        current_revision=original_revision
+        stored_children=["h:+initial"]
+        created_leaf_ids=set()
+        calls=[]
+        def cas_put(doc):
+            nonlocal current_revision, stored_children
+            calls.append((doc["type"],doc["_id"]))
+            if doc["type"]=="leaf":
+                if doc["_id"] in created_leaf_ids:
+                    return 409,{"error":"conflict"}
+                created_leaf_ids.add(doc["_id"])
+                return 201,{"ok":True,"id":doc["_id"],"rev":"1-"+"c"*32}
+            if doc["_rev"]!=current_revision:
+                return 409,{"error":"conflict"}
+            current_revision="2-"+"b"*32
+            stored_children=list(doc["children"])
+            return 201,{"ok":True,"id":doc["_id"],"rev":current_revision}
+
+        committed=commit_isolated_plan(first,cas_put,isolated_test=True)
+        self.assertEqual(committed["status"],"committed_in_disposable_test_only")
+        with self.assertRaisesRegex(RevisionConflict,"remote_revision_conflict"):
+            commit_isolated_plan(second,cas_put,isolated_test=True)
+        self.assertEqual(stored_children,["h:+abc"])
+        self.assertEqual(current_revision,"2-"+"b"*32)
+        self.assertEqual(created_leaf_ids,{"h:+abc","h:+other"})
+        self.assertEqual(calls,[("leaf","h:+abc"),("plain","notes/example.md"),
+                                ("leaf","h:+other"),("plain","notes/example.md")])
+        self.assertEqual(first,first_before)
+        self.assertEqual(second,second_before)
+
     def test_new_parent_create_uses_generation_one(self):
         candidate=plan()
         del candidate["parent"]["_rev"]
