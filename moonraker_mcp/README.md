@@ -35,6 +35,18 @@ The DEV GitHub Actions workflow starts the real add-on container with a placehol
 
 **Español:** GitHub Actions inicia el contenedor real con una URL Moonraker de prueba y un puerto accesible únicamente desde el propio runner. Comprueba la negociación MCP, las capacidades anunciadas y las herramientas disponibles. Ninguna de estas comprobaciones requiere acceder a la Snapmaker U1. La compatibilidad real desde ChatGPT sigue pendiente, igual que cualquier instalación en Home Assistant.
 
+## Optional OpenAI tunnel inside HA / Túnel opcional dentro de Home Assistant
+
+The optional tunnel integration follows the **existing Obsidian Suite add-on** pattern in this repository: the `tunnel-client` process is launched **inside the same HA add-on container** as the MCP gateway, not on any DCL business host. All internet traffic is initiated outbound by the tunnel client; the gateway stays on the internal container network. The upstream `mcp-raker` listener remains bound to `127.0.0.1:8766`.
+
+- Defaults: `enable_tunnel: false`, `tunnel_id: ""`; the existing gateway bearer token remains required.
+- When enabled, `tunnel_runtime.py` starts a loopback-only (`127.0.0.1:8767`) bridge that forwards requests exclusively to `127.0.0.1:8765/mcp` and inserts the configured bearer header. This token is never passed on the tunnel command line.
+- The tunnel process uses exactly the working Obsidian-style CLI arguments (`--control-plane.tunnel-id`, `--control-plane.api-key file:`, `--mcp.server-url channel=main,url=http://127.0.0.1:8767/mcp`). It needs an **independent** tunnel identity, the verified official `tunnel-client` executable at `/data/tunnel/bin/tunnel-client`, and its private `/data/tunnel/api-key` (file mode 0600, readable by the container UID 65534). These files are provisioned locally by the operator, **not included in the repository**.
+- The loopback bridge rejects browser `Origin` headers and unexpected HTTP `Host` values; it does not provide a public unauthenticated port. Keep `8765/tcp` unmapped in the add-on network settings. Do not route external traffic directly to `8767` or `8766`.
+- **DEV ONLY**. Check the tunnel-client binary's compatibility with the Alpine runtime and complete an isolated tunnel end-to-end test before enabling it in Home Assistant. Never reuse Obsidian's tunnel ID or key.
+
+**Español:** siguiendo Obsidian, el cliente de túnel y el gateway se ejecutan dentro del **mismo complemento de Home Assistant**. La opción de túnel queda desactivada por defecto. El proxy de `127.0.0.1:8767` añade el token al gateway filtrado de `127.0.0.1:8765/mcp`; el túnel abre solo una conexión saliente. La identidad y la clave deben ser nuevas y privadas. Esta implementación aún no está instalada ni probada con ChatGPT o la Snapmaker U1.
+
 ## Official SDK interoperability / Interoperabilidad con SDK oficial
 
 **Validated in isolated Docker CI (2026-11-04):** the official Python MCP SDK `mcp==1.30.0`, using Streamable HTTP, can establish an authenticated connection to the actual pinned upstream behind the gateway, negotiate an older supported protocol revision, receive the tools-only capabilities, discover the four default tools, and successfully invoke `moonraker_mcp_version`. A second SDK session attempts `moonraker_gcode_script` and verifies rejection with HTTP 403. These checks passed in both GitHub Actions workflows at commit `6e2e06c`.
