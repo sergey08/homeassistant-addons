@@ -251,7 +251,7 @@ class Handler(BaseHTTPRequestHandler):
         if not hmac.compare_digest(authorization, "Bearer " + self.token):
             return self.reply(401, {"error": "Unauthorized"})
         try:
-            for header in ("Content-Length", "Content-Type", "Mcp-Session-Id", "MCP-Protocol-Version"):
+            for header in ("Content-Length", "Content-Type", "Accept", "Mcp-Session-Id", "MCP-Protocol-Version"):
                 if len(self.headers.get_all(header, [])) > 1:
                     return self.reply(400, {"error": "Duplicate HTTP header"})
             # This gateway only returns JSON to MCP clients. Do not send a
