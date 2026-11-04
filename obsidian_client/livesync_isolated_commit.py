@@ -27,6 +27,8 @@ def commit_isolated_plan(plan, put_document, *, isolated_test=False,
         raise UnsafeWrite("invalid_write_plan")
     if leaf.get("type")!="leaf" or leaf.get("e_") is not True:
         raise UnsafeWrite("unencrypted_leaf")
+    if not isinstance(leaf.get("data"),str) or not leaf["data"].startswith("%="):
+        raise UnsafeWrite("invalid_encrypted_leaf_payload")
     if parent.get("type")!="plain" or parent.get("children")!=[leaf.get("_id")]:
         raise UnsafeWrite("parent_leaf_mismatch")
     if not isinstance(leaf.get("_id"),str) or not leaf["_id"].startswith("h:+"):
