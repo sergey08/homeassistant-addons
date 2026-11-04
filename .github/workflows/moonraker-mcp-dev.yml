@@ -215,7 +215,7 @@ jobs:
                           raise AssertionError("Forbidden tool reached upstream: "+name)
                   print("Docker HTTP gateway blocked",len(forbidden),"forbidden tool calls")
                   # Verify disabled-by-default privacy groups in the actual container.
-                  excluded=("moonraker_objects_list","moonraker_objects_query",
+                  excluded=("moonraker_jobqueue_status","moonraker_objects_list","moonraker_objects_query",
                             "moonraker_history_list","moonraker_history_job",
                             "moonraker_history_totals","moonraker_power_status",
                             "moonraker_sensors_info","moonraker_sensors_list",
