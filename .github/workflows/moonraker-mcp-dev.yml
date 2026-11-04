@@ -572,6 +572,13 @@ jobs:
                               if attempt == 19:
                                   raise
                               await asyncio.sleep(1)
+                  except BaseException:
+                      diagnostics=subprocess.run(
+                          ["docker", "logs", "--tail", "100", "moonraker-mcp-sdk-ci"],
+                          capture_output=True, text=True)
+                      print("SDK test gateway diagnostics (no secrets):",
+                            diagnostics.stdout + diagnostics.stderr)
+                      raise
                   finally:
                       subprocess.run(["docker", "rm", "-f", "moonraker-mcp-sdk-ci"],
                                      capture_output=True)
