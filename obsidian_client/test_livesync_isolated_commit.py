@@ -117,6 +117,17 @@ class TestIsolatedCommit(unittest.TestCase):
                                  isolated_test=True)
         self.assertEqual(calls,[])
 
+    def test_invalid_encrypted_leaf_payload_stops_before_any_put(self):
+        for value in (None, "", "plaintext", "encrypted", 123, ["%="], {}):
+            candidate=plan()
+            candidate["leaf"]["data"]=value
+            calls=[]
+            with self.subTest(value=value), self.assertRaisesRegex(
+                    UnsafeWrite, "invalid_encrypted_leaf_payload"):
+                commit_isolated_plan(candidate,lambda doc:calls.append(doc),
+                                     isolated_test=True)
+            self.assertEqual(calls,[])
+
     def test_rejects_mismatched_document_or_order_before_write(self):
         for mutation in ("badorder","badleaf","badparent"):
             candidate=plan()
