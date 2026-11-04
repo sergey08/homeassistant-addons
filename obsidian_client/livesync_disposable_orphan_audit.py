@@ -31,6 +31,8 @@ def audit_disposable_chunk_references(parents, leaves, *, isolated_test=False,
                 parent_id in seen_parents or not isinstance(children,(list,tuple))):
             raise UnsafeWrite("invalid_parent_snapshot")
         seen_parents.add(parent_id)
+        if "_attachments" in parent:
+            raise UnsafeWrite("attachments_not_supported")
         if parent.get("_deleted") or parent.get("deleted") or parent.get("_conflicts"):
             raise UnsafeWrite("unsafe_parent_snapshot")
         for chunk_id in children:
@@ -44,6 +46,8 @@ def audit_disposable_chunk_references(parents, leaves, *, isolated_test=False,
         if (not isinstance(leaf_id,str) or not leaf_id.startswith("h:+") or
                 leaf_id in leaf_ids or leaf_id in seen_parents):
             raise UnsafeWrite("invalid_leaf_snapshot")
+        if "_attachments" in leaf:
+            raise UnsafeWrite("attachments_not_supported")
         if leaf.get("_deleted") or leaf.get("deleted") or leaf.get("_conflicts"):
             raise UnsafeWrite("unsafe_leaf_snapshot")
         leaf_ids.add(leaf_id)
