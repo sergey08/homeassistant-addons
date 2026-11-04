@@ -61,7 +61,7 @@ Las pruebas automatizadas verifican que `tools/list` no anuncia la herramienta s
 | SSE | Acepta una respuesta upstream de un único evento; responde al cliente en JSON | Comprobar negociación y compatibilidad; no prometer streaming |
 | GET del endpoint MCP | Devuelve 405 | Comprobar si el cliente admite operación sin GET streaming |
 | DELETE de sesión MCP | Devuelve 405 | Comprobar si el cliente exige cierre explícito |
-| Versiones MCP | Solo `2025-03-26` y `2025-06-18` | Verificar versión negociada por el cliente real |
+| Versiones MCP | El upstream utiliza `2025-03-26` o `2025-06-18`; el gateway acepta una propuesta `initialize` de `2025-11-25` y la negocia a `2025-06-18` | Confirmar mediante SDK oficial y después con ChatGPT; no equivale a implementar la versión nueva |
 | Autenticación | Bearer estático en el gateway | Validar mecanismo de conexión del cliente; no confundir token estático con OAuth |
 | HTTPS público | No implementado en el add-on | Diseñar TLS y controles de exposición antes de publicar una URL |
 
@@ -77,7 +77,7 @@ Fuentes oficiales consultadas:
 
 **Hallazgo de producto:** ChatGPT ofrece conexión a MCP remoto mediante URL HTTPS o Secure MCP Tunnel, sujeto a disponibilidad/permisos de cuenta y espacio de trabajo. No se debe abrir el puerto de Moonraker. Priorizar la evaluación del túnel seguro antes de cualquier exposición pública del gateway.
 
-**Hallazgo de protocolo:** existe una revisión MCP 2026-07-28 con un transporte diferente, sin sesiones de protocolo ni endpoint GET de stream. **El gateway actual NO implementa esa revisión**, solo acepta 2025-03-26 y 2025-06-18. No ampliar versiones nominalmente sin implementar y probar su esquema de mensajes; verificar cuál exige el cliente real.
+**Hallazgo de protocolo:** existe una revisión MCP 2026-07-28 con un transporte diferente, sin sesiones de protocolo ni endpoint GET de stream. **El gateway actual NO implementa esa revisión**. Admite las revisiones 2025-03-26 y 2025-06-18 con el upstream y permite que un cliente proponga 2025-11-25 en `initialize`, respondiendo con una revisión anterior negociada; esto no implica soporte íntegro de 2025-11-25. No ampliar versiones nominalmente sin implementar y probar su esquema de mensajes; verificar cuál exige el cliente real.
 
 **Seguridad de origen:** la especificación 2025-11-25 exige comprobar Origin y rechazar valores no válidos. En DEV, el gateway rechaza todas las solicitudes POST que incluyan Origin (403), adecuado como política restrictiva para pruebas servidor-a-servidor; confirmar si el cliente/túnel envía una cabecera Origin antes de declarar compatibilidad.
 
