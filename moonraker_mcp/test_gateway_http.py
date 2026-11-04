@@ -131,6 +131,27 @@ class HTTPGatewayTests(unittest.TestCase):
         except urllib.error.HTTPError as err:
             return err.code, json.loads(err.read())
 
+    def test_http_errors_are_not_cacheable_or_verbose(self):
+        payload = json.dumps({"jsonrpc": "2.0", "id": 1, "method": "ping",
+                              "params": {}}).encode()
+        for token, accept, expected in (("wrong", "application/json", 401),
+                                        ("ci-secret", "text/event-stream", 406)):
+            with self.subTest(expected=expected):
+                req = urllib.request.Request(
+                    "http://127.0.0.1:%s/" % self.gateway.server_port,
+                    data=payload,
+                    headers={"Authorization": "Bearer " + token,
+                             "Content-Type": "application/json", "Accept": accept})
+                with self.assertRaises(urllib.error.HTTPError) as raised:
+                    urllib.request.urlopen(req, timeout=5)
+                response = raised.exception
+                self.assertEqual(response.code, expected)
+                self.assertEqual(response.headers.get("Cache-Control"), "no-store")
+                self.assertEqual(response.headers.get("Content-Type"), "application/json")
+                body = response.read().decode("utf-8")
+                self.assertNotIn("ci-secret", body)
+                self.assertNotIn("127.0.0.1:7125", body)
+
     def test_rejects_client_accepting_only_sse(self):
         payload = json.dumps({"jsonrpc": "2.0", "id": 1, "method": "ping",
                               "params": {}}).encode()
