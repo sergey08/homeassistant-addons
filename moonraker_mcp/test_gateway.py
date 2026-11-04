@@ -88,6 +88,7 @@ class GatewayTests(unittest.TestCase):
             {}, {"content": {}}, {"content": ["text"]},
             {"content": [{"type": "text", "text": None}]},
             {"content": [{"text": "missing type"}]},
+            {"content": [{"type": "unknown", "payload": "untrusted"}]},
             {"content": [], "isError": "false"},
         ):
             with self.subTest(result=result), self.assertRaises(PolicyError):
