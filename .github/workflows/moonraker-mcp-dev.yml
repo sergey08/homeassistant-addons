@@ -175,6 +175,8 @@ jobs:
                           return json.loads(raw), response.headers.get("Mcp-Session-Id")
                   init,session=request("initialize",{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"ha-addon-ci","version":"0.1.0"}},1)
                   assert "result" in init and "serverInfo" in init["result"], init
+                  assert init["result"].get("capabilities")=={"tools":{}}, "Gateway advertised unsupported MCP capabilities"
+                  print("MCP initialize advertises tools only; no resources, prompts or change notifications")
                   result,_=request("tools/list",{},2,session)
                   assert "result" in result and isinstance(result["result"].get("tools"),list), result
                   tools=result["result"]["tools"]
