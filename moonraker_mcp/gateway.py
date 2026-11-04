@@ -237,7 +237,8 @@ class Handler(BaseHTTPRequestHandler):
                                                 os.environ.get("MOONRAKER_API_KEY", ""))
                 return self.reply(200, {"jsonrpc": "2.0", "id": message["id"],
                                         "result": {"content": [{"type": "text",
-                                                               "text": json.dumps(result)}]}})
+                                                               "text": json.dumps(result, ensure_ascii=False)}],
+                                                   "isError": False}})
             headers = {
                 "Authorization": "Bearer " + self.token,
                 "Content-Type": "application/json",
