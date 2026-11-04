@@ -68,3 +68,18 @@ def require_confirmed_put_response(status_code, response, expected_id,
     if new_generation != old_generation + 1:
         raise RevisionConflict("unexpected_revision_generation")
     return new_revision
+
+
+def require_confirmed_create_response(status_code, response, expected_id):
+    """Validate the acknowledgement of a new document in disposable tests."""
+    require_successful_put(status_code, response)
+    if not isinstance(expected_id, str) or not expected_id:
+        raise RevisionConflict("invalid_document_id")
+    if response.get("id") != expected_id:
+        raise RevisionConflict("remote_document_identity_mismatch")
+    new_revision = response.get("rev")
+    if not isinstance(new_revision, str) or not _REV.fullmatch(new_revision):
+        raise RevisionConflict("invalid_remote_revision")
+    if int(new_revision.split("-", 1)[0]) != 1:
+        raise RevisionConflict("unexpected_revision_generation")
+    return new_revision
