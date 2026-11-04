@@ -53,6 +53,10 @@ def commit_isolated_plan(plan, put_document, *, isolated_test=False,
     # Reject malformed CAS revisions before creating an orphan leaf.
     if "_rev" in parent:
         require_matching_revision(parent["_rev"], parent["_rev"])
+    # A planner-provided expected revision must describe this exact parent.
+    # Check before creating a leaf, avoiding a known-stale CAS attempt.
+    if "expected_parent_revision" in plan:
+        require_matching_revision(plan["expected_parent_revision"], parent.get("_rev"))
     for kind,document in (("leaf",leaf),("parent",parent)):
         # Isolate nested metadata from mutations by an injected test transport.
         status,response=put_document(deepcopy(document))
