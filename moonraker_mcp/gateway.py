@@ -157,12 +157,16 @@ def filter_reply(method, response, allowed, cursor=None):
             raise PolicyError("Invalid upstream MCP server identity")
         if "instructions" in result and not isinstance(result["instructions"], str):
             raise PolicyError("Invalid upstream MCP instructions")
-        # Upstream instructions are untrusted and unnecessary for this fixed,
-        # read-only gateway. Never relay them as guidance to an MCP client.
-        if "instructions" in result:
-            response = dict(response, result={key: value for key, value in result.items()
-                                               if key != "instructions"})
-        return response
+        # Advertise only the capability implemented by this gateway. The
+        # upstream may expose resources, prompts, logging or notifications that
+        # this read-only HTTP facade intentionally does not implement.
+        # Always advertise tools, including the gateway's local opt-in tools.
+        # Do not advertise listChanged because this facade does not forward
+        # notifications/tools/list_changed.
+        sanitized = {key: value for key, value in result.items()
+                     if key not in ("instructions", "capabilities")}
+        sanitized["capabilities"] = {"tools": {}}
+        return dict(response, result=sanitized)
     if method == "tools/call":
         result = response.get("result")
         if not isinstance(result, dict) or not isinstance(result.get("content"), list):
