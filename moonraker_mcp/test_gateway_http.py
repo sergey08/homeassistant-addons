@@ -698,6 +698,26 @@ class HTTPGatewayTests(unittest.TestCase):
             self.assertEqual(response.status, 202)
             self.assertEqual(response.read(), b"")
 
+    def test_newer_sdk_initialize_negotiates_upstream_compatible_protocol(self):
+        before = len(FakeUpstream.calls)
+        message = {"jsonrpc": "2.0", "id": 73, "method": "initialize",
+                   "params": {"protocolVersion": "2025-11-25",
+                              "capabilities": {},
+                              "clientInfo": {"name": "sdk-v1", "version": "1.30"}}}
+        req = urllib.request.Request(
+            "http://127.0.0.1:%s/mcp" % self.gateway.server_port,
+            data=json.dumps(message).encode(),
+            headers={"Authorization": "Bearer ci-secret",
+                     "Content-Type": "application/json",
+                     "MCP-Protocol-Version": "2025-11-25"})
+        with urllib.request.urlopen(req, timeout=5) as response:
+            self.assertEqual(response.status, 200)
+            data = json.loads(response.read())
+            self.assertEqual(data["result"]["protocolVersion"], "2025-06-18")
+            self.assertEqual(data["result"]["capabilities"], {"tools": {}})
+        self.assertEqual(len(FakeUpstream.calls), before + 1)
+        self.assertEqual(FakeUpstream.calls[-1]["params"]["protocolVersion"], "2025-06-18")
+
     def test_initialize_rejects_mismatched_protocol_header(self):
         payload = json.dumps({
             "jsonrpc": "2.0", "id": 1, "method": "initialize",
