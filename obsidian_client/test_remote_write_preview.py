@@ -32,6 +32,23 @@ class TestRemoteWritePreview(unittest.TestCase):
                               "expected_content":"before"})
         self.assertEqual(result.status_code,409)
         self.assertEqual(result.json["error"],"remote_content_conflict")
+    def test_invalid_unicode_expected_content_rejected_before_read(self):
+        with patch("server.read_encrypted_note") as read:
+            result=self.post({"path":"Notes/Test.md","content":"after",
+                              "expected_content":"bad"+chr(0xD800)})
+        self.assertEqual(result.status_code,400)
+        self.assertEqual(result.json["error"],"invalid_expected_content_encoding")
+        read.assert_not_called()
+
+    def test_invalid_unicode_remote_snapshot_fails_closed(self):
+        with patch("server.read_encrypted_note",
+                   return_value=("bad"+chr(0xD800),None)):
+            result=self.post({"path":"Notes/Test.md","content":"after",
+                              "expected_content":"before"})
+        self.assertEqual(result.status_code,409)
+        self.assertEqual(result.json["error"],"remote_snapshot_not_verified")
+        self.assertFalse(result.json["save_supported"])
+
     def test_rejects_missing_header(self):
         result=self.post({"path":"Test.md","content":"new",
                           "expected_content":"old"},headers={"Content-Type":"application/json"})
