@@ -56,6 +56,10 @@ def prepare_obfuscated_encrypted_update(
     if modified_millis < decoded["mtime"]:
         raise UnsafeWrite("backdated_update")
     new_leaf_id="h:"+legacy_chunk_id(proposed_content,passphrase)
+    # This protocol only creates fresh leaves; reusing an existing identity
+    # needs a separate verified reuse protocol, even for unchanged content.
+    if new_leaf_id == old_leaf:
+        raise UnsafeWrite("unchanged_chunk_identity")
     leaf={"_id":new_leaf_id,"type":"leaf","e_":True,
           "data":encrypt_hkdf_string(proposed_content,passphrase,pbkdf2_salt_b64)}
     metadata=encode_parent_metadata_fixture(path,[new_leaf_id],passphrase,
