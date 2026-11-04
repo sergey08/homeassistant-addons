@@ -146,7 +146,10 @@ class HTTPGatewayTests(unittest.TestCase):
                             status, body = self.request(
                                 "tools/call", {"name": "moonraker_files_list",
                                                "arguments": {}})
-                        self.assertEqual(status, expected)
+                        self.assertEqual(status, 200)
+                        self.assertEqual(body["result"]["isError"], True)
+                        self.assertIn("not found" if expected == 404 else "unavailable",
+                                      body["result"]["content"][0]["text"])
                         self.assertNotIn("secret", json.dumps(body).lower())
                         self.assertNotIn("internal-printer", json.dumps(body))
         finally:
