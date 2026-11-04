@@ -17,7 +17,7 @@ Experimental Home Assistant add-on wrapping [lexfrei/mcp-raker](https://github.c
 
 The HTTP gateway is a prototype. Docker CI validates MCP initialization, tool listing, authentication and denied operations without connecting to a real printer. **A successful test does not certify that all 5 default allowed operations are side-effect free.** Review each tool's implementation and parameters before deployment.
 
-The gateway currently supports a subset of MCP Streamable HTTP (POST requests and JSON/SSE single-response conversion). It does not support GET event streams, DELETE session termination, streaming/multiple SSE events or paginated tool lists. Test compatibility with the intended ChatGPT client before deployment.
+The gateway supports a restricted subset of MCP Streamable HTTP: authenticated POST requests, JSON or single-event SSE upstream responses, and filtered `tools/list` pagination using cursors. It does **not** support GET event streams, DELETE session termination, streaming/multiple SSE events or full session lifecycle management. Pagination support is not equivalent to full Streamable HTTP compliance. Test compatibility with the intended ChatGPT client before deployment. Test compatibility with the intended ChatGPT client before deployment.
 
 A strong `mcp_http_token` is required. Home Assistant's add-on port mapping defaults to `null`. Never place credentials in GitHub. Do not use the raw upstream MCP endpoint from outside the container.
 
