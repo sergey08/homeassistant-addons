@@ -263,6 +263,7 @@ class HTTPGatewayTests(unittest.TestCase):
                   "clientInfo": {"name": "mock-client", "version": "1.0"}}, 200),
                 ("notifications/initialized", None, {}, 202),
                 ("tools/list", 2, {}, 200),
+                ("tools/call", 3, {"name": "moonraker_printer_info", "arguments": {}}, 200),
             ]
             for method, request_id, params, expected_status in steps:
                 with self.subTest(method=method):
