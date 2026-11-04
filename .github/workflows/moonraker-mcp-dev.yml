@@ -600,6 +600,23 @@ jobs:
                               assert not version.isError, "Version tool unexpectedly failed"
                               assert version.content, "Version tool returned no MCP content"
                               print("Official MCP SDK executed moonraker_mcp_version successfully")
+                              # Even an authorized SDK client cannot invoke
+                              # printer-control tools that the gateway hides.
+                              import httpx
+                              def has_denied_http_403(exc):
+                                  if isinstance(exc, httpx.HTTPStatusError):
+                                      return exc.response.status_code == 403
+                                  return any(has_denied_http_403(child)
+                                             for child in getattr(exc, "exceptions", ()))
+                              try:
+                                  await session.call_tool("moonraker_gcode_script",
+                                                          arguments={"script": "M105"})
+                              except Exception as exc:
+                                  assert has_denied_http_403(exc), (
+                                      "Unexpected failure instead of HTTP 403", repr(exc))
+                              else:
+                                  raise AssertionError("Forbidden control tool was accepted by SDK")
+                              print("Official MCP SDK control-tool call rejected with HTTP 403")
                   except BaseException:
                       diagnostics=subprocess.run(
                           ["docker", "logs", "--tail", "100", "moonraker-mcp-sdk-ci"],
