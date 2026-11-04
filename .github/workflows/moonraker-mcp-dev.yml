@@ -409,32 +409,36 @@ jobs:
                               "moonraker-mcp:dev"],check=True,capture_output=True)
               try:
                   url="http://127.0.0.1:18767/"
-                  def request(method,params=None,rid=1):
+                  def request(method,params=None,rid=1,session=None):
                       payload={"jsonrpc":"2.0","id":rid,"method":method}
                       if params is not None: payload["params"]=params
                       req=urllib.request.Request(url,data=json.dumps(payload).encode(),
                           headers={"Authorization":"Bearer ci-test-token",
                                    "Content-Type":"application/json",
                                    "Accept":"application/json, text/event-stream"})
+                      if session: req.add_header("Mcp-Session-Id",session)
                       with urllib.request.urlopen(req,timeout=10) as res:
-                          return json.loads(res.read())
+                          raw=res.read().decode()
+                          if "text/event-stream" in res.headers.get("Content-Type",""):
+                              raw="".join(x[5:].strip() for x in raw.splitlines() if x.startswith("data:"))
+                          return json.loads(raw),res.headers.get("Mcp-Session-Id")
                   for attempt in range(25):
                       try:
-                          init=request("initialize",{"protocolVersion":"2025-06-18",
+                          init,session=request("initialize",{"protocolVersion":"2025-06-18",
                               "capabilities":{},"clientInfo":{"name":"ci","version":"1"}})
                           assert "result" in init,init
                           break
                       except (urllib.error.URLError,ConnectionError):
                           time.sleep(1)
                   else: raise AssertionError("Job queue gateway did not start")
-                  listed=request("tools/list",{},2)
+                  listed,_=request("tools/list",{},2,session)
                   names={x["name"] for x in listed["result"]["tools"]}
                   base=set(json.load(open("moonraker_mcp/read_only_allowlist.json"))["allowed_tools"])
                   assert names==base|{"moonraker_jobqueue_status"},(names,base)
                   for forbidden in ("moonraker_history_list","moonraker_objects_query",
                                     "moonraker_gcode_script"):
                       try:
-                          request("tools/call",{"name":forbidden,"arguments":{}},3)
+                          request("tools/call",{"name":forbidden,"arguments":{}},3,session)
                       except urllib.error.HTTPError as exc:
                           assert exc.code==403,(forbidden,exc.code)
                       else: raise AssertionError("Unexpected access: "+forbidden)
