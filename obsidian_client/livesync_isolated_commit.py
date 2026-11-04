@@ -33,6 +33,11 @@ def commit_isolated_plan(plan, put_document, *, isolated_test=False,
         raise UnsafeWrite("invalid_chunk_id")
     if not isinstance(parent.get("_id"),str) or not parent["_id"]:
         raise UnsafeWrite("invalid_parent_id")
+    # Never commit tombstones or documents with unresolved conflicts.
+    for document in (leaf,parent):
+        if (document.get("_deleted") or document.get("deleted")
+                or document.get("_conflicts")):
+            raise UnsafeWrite("deleted_or_conflicted_document")
     # Reject malformed CAS revisions before creating an orphan leaf.
     if "_rev" in parent:
         require_matching_revision(parent["_rev"], parent["_rev"])
