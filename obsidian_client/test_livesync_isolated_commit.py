@@ -73,6 +73,17 @@ class TestIsolatedCommit(unittest.TestCase):
         self.assertEqual(result["status"],"committed_in_disposable_test_only")
         self.assertEqual(calls,["h:+abc","notes/example.md"])
 
+    def test_invalid_parent_revision_fails_before_any_put(self):
+        for revision in (None, "", "1-invalid", "0-"+"a"*32,
+                         "1-"+"g"*32, 123, ["invalid"]):
+            candidate=plan()
+            candidate["parent"]["_rev"]=revision
+            calls=[]
+            with self.subTest(revision=revision), self.assertRaises(RevisionConflict):
+                commit_isolated_plan(candidate,lambda doc:calls.append(doc),
+                                     isolated_test=True)
+            self.assertEqual(calls,[])
+
     def test_rejects_mismatched_document_or_order_before_write(self):
         for mutation in ("badorder","badleaf","badparent"):
             candidate=plan()

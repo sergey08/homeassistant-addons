@@ -4,7 +4,8 @@ No HTTP client is created here. An injected transport must expose put(doc)
 and return (status, response). Production writes are deliberately forbidden.
 """
 from livesync_revision_contract import (RevisionConflict, require_successful_put,
-                                       require_confirmed_put_response, require_confirmed_create_response)
+                                       require_confirmed_put_response, require_confirmed_create_response,
+                                       require_matching_revision)
 from livesync_write_preflight import UnsafeWrite
 
 
@@ -32,6 +33,9 @@ def commit_isolated_plan(plan, put_document, *, isolated_test=False,
         raise UnsafeWrite("invalid_chunk_id")
     if not isinstance(parent.get("_id"),str) or not parent["_id"]:
         raise UnsafeWrite("invalid_parent_id")
+    # Reject malformed CAS revisions before creating an orphan leaf.
+    if "_rev" in parent:
+        require_matching_revision(parent["_rev"], parent["_rev"])
     for kind,document in (("leaf",leaf),("parent",parent)):
         status,response=put_document(dict(document))
         if kind == "parent" and document.get("_rev") is not None:
