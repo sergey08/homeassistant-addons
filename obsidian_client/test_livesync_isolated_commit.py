@@ -147,7 +147,7 @@ class TestIsolatedCommit(unittest.TestCase):
             calls=[]
             def fake_put(doc):
                 calls.append(doc["_id"])
-                if doc["type"]==fail_kind:
+                if (doc["type"]=="leaf") == (fail_kind=="leaf"):
                     raise ConnectionError("synthetic_network_disconnect")
                 return 201,{"ok":True,"id":doc["_id"],"rev":"1-"+"c"*32}
             with self.subTest(fail_kind=fail_kind), self.assertRaisesRegex(
