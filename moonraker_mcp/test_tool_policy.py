@@ -16,6 +16,13 @@ class ToolPolicyTests(unittest.TestCase):
     def test_allows_safe_status(self):
         self.assertTrue(policy.authorize_call("moonraker_printer_info", self.allowed))
 
+    def test_job_queue_requires_explicit_opt_in(self):
+        with self.assertRaises(policy.PolicyError):
+            policy.authorize_call("moonraker_jobqueue_status", self.allowed)
+        opted_in = policy.extend_allowed(self.allowed, ["jobqueue"])
+        self.assertTrue(policy.authorize_call("moonraker_jobqueue_status", opted_in))
+        self.assertEqual(len(opted_in), len(self.allowed) + 1)
+
     def test_blocks_control_even_when_admin_disabled(self):
         for name in (
             "moonraker_gcode_script", "moonraker_print_start",
