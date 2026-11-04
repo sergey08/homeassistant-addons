@@ -413,6 +413,27 @@ class HTTPGatewayTests(unittest.TestCase):
                     status = exc.code
                 self.assertEqual(status, expected)
 
+    def test_local_file_tool_rejects_invalid_session_before_file_access(self):
+        original_allowed = Handler.allowed
+        try:
+            Handler.allowed = extend_allowed(load_allowed(), ["files"])
+            message = {"jsonrpc": "2.0", "id": 1, "method": "tools/call",
+                       "params": {"name": "moonraker_files_list", "arguments": {}}}
+            req = urllib.request.Request(
+                "http://127.0.0.1:%s/mcp" % self.gateway.server_port,
+                data=json.dumps(message).encode(),
+                headers={"Authorization": "Bearer ci-secret",
+                         "Content-Type": "application/json",
+                         "Mcp-Session-Id": "invalid/session"})
+            with patch("gateway.list_gcodes") as file_access:
+                with self.assertRaises(urllib.error.HTTPError) as raised:
+                    urllib.request.urlopen(req, timeout=5)
+                self.assertEqual(raised.exception.code, 403)
+                raised.exception.read()
+                file_access.assert_not_called()
+        finally:
+            Handler.allowed = original_allowed
+
     def test_local_file_tool_success_uses_mcp_content_format(self):
         original_allowed = Handler.allowed
         try:
