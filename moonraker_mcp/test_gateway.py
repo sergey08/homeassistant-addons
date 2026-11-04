@@ -63,6 +63,22 @@ class GatewayTests(unittest.TestCase):
             with self.subTest(version=version), self.assertRaises(PolicyError):
                 filter_reply("initialize", invalid, self.allowed)
 
+    def test_initialize_rejects_invalid_server_identity(self):
+        base = {"jsonrpc": "2.0", "id": 1, "result": {
+            "protocolVersion": "2025-06-18", "capabilities": {},
+            "serverInfo": {"name": "moonraker", "version": "1"}}}
+        for info in ({}, {"name": "", "version": "1"},
+                     {"name": "moonraker", "version": None},
+                     {"name": 42, "version": "1"}):
+            with self.subTest(info=info), self.assertRaises(PolicyError):
+                filter_reply("initialize", {**base, "result": {
+                    **base["result"], "serverInfo": info}}, self.allowed)
+        with self.assertRaises(PolicyError):
+            filter_reply("initialize", {**base, "result": {
+                **base["result"], "instructions": ["invalid"]}}, self.allowed)
+        valid = {**base, "result": {**base["result"], "instructions": "Read-only tools"}}
+        self.assertEqual(filter_reply("initialize", valid, self.allowed), valid)
+
     def test_upstream_reply_validation(self):
         request = {"jsonrpc": "2.0", "id": 9, "method": "ping"}
         valid = {"jsonrpc": "2.0", "id": 9, "result": {}}
