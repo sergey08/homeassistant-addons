@@ -188,6 +188,10 @@ jobs:
                       assert notification_response.status==202, notification_response.status
                       assert notification_response.read()==b"", "MCP notification must not return a body"
                   print("MCP initialized notification acknowledged with HTTP 202")
+                  ping_reply,_=request("ping",{},3,session)
+                  assert ping_reply.get("jsonrpc")=="2.0", ping_reply
+                  assert ping_reply.get("id")==3 and ping_reply.get("result")=={}, ping_reply
+                  print("MCP ping completed successfully in initialized session")
                   result,_=request("tools/list",{},2,session)
                   assert "result" in result and isinstance(result["result"].get("tools"),list), result
                   tools=result["result"]["tools"]
