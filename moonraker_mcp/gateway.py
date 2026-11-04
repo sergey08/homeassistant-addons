@@ -165,6 +165,20 @@ def filter_reply(method, response, allowed, cursor=None):
                 raise PolicyError("Invalid upstream MCP content item")
             if item["type"] == "text" and not isinstance(item.get("text"), str):
                 raise PolicyError("Invalid upstream MCP text content")
+            if item["type"] in ("image", "audio"):
+                if (not isinstance(item.get("data"), str) or
+                        not isinstance(item.get("mimeType"), str) or
+                        not item["mimeType"]):
+                    raise PolicyError("Invalid upstream MCP binary content")
+            if item["type"] == "resource_link":
+                if not isinstance(item.get("uri"), str) or not isinstance(item.get("name"), str):
+                    raise PolicyError("Invalid upstream MCP resource link")
+            if item["type"] == "resource":
+                resource = item.get("resource")
+                if not isinstance(resource, dict) or not isinstance(resource.get("uri"), str):
+                    raise PolicyError("Invalid upstream MCP embedded resource")
+                if not isinstance(resource.get("text"), str) and not isinstance(resource.get("blob"), str):
+                    raise PolicyError("Invalid upstream MCP embedded resource content")
         return response
     if method != "tools/list":
         return response
