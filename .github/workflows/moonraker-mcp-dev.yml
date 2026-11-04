@@ -177,6 +177,17 @@ jobs:
                   assert "result" in init and "serverInfo" in init["result"], init
                   assert init["result"].get("capabilities")=={"tools":{}}, "Gateway advertised unsupported MCP capabilities"
                   print("MCP initialize advertises tools only; no resources, prompts or change notifications")
+                  # Complete the MCP initialization lifecycle against the
+                  # pinned upstream binary, without contacting any printer.
+                  notification={"jsonrpc":"2.0","method":"notifications/initialized"}
+                  notification_headers=dict(headers)
+                  if session: notification_headers["Mcp-Session-Id"]=session
+                  notification_req=urllib.request.Request(
+                      url, data=json.dumps(notification).encode(), headers=notification_headers)
+                  with urllib.request.urlopen(notification_req, timeout=10) as notification_response:
+                      assert notification_response.status==202, notification_response.status
+                      assert notification_response.read()==b"", "MCP notification must not return a body"
+                  print("MCP initialized notification acknowledged with HTTP 202")
                   result,_=request("tools/list",{},2,session)
                   assert "result" in result and isinstance(result["result"].get("tools"),list), result
                   tools=result["result"]["tools"]
