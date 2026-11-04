@@ -84,14 +84,15 @@ Fuentes oficiales consultadas:
 **Próxima decisión técnica:** determinar el mecanismo de autenticación ofrecido por la conexión personalizada (sin autenticación, bearer o OAuth), el transporte/versiones negociados y disponibilidad del túnel en la cuenta; después decidir si se necesita un adaptador. No desplegar ni conectar la impresora durante la revisión.
 
 
-## Bloqueo de producto: permisos de cuenta para MCP personalizado
+## Acceso a MCP personalizado confirmado por el usuario
 
-**Revisado el 4 de noviembre de 2026** en la documentación oficial de OpenAI:
-- Español: https://help.openai.com/es-es/articles/12584461-connecting-custom-mcp-servers-in-chatgpt
-- Inglés: https://help.openai.com/en/articles/12584461-connecting-custom-mcp-servers-in-chatgpt
+**Confirmación del usuario (noviembre de 2026):** en su cuenta aparece la opción de añadir servidores MCP personalizados y ya ha utilizado otros MCP creados anteriormente. Por tanto, **la disponibilidad de la opción de alta no bloquea este proyecto**. No inferir por ello qué transportes, versiones, autenticación o características del túnel admite exactamente esta conexión: deben comprobarse por separado.
 
-La documentación en inglés permite conectar MCP personalizado de lectura/obtención en Pro y reserva MCP completo a Business/Enterprise/Edu. El texto en español habla de MCP completo para Business/Enterprise/Edu sin confirmar la disponibilidad de conexiones MCP personalizadas para Plus. **No existe confirmación documental de compatibilidad en Plus**.
+**Siguientes comprobaciones, sin instalar el add-on ni conectar Moonraker:**
 
-**Puerta de decisión antes de desplegar:** verificar en la propia interfaz de la cuenta que aparece `Complementos > + > Añadir servidor MCP personalizado`, o que la plataforma permite otro flujo compatible con el plan. No asumir disponibilidad de Secure MCP Tunnel ni autenticación configurable por el simple hecho de que estén documentados para otros planes. Si la opción no está disponible, detener la integración con ChatGPT y conservar la PR como desarrollo experimental hasta que haya una vía admitida. No cambiar el plan ni contratar nada sin autorización expresa.
+1. Revisar la configuración de conexión de un MCP propio existente (sin copiar tokens, URLs privadas ni secretos a GitHub): tipo de endpoint, HTTPS/túnel y autenticación.
+2. Verificar con cliente simulado la negociación MCP y el uso de sesiones que implementa el gateway.
+3. Confirmar qué versión MCP exige ChatGPT al añadir un servidor nuevo y si su flujo permite una conexión solo de lectura con el gateway.
+4. Preparar un ensayo controlado, sujeto a autorización explícita, antes de instalar el complemento o permitir acceso a la Snapmaker U1.
 
-Si el usuario dispone del alta MCP, verificar experimentalmente en un entorno simulado el transporte, versión y mecanismo de autenticación ANTES de conectar Moonraker. Mantener puerto 8765 sin publicar, sin abrir puertos externos y sin instalar hasta autorización expresa.
+La opción de alta está confirmada, **pero la compatibilidad funcional de este gateway aún no está demostrada**. Mantener puerto 8765 sin publicar, sin abrir puertos externos y sin instalar hasta autorización expresa.
