@@ -93,6 +93,29 @@ class GatewayTests(unittest.TestCase):
             with self.subTest(result=result), self.assertRaises(PolicyError):
                 filter_reply("tools/call", {**base, "result": result}, self.allowed)
 
+    def test_upstream_binary_and_resource_content_validation(self):
+        base = {"jsonrpc": "2.0", "id": 1}
+        valid_items = (
+            {"type": "image", "data": "aGVsbG8=", "mimeType": "image/png"},
+            {"type": "audio", "data": "aGVsbG8=", "mimeType": "audio/wav"},
+            {"type": "resource_link", "uri": "file:///test", "name": "test"},
+            {"type": "resource", "resource": {"uri": "file:///test", "text": "data"}},
+        )
+        for item in valid_items:
+            with self.subTest(item=item):
+                reply = {**base, "result": {"content": [item]}}
+                self.assertEqual(filter_reply("tools/call", reply, self.allowed), reply)
+        invalid_items = (
+            {"type": "image", "data": 123, "mimeType": "image/png"},
+            {"type": "audio", "data": "AA=="},
+            {"type": "resource_link", "uri": "file:///test"},
+            {"type": "resource", "resource": {"uri": "file:///test"}},
+        )
+        for item in invalid_items:
+            with self.subTest(item=item), self.assertRaises(PolicyError):
+                filter_reply("tools/call", {**base, "result": {"content": [item]}},
+                             self.allowed)
+
     def test_upstream_reply_validation(self):
         request = {"jsonrpc": "2.0", "id": 9, "method": "ping"}
         valid = {"jsonrpc": "2.0", "id": 9, "result": {}}
