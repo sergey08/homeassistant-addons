@@ -285,6 +285,9 @@ def filter_reply(method, response, allowed, cursor=None):
         if tool["name"] == PRIVACY_SAFE_SERVER_INFO:
             tool["description"] = ("Read Moonraker version and Klippy connectivity only. "
                                    "Component lists and warning details are withheld.")
+        if tool["name"] == PRIVACY_SAFE_TEMPERATURE_STORE:
+            tool["description"] = ("Read at most the 120 most recent samples per heater series. "
+                                   "Custom sensor names are anonymized.")
     return response
 
 
