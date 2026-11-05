@@ -287,6 +287,63 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
 
 UPSTREAM_OPENER = urllib.request.build_opener(NoRedirect)
 
+def initialize_legacy_upstream(upstream_url, token):
+    """Initialize a private upstream session for one modern stateless request.
+
+    Never reuse an unauthenticated client-provided session ID. The pinned
+    upstream requires initialize -> initialized before tools/list or calls.
+    """
+    headers = {"Authorization": "Bearer " + token,
+               "Content-Type": "application/json",
+               "Accept": "application/json, text/event-stream"}
+    initial = {"jsonrpc": "2.0", "id": "_gateway_init",
+               "method": "initialize",
+               "params": {"protocolVersion": "2025-06-18",
+                          "capabilities": {},
+                          "clientInfo": {"name": "moonraker-mcp-compat",
+                                         "version": "0.1.0-dev7"}}}
+    req = urllib.request.Request(upstream_url, data=json.dumps(initial).encode(),
+                                 headers=headers)
+    with UPSTREAM_OPENER.open(req, timeout=12) as response:
+        raw = response.read(MAX_BODY + 1)
+        if len(raw) > MAX_BODY:
+            raise PolicyError("Upstream initialize reply too large")
+        content_type = response.headers.get("Content-Type", "").split(";", 1)[0].lower().strip()
+        if content_type == "text/event-stream":
+            lines = raw.decode("utf-8").splitlines()
+            events = [line[5:].lstrip(" ") for line in lines if line.startswith("data:")]
+            if len(events) != 1 or any(line and not line.startswith(
+                    ("data:", "event:", "id:", "retry:", ":")) for line in lines):
+                raise PolicyError("Invalid upstream initialization SSE")
+            raw = events[0].encode()
+        elif content_type != "application/json":
+            raise PolicyError("Invalid upstream initialization response type")
+        result = validate_reply(initial, strict_json_loads(raw))
+        if "error" in result:
+            raise PolicyError("Upstream initialization rejected")
+        info = result["result"]
+        if (not isinstance(info, dict)
+                or info.get("protocolVersion") not in SUPPORTED_PROTOCOL_VERSIONS
+                or not isinstance(info.get("capabilities"), dict)
+                or not isinstance(info.get("serverInfo"), dict)):
+            raise PolicyError("Invalid upstream initialization data")
+        session = response.headers.get("Mcp-Session-Id")
+        if session:
+            session = validate_mcp_header(session)
+    if session:
+        headers["Mcp-Session-Id"] = session
+    headers["MCP-Protocol-Version"] = "2025-06-18"
+    notification = {"jsonrpc": "2.0", "method": "notifications/initialized"}
+    req = urllib.request.Request(upstream_url, data=json.dumps(notification).encode(),
+                                 headers=headers)
+    with UPSTREAM_OPENER.open(req, timeout=12) as response:
+        if response.status not in (200, 202, 204):
+            raise PolicyError("Upstream initialization acknowledgment failed")
+        response.read(MAX_BODY + 1)
+    return session
+
+
+
 
 class Handler(BaseHTTPRequestHandler):
     allowed = frozenset()
@@ -462,10 +519,17 @@ class Handler(BaseHTTPRequestHandler):
                     message["params"], protocolVersion="2025-06-18"))
                 if "MCP-Protocol-Version" in headers:
                     headers["MCP-Protocol-Version"] = "2025-06-18"
-            req = urllib.request.Request(
-                self.upstream, data=json.dumps(upstream_message).encode(), headers=headers
-            )
             try:
+                if is_modern and method in ("tools/list", "tools/call", "ping"):
+                    # A fresh legacy session for each modern stateless request.
+                    # The upstream refuses tools/list before initialization.
+                    local_session = initialize_legacy_upstream(self.upstream, self.token)
+                    if local_session:
+                        headers["Mcp-Session-Id"] = local_session
+                    headers["MCP-Protocol-Version"] = "2025-06-18"
+                req = urllib.request.Request(
+                    self.upstream, data=json.dumps(upstream_message).encode(), headers=headers
+                )
                 with UPSTREAM_OPENER.open(req, timeout=25) as upstream:
                     raw = upstream.read(MAX_BODY + 1)
                     if len(raw) > MAX_BODY:
