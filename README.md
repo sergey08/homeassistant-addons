@@ -38,13 +38,13 @@ https://github.com/sergey08/homeassistant-addons
 
 [App source](./obsidian_client/) · [Documentation (EN/ES)](./obsidian_client/DOCS.md)
 
-**Moonraker MCP — 0.1.0-dev6 (experimental; pending review and integration)**
+**Moonraker MCP — 0.1.0-dev7 (experimental; pending review and integration)**
 
 - Read-only MCP gateway to Moonraker for Snapmaker U1, with an explicit tool allowlist and optional features disabled by default.
-- Optional OpenAI tunnel is **off by default**, requires each user to create a separate restricted OpenAI key. DEV5 adds a protected Home Assistant password field and automatically bundles and provisions the pinned official tunnel-client (amd64 only). DEV6 adds authenticated modern `server/discover` compatibility for the ChatGPT tunnel. **Remote ChatGPT end-to-end registration remains to be retested.**
+- Optional OpenAI tunnel is **off by default**, requires each user to create a separate restricted OpenAI key. DEV5 adds a protected Home Assistant password field and automatically bundles and provisions the pinned official tunnel-client (amd64 only). DEV6 adds authenticated modern `server/discover` compatibility for the ChatGPT tunnel. **ChatGPT tunnel registration and three live read-only tool calls have been validated on Snapmaker U1. Stable release pending security/onboarding gates.**
 - Do not expose port 8765, reuse Obsidian tunnel credentials or assume deployment from a PR. DEV is installed through a branch-specific add-on repository URL; integration into `main` needs separate review.
 
-[DEV source](./moonraker_mcp/) · [Security audit](./moonraker_mcp/SECURITY_AUDIT.md)
+[DEV source](./moonraker_mcp/) · [Installation guide EN/ES](./moonraker_mcp/INSTALLATION_EN_ES.md) · [Security audit](./moonraker_mcp/SECURITY_AUDIT.md)
 
 ### Related project
 
@@ -87,13 +87,13 @@ https://github.com/sergey08/homeassistant-addons
 
 [Código de la aplicación](./obsidian_client/) · [Documentación (EN/ES)](./obsidian_client/DOCS.md)
 
-**Moonraker MCP — 0.1.0-dev6 (experimental; pendiente de revisión e integración)**
+**Moonraker MCP — 0.1.0-dev7 (experimental; pendiente de revisión e integración)**
 
 - Pasarela MCP de solo lectura para Moonraker/Snapmaker U1, con lista cerrada de herramientas y funciones opcionales desactivadas por defecto.
-- El túnel OpenAI permanece **desactivado por defecto**. DEV5 permite introducir la clave restringida en un campo protegido de Home Assistant e instala automáticamente el cliente oficial verificado (solo amd64). DEV6 incorpora compatibilidad con `server/discover` para el túnel de ChatGPT. **Queda pendiente repetir y validar el registro real del complemento.**
+- El túnel OpenAI permanece **desactivado por defecto**. DEV5 permite introducir la clave restringida en un campo protegido de Home Assistant e instala automáticamente el cliente oficial verificado (solo amd64). DEV6 incorpora compatibilidad con `server/discover` para el túnel de ChatGPT. **Validado el registro del complemento en ChatGPT y tres consultas reales de solo lectura a Snapmaker U1. Pendientes pruebas de seguridad e instalación limpia antes de publicar estable.**
 - No publicar el puerto 8765 ni reutilizar la identidad del túnel Obsidian. La rama DEV se puede instalar como un catálogo independiente de Home Assistant con sufijo `#rama`; integrar en `main` exige revisión aparte.
 
-[Código DEV](./moonraker_mcp/) · [Auditoría de seguridad](./moonraker_mcp/SECURITY_AUDIT.md)
+[Código DEV](./moonraker_mcp/) · [Manual de instalación EN/ES](./moonraker_mcp/INSTALLATION_EN_ES.md) · [Auditoría de seguridad](./moonraker_mcp/SECURITY_AUDIT.md)
 
 ### Proyecto relacionado
 
