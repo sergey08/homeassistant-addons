@@ -1,5 +1,5 @@
 name: "Moonraker MCP (DEV)"
-version: "0.1.0-dev4"
+version: "0.1.0-dev5"
 slug: "moonraker_mcp"
 description: "MCP bridge to Moonraker / Puente MCP para Moonraker"
 url: "https://github.com/sergey08/homeassistant-addons"
@@ -19,6 +19,7 @@ options:
   mcp_http_token: ""
   enable_tunnel: false
   tunnel_id: ""
+  openai_tunnel_api_key: ""
   enable_jobqueue: false
   enable_files: false
   enable_objects: false
@@ -32,6 +33,7 @@ schema:
   mcp_http_token: password
   enable_tunnel: bool
   tunnel_id: str
+  openai_tunnel_api_key: "password?"
   enable_jobqueue: bool
   enable_files: bool
   enable_objects: bool
