@@ -1,10 +1,11 @@
 {
   "policy_version": 1,
-  "description": "Privacy-first four-tool status profile. Job queue, history, power, sensors and Spoolman require opt-in.",
+  "description": "Privacy-first status profile, including explicit printer reachability check. Optional data needs opt-in.",
   "allowed_tools": [
     "moonraker_mcp_version",
     "moonraker_server_info",
     "moonraker_printer_info",
-    "moonraker_temperature_store"
+    "moonraker_temperature_store",
+    "moonraker_connection_status"
   ]
 }
