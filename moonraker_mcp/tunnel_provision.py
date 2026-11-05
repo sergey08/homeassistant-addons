@@ -52,7 +52,8 @@ def install_official_archive(archive_path, manifest_path, base="/data", uid=6553
             checksum = fields[0].lower()
     if checksum is None or any(c not in "0123456789abcdef" for c in checksum):
         raise ProvisionError("Missing or invalid release manifest entry")
-    with archive.open("rb") as source:\n        digest = hashlib.file_digest(source, "sha256").hexdigest()
+    with archive.open("rb") as source:
+        digest = hashlib.file_digest(source, "sha256").hexdigest()
     if digest != checksum:
         raise ProvisionError("Release checksum mismatch")
     root = Path(base)
