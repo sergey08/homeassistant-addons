@@ -55,7 +55,7 @@ class TunnelAutoSetupTests(unittest.TestCase):
         with self.assertRaisesRegex(ProvisionError, "symbolic-link"):
             provision_from_options(self.root, self.vendor, self.uid)
     def test_invalid_key_never_leaks_into_exception(self):
-        self.settings("test-key-with-newline\\nsecret")
+        self.settings("test-key-with-newline" + chr(10) + "secret")
         with self.assertRaises(ProvisionError) as raised:
             provision_from_options(self.root, self.vendor, self.uid)
         self.assertNotIn("secret", str(raised.exception))
