@@ -124,3 +124,35 @@ round-trip via CouchDB and Obsidian, and test stale-write conflict
 handling. Only then enable `editor_storage_mode=mcp_shared` for the
 independent Obsidian Client. Preserve the original backup for rollback.
 A file snapshot is not proof of a successful LiveSync replication.
+
+
+### Safe offline copy tool (dry-run by default)
+
+The `prepare_shared_vault.py` utility prepares *two separate new copies*
+of an existing Markdown vault: a backup and a shared working copy.
+**Neither the source nor any existing destination is overwritten.**
+It is not a live migration: stop the MCP add-on, its LiveSync CLI process
+and any other local writers before `--execute`. Preserve your separate
+CouchDB backups. Run from a machine with access to the effective source
+path and destination mounts:
+
+```sh
+python3 prepare_shared_vault.py \
+  /app_configs/obsidian_bridge/vault \
+  /share/obsidian-migration-backup-YYYYMMDD \
+  /share/obsidian-shared-vault
+
+# Only after reviewing dry-run output, stopping writers and confirming
+# that neither destination exists:
+python3 prepare_shared_vault.py \
+  /app_configs/obsidian_bridge/vault \
+  /share/obsidian-migration-backup-YYYYMMDD \
+  /share/obsidian-shared-vault --execute
+```
+
+The backup and shared copies include hidden files and are compared against
+the original by relative filename, byte count and SHA-256. If the source
+changes while copying, the tool fails, leaves existing copied files alone
+for inspection, and does **not** change HA options or start the MCP.
+This does not eliminate LiveSync-specific conflicts: verify a disposable
+round-trip with CouchDB and PC/Android before enabling the Client writer.
