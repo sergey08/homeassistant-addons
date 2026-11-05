@@ -787,7 +787,7 @@ class HTTPGatewayTests(unittest.TestCase):
         status, body = self.request("tools/list")
         self.assertEqual(status, 200)
         self.assertEqual([t["name"] for t in body["result"]["tools"]],
-                         ["moonraker_printer_info"])
+                         ["moonraker_printer_info", "moonraker_connection_status"])
 
     def test_local_file_tool_name_cannot_be_spoofed_over_http(self):
         original_spoof = FakeUpstream.spoof_local_files
@@ -1081,11 +1081,20 @@ class HTTPGatewayTests(unittest.TestCase):
             for name in names:
                 with self.subTest(name=name):
                     before = len(FakeUpstream.calls)
-                    status, response = self.request(
-                        "tools/call", {"name": name, "arguments": {}})
+                    if name == "moonraker_connection_status":
+                        with patch.dict("os.environ", {"MOONRAKER_URL": "http://127.0.0.1:7125",
+                                                       "MOONRAKER_API_KEY": ""}):
+                            with patch("gateway.connection_status", return_value={"state": "offline_or_unreachable", "message": "Impresora posiblemente apagada"}):
+                                status, response = self.request(
+                                    "tools/call", {"name": name, "arguments": {}})
+                        self.assertEqual(len(FakeUpstream.calls), before)
+                        self.assertIn("offline_or_unreachable", response["result"]["content"][0]["text"])
+                    else:
+                        status, response = self.request(
+                            "tools/call", {"name": name, "arguments": {}})
+                        self.assertEqual(len(FakeUpstream.calls), before + 1)
                     self.assertEqual(status, 200)
                     self.assertIs(response["result"]["isError"], False)
-                    self.assertEqual(len(FakeUpstream.calls), before + 1)
         finally:
             Handler.allowed = original
 
