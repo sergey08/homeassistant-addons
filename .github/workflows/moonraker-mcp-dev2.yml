@@ -122,7 +122,7 @@ jobs:
           chmod 600 "$tmpdir/tunnel/api-key"
           docker run --rm -v "$tmpdir:/data" --entrypoint chown moonraker-mcp:ci 65534:65534 /data/tunnel/api-key /data/tunnel/bin/tunnel-client
           docker run -d --name moonraker-mcp-tunnel-exit --network none \
-            -v "$tmpdir:/data:ro" moonraker-mcp:ci >/dev/null
+            -v "$tmpdir:/data" moonraker-mcp:ci >/dev/null
           python3 - <<'PY'
           import subprocess,time
           name="moonraker-mcp-tunnel-exit"
