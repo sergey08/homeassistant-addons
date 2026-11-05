@@ -23,6 +23,9 @@ export MCP_ALLOWED_PROFILES
 # Fail before starting the gateway if the optional tunnel cannot authenticate.
 # The tunnel process runs as UID 65534; do not loosen private key permissions.
 if [ "$MCP_ENABLE_TUNNEL" = "true" ]; then
+  # Install verified bundled tunnel-client and securely import the HA password field.
+  # Existing DEV4 private assets remain valid if the new password field is blank.
+  python3 /opt/moonraker-mcp/tunnel_autosetup.py || exit 1
   if [ -z "$MCP_TUNNEL_ID" ] ||
      [ ! -f /data/tunnel/api-key ] ||
      [ ! -f /data/tunnel/bin/tunnel-client ] ||
