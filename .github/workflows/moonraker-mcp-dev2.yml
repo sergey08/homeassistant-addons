@@ -1,0 +1,104 @@
+name: Moonraker MCP DEV2 CI
+
+on:
+  push:
+    branches:
+      - dev/moonraker-mcp-dev2
+    paths:
+      - 'moonraker_mcp/**'
+      - '.github/workflows/moonraker-mcp-dev2.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'moonraker_mcp/**'
+      - '.github/workflows/moonraker-mcp-dev2.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate shell and Python syntax
+        run: |
+          sh -n moonraker_mcp/run.sh
+          python3 -m compileall -q moonraker_mcp
+
+      - name: Validate Home Assistant configuration and safety defaults
+        run: |
+          python3 -m pip install --disable-pip-version-check pyyaml
+          python3 - <<'PY'
+          import pathlib, yaml
+          root = pathlib.Path("moonraker_mcp")
+          cfg = yaml.safe_load((root / "config.yaml").read_text())
+          assert cfg["slug"] == "moonraker_mcp"
+          assert cfg["version"] == "0.1.0-dev2"
+          assert cfg["boot"] == "manual"
+          assert cfg["ports"]["8765/tcp"] is None
+          assert cfg["options"]["enable_tunnel"] is False
+          assert cfg["options"]["mcp_http_token"] == ""
+          assert cfg["options"]["moonraker_api_key"] == ""
+          assert cfg["schema"]["mcp_http_token"] == "password"
+          for name in ("enable_jobqueue", "enable_files", "enable_objects",
+                       "enable_history", "enable_sensors", "enable_spoolman", "enable_power"):
+              assert cfg["options"][name] is False, name
+          assert "USER root" in (root / "Dockerfile").read_text()
+          assert 'ENTRYPOINT ["/run.sh"]' in (root / "Dockerfile").read_text()
+          print("HA add-on config and safe defaults OK")
+          PY
+
+      - name: Run isolated unit tests
+        run: |
+          python3 -m unittest discover -s moonraker_mcp -p 'test_*.py' -v
+
+      - name: Build DEV2 container without deployment
+        run: |
+          docker build --pull -t moonraker-mcp:ci ./moonraker_mcp
+          test "$(docker image inspect moonraker-mcp:ci --format '{{.Config.User}}')" = root
+          echo "Image starts as root for Supervisor options; services drop privileges."
+
+      - name: Check runtime health and auth without a printer
+        run: |
+          set -eu
+          tmpdir="$(mktemp -d)"
+          cleanup() {
+            docker rm -f moonraker-mcp-ci >/dev/null 2>&1 || true
+            rm -rf "$tmpdir"
+          }
+          trap cleanup EXIT
+          chmod 700 "$tmpdir"
+          printf '%s\n' '{"moonraker_url":"http://127.0.0.1:7125","moonraker_api_key":"","mcp_http_token":"ci-local-only-token","enable_tunnel":false}' > "$tmpdir/options.json"
+          chmod 600 "$tmpdir/options.json"
+          docker run -d --name moonraker-mcp-ci --network none \
+            -v "$tmpdir:/data:ro" moonraker-mcp:ci >/dev/null
+          for i in $(seq 1 30); do
+            if docker exec moonraker-mcp-ci python3 -c '
+          import urllib.error,urllib.request
+          try:
+              urllib.request.urlopen("http://127.0.0.1:8765/health", timeout=1)
+          except urllib.error.HTTPError as e:
+              raise SystemExit(0 if e.code == 401 else 1)
+          except Exception:
+              raise SystemExit(1)
+          raise SystemExit(1)
+          '; then
+              echo "Unauthenticated /health rejected with HTTP 401"
+              break
+            fi
+            if [ "$i" -eq 30 ]; then
+              docker logs moonraker-mcp-ci
+              exit 1
+            fi
+            sleep 1
+          done
+          docker exec moonraker-mcp-ci sh -c 'test "$(id -u "$(pidof python3 | awk "{print \$1}")")" = 65534' || {
+            echo "Gateway privileges check failed"
+            exit 1
+          }
+          echo "Gateway process is unprivileged; no printer contacted"
