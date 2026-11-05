@@ -1,0 +1,700 @@
+name: Moonraker MCP DEV
+on:
+  push:
+    branches: [dev/moonraker-mcp-addon]
+    paths:
+      - 'moonraker_mcp/**'
+      - '.github/workflows/moonraker-mcp-dev.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'moonraker_mcp/**'
+      - '.github/workflows/moonraker-mcp-dev.yml'
+  workflow_dispatch:
+jobs:
+  validate-and-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate shell syntax
+        run: sh -n moonraker_mcp/run.sh
+      - name: Validate addon YAML
+        run: |
+          python -m pip install pyyaml
+          python - <<'PY'
+          import yaml
+          with open("moonraker_mcp/config.yaml") as f:
+              data=yaml.safe_load(f)
+          for key in ("name", "version", "slug", "arch", "options", "schema"):
+              assert key in data, f"missing {key}"
+          assert data["boot"] == "manual"
+          assert data["ports"]["8765/tcp"] is None
+          print("Add-on configuration valid")
+          PY
+      - name: Validate Home Assistant app packaging contract
+        run: |
+          python - <<'PY'
+          import pathlib, yaml
+          root=pathlib.Path("moonraker_mcp")
+          repo=yaml.safe_load(pathlib.Path("repository.yaml").read_text())
+          cfg=yaml.safe_load((root/"config.yaml").read_text())
+          assert repo["name"] and repo["url"]
+          assert cfg["slug"]=="moonraker_mcp"
+          assert cfg["startup"]=="services" and cfg["boot"]=="manual"
+          assert cfg["arch"] and "amd64" in cfg["arch"]
+          assert cfg["ports"]["8765/tcp"] is None
+          assert cfg["schema"]["mcp_http_token"]=="password"
+          assert cfg["options"]["mcp_http_token"]==""
+          for flag in ("enable_jobqueue","enable_files","enable_objects","enable_history","enable_sensors","enable_spoolman","enable_power"):
+              assert cfg["options"][flag] is False, flag
+              assert cfg["schema"][flag]=="bool", flag
+          dockerfile=(root/"Dockerfile").read_text()
+          assert 'USER root' in dockerfile
+          assert 'ENTRYPOINT ["/run.sh"]' in dockerfile
+          for file in ("Dockerfile","run.sh","gateway.py","tool_policy.py",
+                       "moonraker_files.py","read_only_allowlist.json","README.md"):
+              assert (root/file).is_file(), file
+          print("HA application packaging and safe defaults verified")
+          PY
+      - name: Test fail-closed tool policy
+        run: python3 -m unittest discover -s moonraker_mcp -p 'test_*.py' -v
+
+      - name: Record pinned upstream image provenance (informational)
+        run: |
+          set -eu
+          upstream='ghcr.io/lexfrei/mcp-raker@sha256:cdfbb9b4ead2b3f8a253eb55c1996a69cfdbc17088cc111b7d265d8b71f7090e'
+          docker pull "$upstream"
+          docker image inspect "$upstream" --format 'Pinned image: {{.Id}}'
+          docker image inspect "$upstream" --format 'OCI source: {{index .Config.Labels "org.opencontainers.image.source"}}'
+          docker image inspect "$upstream" --format 'OCI revision: {{index .Config.Labels "org.opencontainers.image.revision"}}'
+          docker image inspect "$upstream" --format 'OCI version: {{index .Config.Labels "org.opencontainers.image.version"}}'
+          expected_source='https://github.com/lexfrei/mcp-raker'
+          expected_revision='0caea7c31a0780462331e9031e3bf0f435d190ed'
+          expected_version='0.2.0'
+          actual_source=$(docker image inspect "$upstream" --format '{{index .Config.Labels "org.opencontainers.image.source"}}')
+          actual_revision=$(docker image inspect "$upstream" --format '{{index .Config.Labels "org.opencontainers.image.revision"}}')
+          actual_version=$(docker image inspect "$upstream" --format '{{index .Config.Labels "org.opencontainers.image.version"}}')
+          test "$actual_source" = "$expected_source"
+          test "$actual_revision" = "$expected_revision"
+          test "$actual_version" = "$expected_version"
+          echo 'Pinned upstream OCI labels match audited revision (not cryptographic attestation).'
+          echo 'Provenance labels are informational; matching them to audited source remains a separate verification gate.'
+      - name: Build DEV container (no deployment)
+        run: docker build --pull --tag moonraker-mcp:dev ./moonraker_mcp
+      - name: Verify runtime image launcher identity
+        run: |
+          test "$(docker image inspect moonraker-mcp:dev --format '{{.Config.User}}')" = root
+      - name: Smoke-test Supervisor root-only options with unprivileged gateway
+        run: |
+          python3 - <<'PY'
+          import json, os, subprocess, tempfile, time, urllib.error, urllib.request
+          with tempfile.TemporaryDirectory() as tmp:
+              os.chmod(tmp, 0o700)
+              path=os.path.join(tmp, "options.json")
+              with open(path, "w") as out:
+                  json.dump({"moonraker_url":"http://127.0.0.1:7125",
+                             "moonraker_api_key":"",
+                             "mcp_http_token":"ci-supervisor-token",
+                             "enable_tunnel":False},out)
+              os.chmod(path, 0o600)
+              container="moonraker-mcp-supervisor-permissions"
+              subprocess.run(["docker","run","-d","--name",container,
+                              "-p","127.0.0.1:18769:8765",
+                              "-v",tmp+":/data:ro","moonraker-mcp:dev"],
+                             check=True,capture_output=True)
+              try:
+                  for attempt in range(40):
+                      probe=urllib.request.Request(
+                          "http://127.0.0.1:18769/mcp",
+                          data=b'{"jsonrpc":"2.0","id":1,"method":"ping"}',
+                          headers={"Content-Type":"application/json"})
+                      try:
+                          urllib.request.urlopen(probe,timeout=2)
+                      except urllib.error.HTTPError as exc:
+                          if exc.code == 401:
+                              exc.read()
+                              print("Root-only Supervisor config loaded; authenticated gateway ready")
+                              break
+                          raise
+                      except (urllib.error.URLError, TimeoutError, ConnectionResetError, ConnectionAbortedError, BrokenPipeError):
+                          # The gateway can reset a TCP probe while its listener initializes.
+                          # Retry only during the bounded startup readiness window.
+                          time.sleep(0.25)
+                  else:
+                      raise AssertionError("Gateway did not start with root-only Supervisor config")
+                  identity=subprocess.run(
+                      ["docker","exec",container,"sh","-c",
+                       "for p in $(pidof python3 mcp-raker); do grep '^Uid:' /proc/$p/status; done"],
+                      capture_output=True,text=True,check=True)
+                  lines=[x.strip() for x in identity.stdout.splitlines() if x.startswith("Uid:")]
+                  assert lines and all(x.split()[1] == "65534" for x in lines), lines
+                  print("Gateway and upstream processes run without root privileges")
+              except BaseException:
+                  log=subprocess.run(["docker","logs",container],capture_output=True,text=True)
+                  print(log.stdout,log.stderr)
+                  raise
+              finally:
+                  subprocess.run(["docker","rm","-f",container],capture_output=True)
+          PY
+      - name: Verify startup rejects invalid permission settings
+        run: |
+          python3 - <<'PY'
+          import json, os, subprocess, tempfile
+          base={"moonraker_url":"http://127.0.0.1:7125","moonraker_api_key":"","mcp_http_token":"ci-test-token"}
+          for key, bad in (("enable_objects","true"),("enable_history","true"),("enable_sensors",1),
+                           ("enable_spoolman",[]),("enable_power",{"enabled":True})):
+              with tempfile.TemporaryDirectory() as tmp:
+                  os.chmod(tmp,0o755)
+                  with open(os.path.join(tmp,"options.json"),"w") as out:
+                      json.dump({**base,key:bad},out)
+                  result=subprocess.run(["docker","run","--rm","-v",tmp+":/data:ro",
+                                         "moonraker-mcp:dev"],capture_output=True,text=True,timeout=15)
+                  assert result.returncode != 0, (key,"invalid value accepted")
+                  assert "Optional MCP profiles must be boolean" in result.stderr, (key,result.stderr)
+                  print("Rejected invalid permission:",key)
+          PY
+      - name: Verify startup rejects malformed credentials and file permissions
+        run: |
+          python3 - <<'PY'
+          import json, os, subprocess, tempfile
+          base={"moonraker_url":"http://127.0.0.1:7125","moonraker_api_key":"","mcp_http_token":"ci-test-token"}
+          invalid=[
+              ("mcp_http_token", 123),
+              ("mcp_http_token", False),
+              ("mcp_http_token", {"token":"secret"}),
+              ("mcp_http_token", ""),
+              ("moonraker_api_key", ["not-a-key"]),
+              ("moonraker_api_key", 42),
+              ("moonraker_api_key", False),
+              ("enable_files", "true"),
+              ("enable_files", 1),
+          ]
+          for key, bad in invalid:
+              with tempfile.TemporaryDirectory() as tmp:
+                  os.chmod(tmp,0o755)
+                  with open(os.path.join(tmp,"options.json"),"w") as out:
+                      json.dump({**base,key:bad},out)
+                  result=subprocess.run(["docker","run","--rm","-v",tmp+":/data:ro",
+                                         "moonraker-mcp:dev"],capture_output=True,text=True,timeout=15)
+                  assert result.returncode != 0, (key,"invalid value accepted",result.stdout)
+                  print("Rejected invalid startup option:",key,type(bad).__name__)
+          PY
+
+      - name: Smoke test HTTP MCP auth (no printer commands)
+        run: |
+          mkdir -p /tmp/moonraker-mcp-options
+          printf '%s\n' '{"moonraker_url":"http://127.0.0.1:7125","moonraker_api_key":"","mcp_http_token":"ci-test-token"}' > /tmp/moonraker-mcp-options/options.json
+          docker run -d --name moonraker-mcp-ci -p 127.0.0.1:18765:8765 -v /tmp/moonraker-mcp-options:/data:ro moonraker-mcp:dev
+          trap 'docker logs moonraker-mcp-ci; docker rm -f moonraker-mcp-ci' EXIT
+          for i in $(seq 1 20); do
+            if curl -s -o /dev/null http://127.0.0.1:18765/mcp; then break; fi
+            sleep 1
+          done
+          status=$(curl -s -o /dev/null -w '%{http_code}' -X POST -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' http://127.0.0.1:18765/mcp)
+          test "$status" = 401 || { echo "Expected 401 without bearer token, got $status"; exit 1; }
+          echo "HTTP listener started; unauthenticated access rejected"
+
+      - name: MCP initialize and tools/list protocol smoke test
+        run: |
+          python - <<'PY'
+          import json, urllib.request
+          url = "http://127.0.0.1:18765/"
+          headers = {
+              "Authorization": "Bearer ci-test-token",
+              "Content-Type": "application/json",
+              "Accept": "application/json, text/event-stream",
+              "MCP-Protocol-Version": "2025-06-18",
+          }
+          # This step runs in a separate process: launch the server here.
+          import subprocess, tempfile, os, time
+          with tempfile.TemporaryDirectory() as tmp:
+              with open(os.path.join(tmp, "options.json"), "w") as f:
+                  json.dump({"moonraker_url":"http://127.0.0.1:7125","moonraker_api_key":"","mcp_http_token":"ci-test-token"}, f)
+              os.chmod(tmp, 0o755)  # container runs as uid 65534; TemporaryDirectory defaults to 0700
+              subprocess.run(["docker","run","-i","-d","--name","moonraker-mcp-protocol","-p","127.0.0.1:18765:8765","-v",tmp+":/data:ro","moonraker-mcp:dev"], check=True, capture_output=True)
+              try:
+                  time.sleep(2)
+                  state=subprocess.run(["docker","inspect","-f","{{.State.Running}}","moonraker-mcp-protocol"],capture_output=True,text=True)
+                  if state.stdout.strip() != "true":
+                      logs=subprocess.run(["docker","logs","moonraker-mcp-protocol"],capture_output=True,text=True)
+                      raise RuntimeError("MCP container exited: "+logs.stderr+logs.stdout)
+                  def request(method, params=None, rid=1, session=None):
+                      data={"jsonrpc":"2.0","id":rid,"method":method}
+                      if params is not None: data["params"]=params
+                      h=dict(headers)
+                      if session: h["Mcp-Session-Id"]=session
+                      req=urllib.request.Request(url, data=json.dumps(data).encode(), headers=h)
+                      with urllib.request.urlopen(req, timeout=10) as response:
+                          raw=response.read().decode()
+                          if "text/event-stream" in response.headers.get("Content-Type",""):
+                              raw="".join(line[6:] for line in raw.splitlines() if line.startswith("data:"))
+                          return json.loads(raw), response.headers.get("Mcp-Session-Id")
+                  init,session=request("initialize",{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"ha-addon-ci","version":"0.1.0"}},1)
+                  assert "result" in init and "serverInfo" in init["result"], init
+                  assert init["result"].get("capabilities")=={"tools":{}}, "Gateway advertised unsupported MCP capabilities"
+                  print("MCP initialize advertises tools only; no resources, prompts or change notifications")
+                  # Complete the MCP initialization lifecycle against the
+                  # pinned upstream binary, without contacting any printer.
+                  notification={"jsonrpc":"2.0","method":"notifications/initialized"}
+                  notification_headers=dict(headers)
+                  if session: notification_headers["Mcp-Session-Id"]=session
+                  notification_req=urllib.request.Request(
+                      url, data=json.dumps(notification).encode(), headers=notification_headers)
+                  with urllib.request.urlopen(notification_req, timeout=10) as notification_response:
+                      assert notification_response.status==202, notification_response.status
+                      assert notification_response.read()==b"", "MCP notification must not return a body"
+                  print("MCP initialized notification acknowledged with HTTP 202")
+                  ping_reply,_=request("ping",{},3,session)
+                  assert ping_reply.get("jsonrpc")=="2.0", ping_reply
+                  assert ping_reply.get("id")==3 and ping_reply.get("result")=={}, ping_reply
+                  print("MCP ping completed successfully in initialized session")
+                  result,_=request("tools/list",{},2,session)
+                  assert "result" in result and isinstance(result["result"].get("tools"),list), result
+                  tools=result["result"]["tools"]
+                  assert tools and all(t["name"].startswith("moonraker_") for t in tools)
+                  with open("moonraker_mcp/read_only_allowlist.json") as policy_file:
+                      allowlist=json.load(policy_file)["allowed_tools"]
+                  assert len(allowlist)==len(set(allowlist)), "Duplicate tool names in allowlist"
+                  names=sorted(t["name"] for t in tools)
+                  assert set(names)==set(allowlist), "Gateway exposed tools outside allowlist"
+                  missing=sorted(set(allowlist)-set(names))
+                  assert not missing, "Allowlisted tools absent from gateway: "+", ".join(missing)
+                  print("Read-only allowlist enforced:",len(allowlist),"tools")
+                  print("MCP initialize and tools/list OK; tools:",len(tools))
+                  print("Registered tools:",", ".join(names))
+                  hazardous=("gcode_script","emergency_stop","print_start","print_cancel","printer_restart","firmware_restart")
+                  matches=[name for name in names if any(term in name for term in hazardous)]
+                  assert not matches, "DANGEROUS: gateway exposed control tools: "+", ".join(matches)
+                  print("SECURITY AUDIT: no hazardous controls exposed through gateway")
+                  print("Gateway policy verified; printer integration not tested")
+                  # Exercise the actual Docker gateway, not only policy unit tests.
+                  # Denied calls must fail before any connection to Moonraker.
+                  import urllib.error
+                  forbidden=[
+                      "moonraker_gcode_script",
+                      "moonraker_print_start",
+                      "moonraker_print_cancel",
+                      "moonraker_firmware_restart",
+                      "moonraker_files_delete",
+                      "moonraker_spoolman_set_spool",
+                      "moonraker_new_future_tool",
+                  ]
+                  for index, name in enumerate(forbidden, start=100):
+                      try:
+                          request("tools/call",{"name":name,"arguments":{}},index,session)
+                      except urllib.error.HTTPError as error:
+                          assert error.code==403, (name,error.code)
+                      else:
+                          raise AssertionError("Forbidden tool reached upstream: "+name)
+                  print("Docker HTTP gateway blocked",len(forbidden),"forbidden tool calls")
+                  # Verify disabled-by-default privacy groups in the actual container.
+                  excluded=("moonraker_jobqueue_status","moonraker_objects_list","moonraker_objects_query",
+                            "moonraker_history_list","moonraker_history_job",
+                            "moonraker_history_totals","moonraker_power_status",
+                            "moonraker_sensors_info","moonraker_sensors_list",
+                            "moonraker_sensors_measurements","moonraker_spoolman_status",
+                            "moonraker_spoolman_get_spool")
+                  for index,name in enumerate(excluded,start=200):
+                      try:
+                          request("tools/call",{"name":name,"arguments":{}},index,session)
+                      except urllib.error.HTTPError as error:
+                          assert error.code==403,(name,error.code)
+                      else:
+                          raise AssertionError("Privacy-disabled tool accepted: "+name)
+                  print("Docker HTTP gateway rejected all",len(excluded),"privacy-disabled tools")
+                  # The raw upstream port must only bind loopback inside Docker.
+                  # Inspect the listening socket through /proc without installing netstat.
+                  inspection=subprocess.run(
+                      ["docker","exec","moonraker-mcp-protocol","python3","-c",
+                       "print(open('/proc/net/tcp').read())"],
+                      capture_output=True,text=True,check=True)
+                  sockets=inspection.stdout.splitlines()
+                  upstream_port=format(8766,"04X")
+                  upstream_sockets=[line.split() for line in sockets
+                                    if len(line.split())>3 and line.split()[1].endswith(":"+upstream_port)
+                                    and line.split()[3]=="0A"]
+                  assert upstream_sockets, "Upstream HTTP port 8766 is not listening"
+                  assert all(parts[1].startswith("0100007F:") for parts in upstream_sockets), (
+                      "DANGEROUS: upstream MCP HTTP is listening on a non-loopback address",
+                      upstream_sockets)
+                  print("Upstream MCP 8766 confirmed loopback-only inside Docker")
+              finally:
+                  subprocess.run(["docker","rm","-f","moonraker-mcp-protocol"],capture_output=True)
+          PY
+
+      - name: Verify opt-in file tools against mock Moonraker in Docker
+        run: |
+          python3 - <<'PY'
+          import http.server, json, os, subprocess, tempfile, threading, time, urllib.error, urllib.request
+          class MockMoonraker(http.server.BaseHTTPRequestHandler):
+              def do_GET(self):
+                  if self.path == "/server/files/list?root=gcodes":
+                      result = [{"path":"benchy.gcode","size":123}]
+                  elif self.path == "/server/files/gcodes/benchy.gcode":
+                      data = b"; generated by slicer\\nG1 X1 Y1\\n"
+                      self.send_response(206)
+                      self.send_header("Content-Type","application/octet-stream")
+                      self.send_header("Content-Length",str(len(data)))
+                      self.end_headers()
+                      self.wfile.write(data)
+                      return
+                  elif self.path == "/server/files/metadata?filename=benchy.gcode":
+                      result = {"size":123,"filename":"benchy.gcode"}
+                  else:
+                      self.send_error(404)
+                      return
+                  data = json.dumps({"result":result}).encode()
+                  self.send_response(200)
+                  self.send_header("Content-Type","application/json")
+                  self.send_header("Content-Length",str(len(data)))
+                  self.end_headers()
+                  self.wfile.write(data)
+              def log_message(self,*args): pass
+          mock = http.server.ThreadingHTTPServer(("0.0.0.0",18768),MockMoonraker)
+          thread = threading.Thread(target=mock.serve_forever,daemon=True)
+          thread.start()
+          with tempfile.TemporaryDirectory() as tmp:
+              os.chmod(tmp,0o755)
+              with open(os.path.join(tmp,"options.json"),"w") as out:
+                  json.dump({"moonraker_url":"http://host.docker.internal:18768",
+                             "moonraker_api_key":"","mcp_http_token":"ci-test-token",
+                             "enable_files":True},out)
+              subprocess.run(["docker","run","-d","--name","moonraker-mcp-files-ci",
+                              "--add-host=host.docker.internal:host-gateway",
+                              "-p","127.0.0.1:18769:8765","-v",tmp+":/data:ro",
+                              "moonraker-mcp:dev"],check=True,capture_output=True)
+              try:
+                  def call(method,params=None,rid=1,session=None):
+                      msg={"jsonrpc":"2.0","id":rid,"method":method}
+                      if params is not None: msg["params"]=params
+                      headers={"Authorization":"Bearer ci-test-token",
+                               "Content-Type":"application/json",
+                               "Accept":"application/json, text/event-stream"}
+                      if session: headers["Mcp-Session-Id"]=session
+                      req=urllib.request.Request("http://127.0.0.1:18769/",
+                                                 data=json.dumps(msg).encode(),headers=headers)
+                      with urllib.request.urlopen(req,timeout=10) as response:
+                          raw=response.read().decode()
+                          if "text/event-stream" in response.headers.get("Content-Type",""):
+                              raw="".join(x[5:].strip() for x in raw.splitlines() if x.startswith("data:"))
+                          return json.loads(raw),response.headers.get("Mcp-Session-Id")
+                  for attempt in range(25):
+                      try:
+                          init,session=call("initialize",{"protocolVersion":"2025-06-18",
+                              "capabilities":{},"clientInfo":{"name":"ci","version":"1"}},1)
+                          assert "result" in init
+                          break
+                      except (urllib.error.URLError,ConnectionError):
+                          time.sleep(1)
+                  else: raise AssertionError("File profile gateway failed to start")
+                  listing,_=call("tools/list",{},2,session)
+                  names={x["name"] for x in listing["result"]["tools"]}
+                  base=set(json.load(open("moonraker_mcp/read_only_allowlist.json"))["allowed_tools"])
+                  assert names==base|{"moonraker_files_list","moonraker_files_metadata","moonraker_files_preview"},names
+                  for name,args,expected in (
+                      ("moonraker_files_list",{},[{"path":"benchy.gcode","size":123}]),
+                      ("moonraker_files_metadata",{"filename":"benchy.gcode"},
+                       {"size":123,"filename":"benchy.gcode"}),
+                      ("moonraker_files_preview",{"filename":"benchy.gcode"},
+                       {"filename":"benchy.gcode","preview":"; generated by slicer\\nG1 X1 Y1\\n","max_bytes":16384})):
+                      result,_=call("tools/call",{"name":name,"arguments":args},3,session)
+                      assert json.loads(result["result"]["content"][0]["text"])==expected,result
+                  for forbidden in ("moonraker_objects_query","moonraker_history_list"):
+                      try:
+                          call("tools/call",{"name":forbidden,"arguments":{}},4,session)
+                      except urllib.error.HTTPError as exc:
+                          assert exc.code==403,(forbidden,exc.code)
+                      else: raise AssertionError("Unexpected permission: "+forbidden)
+                  print("Docker file opt-in: list, metadata and permission isolation passed")
+              finally:
+                  subprocess.run(["docker","rm","-f","moonraker-mcp-files-ci"],capture_output=True)
+                  mock.shutdown()
+          PY
+
+      - name: Verify explicit Klipper objects opt-in in running Docker gateway
+        run: |
+          python3 - <<'PY'
+          import json, os, subprocess, tempfile, time, urllib.request, urllib.error
+          with tempfile.TemporaryDirectory() as tmp:
+              os.chmod(tmp, 0o755)
+              with open(os.path.join(tmp, "options.json"), "w") as out:
+                  json.dump({"moonraker_url":"http://127.0.0.1:7125",
+                             "moonraker_api_key":"","mcp_http_token":"ci-test-token",
+                             "enable_objects":True}, out)
+              subprocess.run(["docker","run","-d","--name","moonraker-mcp-objects-ci",
+                              "-p","127.0.0.1:18767:8765","-v",tmp+":/data:ro",
+                              "moonraker-mcp:dev"],check=True,capture_output=True)
+              try:
+                  url="http://127.0.0.1:18767/"
+                  def request(method,params=None,rid=1,session=None):
+                      data={"jsonrpc":"2.0","id":rid,"method":method}
+                      if params is not None: data["params"]=params
+                      req=urllib.request.Request(url,data=json.dumps(data).encode(),
+                          headers={"Authorization":"Bearer ci-test-token",
+                                   "Content-Type":"application/json",
+                                   "Accept":"application/json, text/event-stream"})
+                      if session: req.add_header("Mcp-Session-Id",session)
+                      with urllib.request.urlopen(req,timeout=10) as res:
+                          raw=res.read().decode()
+                          if "text/event-stream" in res.headers.get("Content-Type",""):
+                              raw="".join(x[5:].strip() for x in raw.splitlines() if x.startswith("data:"))
+                          return json.loads(raw),res.headers.get("Mcp-Session-Id")
+                  for attempt in range(25):
+                      try:
+                          init,session=request("initialize",{"protocolVersion":"2025-06-18",
+                              "capabilities":{},"clientInfo":{"name":"ci","version":"1"}},1)
+                          assert "result" in init,init
+                          break
+                      except (urllib.error.URLError,ConnectionError):
+                          time.sleep(1)
+                  else: raise AssertionError("Objects profile gateway did not start")
+                  result,_=request("tools/list",{},2,session)
+                  names={x["name"] for x in result["result"]["tools"]}
+                  base=set(json.load(open("moonraker_mcp/read_only_allowlist.json"))["allowed_tools"])
+                  objects={"moonraker_objects_list","moonraker_objects_query"}
+                  assert names==base|objects,(names,base|objects)
+                  for forbidden in ("moonraker_history_list","moonraker_sensors_info",
+                                    "moonraker_spoolman_status","moonraker_power_status",
+                                    "moonraker_gcode_script"):
+                      try:
+                          request("tools/call",{"name":forbidden,"arguments":{}},3,session)
+                      except urllib.error.HTTPError as exc:
+                          assert exc.code==403,(forbidden,exc.code)
+                      else: raise AssertionError("Unexpected access: "+forbidden)
+                  print("Docker objects opt-in exposes exactly",len(names),"tools; other groups denied")
+              finally:
+                  subprocess.run(["docker","rm","-f","moonraker-mcp-objects-ci"],
+                                 capture_output=True)
+          PY
+
+      - name: Verify job queue opt-in in running Docker gateway
+        run: |
+          python3 - <<'PY'
+          import json, os, subprocess, tempfile, time, urllib.request, urllib.error
+          with tempfile.TemporaryDirectory() as tmp:
+              os.chmod(tmp,0o755)
+              with open(os.path.join(tmp,"options.json"),"w") as out:
+                  json.dump({"moonraker_url":"http://127.0.0.1:7125",
+                             "moonraker_api_key":"","mcp_http_token":"ci-test-token",
+                             "enable_jobqueue":True},out)
+              subprocess.run(["docker","run","-d","--name","moonraker-mcp-jobqueue-ci",
+                              "-p","127.0.0.1:18767:8765","-v",tmp+":/data:ro",
+                              "moonraker-mcp:dev"],check=True,capture_output=True)
+              try:
+                  url="http://127.0.0.1:18767/"
+                  def request(method,params=None,rid=1,session=None):
+                      payload={"jsonrpc":"2.0","id":rid,"method":method}
+                      if params is not None: payload["params"]=params
+                      req=urllib.request.Request(url,data=json.dumps(payload).encode(),
+                          headers={"Authorization":"Bearer ci-test-token",
+                                   "Content-Type":"application/json",
+                                   "Accept":"application/json, text/event-stream"})
+                      if session: req.add_header("Mcp-Session-Id",session)
+                      with urllib.request.urlopen(req,timeout=10) as res:
+                          raw=res.read().decode()
+                          if "text/event-stream" in res.headers.get("Content-Type",""):
+                              raw="".join(x[5:].strip() for x in raw.splitlines() if x.startswith("data:"))
+                          return json.loads(raw),res.headers.get("Mcp-Session-Id")
+                  for attempt in range(25):
+                      try:
+                          init,session=request("initialize",{"protocolVersion":"2025-06-18",
+                              "capabilities":{},"clientInfo":{"name":"ci","version":"1"}})
+                          assert "result" in init,init
+                          break
+                      except (urllib.error.URLError,ConnectionError):
+                          time.sleep(1)
+                  else: raise AssertionError("Job queue gateway did not start")
+                  listed,_=request("tools/list",{},2,session)
+                  names={x["name"] for x in listed["result"]["tools"]}
+                  base=set(json.load(open("moonraker_mcp/read_only_allowlist.json"))["allowed_tools"])
+                  assert names==base|{"moonraker_jobqueue_status"},(names,base)
+                  for forbidden in ("moonraker_history_list","moonraker_objects_query",
+                                    "moonraker_gcode_script"):
+                      try:
+                          request("tools/call",{"name":forbidden,"arguments":{}},3,session)
+                      except urllib.error.HTTPError as exc:
+                          assert exc.code==403,(forbidden,exc.code)
+                      else: raise AssertionError("Unexpected access: "+forbidden)
+                  print("Docker job queue opt-in exposes one extra read-only tool")
+              finally:
+                  subprocess.run(["docker","rm","-f","moonraker-mcp-jobqueue-ci"],
+                                 capture_output=True)
+          PY
+
+      - name: Verify explicit history profile in running Docker gateway
+        run: |
+          python3 - <<'PY'
+          import json, os, subprocess, tempfile, time, urllib.request, urllib.error
+          with tempfile.TemporaryDirectory() as tmp:
+              os.chmod(tmp,0o755)
+              with open(os.path.join(tmp,"options.json"),"w") as out:
+                  json.dump({"moonraker_url":"http://127.0.0.1:7125",
+                             "moonraker_api_key":"","mcp_http_token":"ci-test-token",
+                             "enable_history":True},out)
+              subprocess.run(["docker","run","-d","--name","moonraker-mcp-history-ci",
+                              "-p","127.0.0.1:18766:8765","-v",tmp+":/data:ro",
+                              "moonraker-mcp:dev"],check=True,capture_output=True)
+              try:
+                  url="http://127.0.0.1:18766/"
+                  def request(method,params=None,rid=1,session=None):
+                      data={"jsonrpc":"2.0","id":rid,"method":method}
+                      if params is not None: data["params"]=params
+                      req=urllib.request.Request(url,data=json.dumps(data).encode(),
+                          headers={"Authorization":"Bearer ci-test-token",
+                                   "Content-Type":"application/json",
+                                   "Accept":"application/json, text/event-stream"})
+                      if session: req.add_header("Mcp-Session-Id",session)
+                      with urllib.request.urlopen(req,timeout=10) as res:
+                          raw=res.read().decode()
+                          if "text/event-stream" in res.headers.get("Content-Type",""):
+                              raw="".join(x[5:].strip() for x in raw.splitlines() if x.startswith("data:"))
+                          return json.loads(raw),res.headers.get("Mcp-Session-Id")
+                  for attempt in range(25):
+                      try:
+                          init,session=request("initialize",{"protocolVersion":"2025-06-18",
+                              "capabilities":{},"clientInfo":{"name":"ci","version":"1"}},1)
+                          assert "result" in init,init
+                          break
+                      except (urllib.error.URLError,ConnectionError):
+                          time.sleep(1)
+                  else: raise AssertionError("History profile gateway did not start")
+                  result,_=request("tools/list",{},2,session)
+                  names={x["name"] for x in result["result"]["tools"]}
+                  base=set(json.load(open("moonraker_mcp/read_only_allowlist.json"))["allowed_tools"])
+                  history={"moonraker_history_list","moonraker_history_job","moonraker_history_totals"}
+                  assert len(base)==4,base
+                  assert "moonraker_objects_query" not in names
+                  assert "moonraker_objects_list" not in names
+                  assert names==base|history,(names,base|history)
+                  for forbidden in ("moonraker_objects_query","moonraker_objects_list",
+                                    "moonraker_spoolman_status","moonraker_sensors_info",
+                                    "moonraker_power_status","moonraker_gcode_script"):
+                      try:
+                          request("tools/call",{"name":forbidden,"arguments":{}},3,session)
+                      except urllib.error.HTTPError as exc:
+                          assert exc.code==403,(forbidden,exc.code)
+                      else: raise AssertionError("Unexpected access: "+forbidden)
+                  print("Docker history opt-in exposes exactly",len(names),"tools; other groups denied")
+              finally:
+                  subprocess.run(["docker","rm","-f","moonraker-mcp-history-ci"],
+                                 capture_output=True)
+          PY
+
+      - name: Official MCP Python SDK client smoke test (no printer)
+        run: |
+          python3 -m pip install 'mcp==1.30.0'
+          python3 - <<'PY'
+          import asyncio, json, os, subprocess, tempfile
+          from mcp import ClientSession
+          from mcp.client.streamable_http import streamablehttp_client
+
+          async def main():
+              with tempfile.TemporaryDirectory() as tmp:
+                  os.chmod(tmp, 0o755)
+                  with open(os.path.join(tmp, "options.json"), "w") as out:
+                      json.dump({
+                          "moonraker_url": "http://127.0.0.1:7125",
+                          "moonraker_api_key": "",
+                          "mcp_http_token": "ci-sdk-test-token",
+                      }, out)
+                  subprocess.run([
+                      "docker", "run", "-d", "--name", "moonraker-mcp-sdk-ci",
+                      "-p", "127.0.0.1:18767:8765",
+                      "-v", tmp + ":/data:ro", "moonraker-mcp:dev",
+                  ], check=True, capture_output=True)
+                  try:
+                      # Docker can publish its port before Python binds it.
+                      # Wait for the real gateway to return its expected 401.
+                      import urllib.error
+                      import urllib.request
+                      ready_url="http://127.0.0.1:18767/mcp"
+                      for attempt in range(30):
+                          state=subprocess.run(
+                              ["docker", "inspect", "-f", "{{.State.Running}}",
+                               "moonraker-mcp-sdk-ci"],
+                              capture_output=True, text=True)
+                          if state.stdout.strip() != "true":
+                              raise RuntimeError("SDK test container exited before gateway was ready")
+                          probe=urllib.request.Request(
+                              ready_url,
+                              data=b'{"jsonrpc":"2.0","id":1,"method":"ping"}',
+                              headers={"Content-Type": "application/json"})
+                          try:
+                              urllib.request.urlopen(probe, timeout=2).close()
+                          except urllib.error.HTTPError as exc:
+                              if exc.code == 401:
+                                  exc.read()
+                                  break
+                              raise AssertionError("Unexpected readiness response: "+str(exc.code))
+                          except (urllib.error.URLError, TimeoutError, ConnectionError):
+                              await asyncio.sleep(0.5)
+                      else:
+                          raise TimeoutError("Gateway never returned authenticated readiness challenge")
+                      print("Gateway ready (unauthenticated requests rejected)")
+                      # SDK client, not a hand-written HTTP/JSON-RPC request.
+                      async with streamablehttp_client(
+                          ready_url,
+                          headers={"Authorization": "Bearer ci-sdk-test-token"},
+                          timeout=10,
+                          terminate_on_close=False,
+                      ) as (read, write, _):
+                          async with ClientSession(read, write) as session:
+                              initialized = await session.initialize()
+                              assert initialized.capabilities.tools is not None
+                              assert initialized.capabilities.resources is None
+                              assert initialized.capabilities.prompts is None
+                              listed = await session.list_tools()
+                              names = {tool.name for tool in listed.tools}
+                              with open("moonraker_mcp/read_only_allowlist.json") as policy:
+                                  expected = set(json.load(policy)["allowed_tools"])
+                              assert names == expected, (names, expected)
+                              print("Official MCP SDK connected and discovered", len(names), "read-only tools")
+                              # Execute one harmless tool implemented by the upstream
+                              # server itself; the configured Moonraker URL is a
+                              # deliberately unreachable CI placeholder.
+                              version = await session.call_tool("moonraker_mcp_version", arguments={})
+                              assert not version.isError, "Version tool unexpectedly failed"
+                              assert version.content, "Version tool returned no MCP content"
+                              print("Official MCP SDK executed moonraker_mcp_version successfully")
+                      # The SDK raises HTTP transport failures from its
+                      # asynchronous TaskGroup on exit, not always directly
+                      # from call_tool. Test denial in a separate SDK session
+                      # and inspect the nested exception group.
+                      import httpx
+                      def has_denied_http_403(exc):
+                          if isinstance(exc, httpx.HTTPStatusError):
+                              return exc.response.status_code == 403
+                          return any(has_denied_http_403(child)
+                                     for child in getattr(exc, "exceptions", ()))
+                      blocked=False
+                      try:
+                          async with streamablehttp_client(
+                              ready_url,
+                              headers={"Authorization": "Bearer ci-sdk-test-token"},
+                              timeout=10,
+                              terminate_on_close=False,
+                          ) as (read, write, _):
+                              async with ClientSession(read, write) as denied_session:
+                                  await denied_session.initialize()
+                                  await denied_session.call_tool(
+                                      "moonraker_gcode_script",
+                                      arguments={"script": "M105"})
+                      except BaseException as exc:
+                          if not has_denied_http_403(exc):
+                              raise
+                          blocked=True
+                      assert blocked, "Forbidden control tool was accepted by SDK"
+                      print("Official MCP SDK control-tool call rejected with HTTP 403")
+                  except BaseException:
+                      diagnostics=subprocess.run(
+                          ["docker", "logs", "--tail", "100", "moonraker-mcp-sdk-ci"],
+                          capture_output=True, text=True)
+                      print("SDK test gateway diagnostics (no secrets):",
+                            diagnostics.stdout + diagnostics.stderr)
+                      raise
+                  finally:
+                      subprocess.run(["docker", "rm", "-f", "moonraker-mcp-sdk-ci"],
+                                     capture_output=True)
+
+          asyncio.run(main())
+          PY
