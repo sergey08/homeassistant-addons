@@ -20,6 +20,22 @@ if [ -z "$MCP_HTTP_TOKEN" ]; then
 fi
 MCP_ALLOWED_PROFILES="$(jq -ecr '[["jobqueue", .enable_jobqueue], ["files", .enable_files], ["objects", .enable_objects], ["history", .enable_history], ["sensors", .enable_sensors], ["spoolman", .enable_spoolman], ["power", .enable_power]] | if all(.[]; .[1] == null or (.[1] | type) == "boolean") then map(select(.[1] == true) | .[0]) else error("Optional MCP profiles must be boolean") end' "$OPTIONS")"
 export MCP_ALLOWED_PROFILES
+# Fail before starting the gateway if the optional tunnel cannot authenticate.
+# The tunnel process runs as UID 65534; do not loosen private key permissions.
+if [ "$MCP_ENABLE_TUNNEL" = "true" ]; then
+  if [ -z "$MCP_TUNNEL_ID" ] ||
+     [ ! -f /data/tunnel/api-key ] ||
+     [ ! -f /data/tunnel/bin/tunnel-client ] ||
+     ! su-exec 65534:65534 test -r /data/tunnel/api-key ||
+     ! su-exec 65534:65534 test -x /data/tunnel/bin/tunnel-client; then
+    echo "Tunnel configuration incomplete or inaccessible to runtime UID" >&2
+    exit 1
+  fi
+  if ! python3 -c 'import os,stat; p="/data/tunnel/api-key"; s=os.stat(p); assert stat.S_ISREG(s.st_mode) and not (s.st_mode & 0o077) and s.st_uid == 65534'; then
+    echo "Tunnel API key must be a private regular file owned by UID 65534" >&2
+    exit 1
+  fi
+fi
 export MCP_HTTP_HOST=127.0.0.1
 export MCP_HTTP_PORT=8766
 export MOONRAKER_ENABLE_ADMIN=false
