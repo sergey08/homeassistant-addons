@@ -19,7 +19,7 @@ class FileToolPolicyTests(unittest.TestCase):
         allowed = extend_allowed(self.base, ["files"])
         reply = filter_reply("tools/list", {"jsonrpc": "2.0", "id": 1,
                             "result": {"tools": []}}, allowed)
-        self.assertEqual({x["name"] for x in reply["result"]["tools"]}, set(LOCAL_FILE_TOOLS))
+        self.assertEqual({x["name"] for x in reply["result"]["tools"]}, set(LOCAL_FILE_TOOLS) | {"moonraker_connection_status"})
         for name in LOCAL_FILE_TOOLS:
             arguments = {} if name == "moonraker_files_list" else {"filename": "test.gcode"}
             self.assertEqual(check_message({"jsonrpc": "2.0", "id": 1, "method": "tools/call",
