@@ -65,6 +65,31 @@ jobs:
           test "$(docker image inspect moonraker-mcp:ci --format '{{.Config.User}}')" = root
           echo "Image starts as root for Supervisor options; services drop privileges."
 
+      - name: Inventory packaged binaries and Go module build metadata
+        run: |
+          set -eu
+          mkdir -p moonraker-mcp-audit
+          cid="$(docker create moonraker-mcp:ci)"
+          trap 'docker rm -f "$cid" >/dev/null 2>&1 || true' EXIT
+          docker cp "$cid:/usr/local/bin/mcp-raker" moonraker-mcp-audit/mcp-raker
+          docker cp "$cid:/opt/moonraker-mcp/vendor/tunnel-client" moonraker-mcp-audit/tunnel-client
+          sha256sum moonraker-mcp-audit/mcp-raker moonraker-mcp-audit/tunnel-client > moonraker-mcp-audit/binary-sha256.txt
+          go version -m moonraker-mcp-audit/mcp-raker > moonraker-mcp-audit/mcp-raker-modules.txt
+          go version -m moonraker-mcp-audit/tunnel-client > moonraker-mcp-audit/tunnel-client-modules.txt
+          grep -Eq '[[:space:]]mod[[:space:]]' moonraker-mcp-audit/mcp-raker-modules.txt
+          grep -Eq '[[:space:]]mod[[:space:]]' moonraker-mcp-audit/tunnel-client-modules.txt
+          docker run --rm --network none --entrypoint sh moonraker-mcp:ci -c 'apk info -vv' > moonraker-mcp-audit/alpine-packages.txt
+          test -s moonraker-mcp-audit/alpine-packages.txt
+          echo 'Inventory contains binary digests, Go embedded module metadata and Alpine package names (no secrets).'
+
+      - name: Attach inventory to workflow
+        uses: actions/upload-artifact@v4
+        with:
+          name: moonraker-mcp-dev-binary-inventory
+          path: moonraker-mcp-audit/
+          retention-days: 14
+          if-no-files-found: error
+
       - name: Verify redistribution notices are present inside image
         run: |
           set -eu
