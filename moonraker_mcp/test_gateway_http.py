@@ -1103,7 +1103,7 @@ class HTTPGatewayTests(unittest.TestCase):
             for name in names:
                 with self.subTest(name=name):
                     before = len(FakeUpstream.calls)
-                    if name in ("moonraker_connection_status", "moonraker_printer_info", "moonraker_server_info"):
+                    if name in ("moonraker_connection_status", "moonraker_printer_info", "moonraker_server_info", "moonraker_temperature_store"):
                         with patch.dict("os.environ", {"MOONRAKER_URL": "http://127.0.0.1:7125",
                                                        "MOONRAKER_API_KEY": ""}):
                             if name == "moonraker_connection_status":
@@ -1112,9 +1112,12 @@ class HTTPGatewayTests(unittest.TestCase):
                             elif name == "moonraker_printer_info":
                                 target = "gateway.public_printer_info"
                                 fixture = {"state": "ready", "software_version": "v1.0"}
-                            else:
+                            elif name == "moonraker_server_info":
                                 target = "gateway.public_server_info"
                                 fixture = {"moonraker_version": "2.0.0", "klippy_state": "ready"}
+                            else:
+                                target = "gateway.public_temperature_store"
+                                fixture = {"extruder": {"temperatures": [25.0, 25.5]}}
                             with patch(target, return_value=fixture):
                                 status, response = self.request(
                                     "tools/call", {"name": name, "arguments": {}})
