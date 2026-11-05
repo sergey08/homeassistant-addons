@@ -38,13 +38,15 @@ jobs:
           root = pathlib.Path("moonraker_mcp")
           cfg = yaml.safe_load((root / "config.yaml").read_text())
           assert cfg["slug"] == "moonraker_mcp"
-          assert cfg["version"] == "0.1.0-dev4"
+          assert cfg["version"] == "0.1.0-dev5"
           assert cfg["boot"] == "manual"
           assert cfg["ports"]["8765/tcp"] is None
           assert cfg["options"]["enable_tunnel"] is False
           assert cfg["options"]["mcp_http_token"] == ""
           assert cfg["options"]["moonraker_api_key"] == ""
           assert cfg["schema"]["mcp_http_token"] == "password"
+          assert cfg["schema"]["openai_tunnel_api_key"] == "password?"
+          assert cfg["options"]["openai_tunnel_api_key"] == ""
           for name in ("enable_jobqueue", "enable_files", "enable_objects",
                        "enable_history", "enable_sensors", "enable_spoolman", "enable_power"):
               assert cfg["options"][name] is False, name
