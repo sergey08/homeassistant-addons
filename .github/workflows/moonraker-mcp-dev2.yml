@@ -132,7 +132,7 @@ jobs:
           # A fake tunnel ID cannot connect to OpenAI in --network none.
           # The add-on is expected to stop; automatic local provisioning
           # must have happened securely before the startup failure.
-          docker run --rm --network none --stop-timeout 12 \
+          timeout 25s docker run --rm --network none --stop-timeout 12 \
             -v "$tmpdir:/data" moonraker-mcp:ci >"$tmpdir/output.log" 2>&1 || true
           docker run --rm --network none -v "$tmpdir:/data:ro" \
             --entrypoint python3 moonraker-mcp:ci -c '
