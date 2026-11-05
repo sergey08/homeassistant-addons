@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.2.5 — 2026-11-05
+
+- Adds opt-in LiveSync Markdown vault under `/share` for future shared use with Obsidian Client.
+- Coordinates MCP note edits with the Client using a cooperative file lock, including revision guards.
+- Adds read-only effective vault path diagnostics in Home Assistant Ingress.
+- Includes dry-run-first backup and shared-vault verification utilities with SHA-256 comparison.
+- **No automatic migration**: the original LiveSync vault, CouchDB settings and tunnel remain in use by default. Do not activate the shared mode until the existing vault is backed up and offline migration is verified.
+
+
 ## 0.2.3 — 2026-10-28
 
 - Adds selectable LiveSync and local Markdown storage modes in Home Assistant's native Configuration tab.
