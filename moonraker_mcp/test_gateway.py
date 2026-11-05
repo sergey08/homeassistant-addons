@@ -297,10 +297,10 @@ class GatewayTests(unittest.TestCase):
         listed = [{"name": name} for name in excluded]
         self.assertEqual(filter_reply(
             "tools/list", {"result": {"tools": listed}}, self.allowed
-        )["result"]["tools"], [])
+        )["result"]["tools"][-1]["name"], "moonraker_connection_status")
 
     def test_optional_profiles_require_explicit_opt_in(self):
-        self.assertEqual(len(self.allowed), 4)
+        self.assertEqual(len(self.allowed), 5)
         self.assertEqual(extend_allowed(self.allowed, []), self.allowed)
         history = extend_allowed(self.allowed, ["history"])
         self.assertEqual(len(history), 8)
@@ -353,7 +353,7 @@ class GatewayTests(unittest.TestCase):
         filtered = filter_reply("tools/list", response, self.allowed)
         self.assertEqual(filtered["result"]["nextCursor"], "page-2")
         self.assertEqual([tool["name"] for tool in filtered["result"]["tools"]],
-                         ["moonraker_printer_info"])
+                         ["moonraker_printer_info", "moonraker_connection_status"])
         enabled = extend_allowed(self.allowed, ["files"])
         first = filter_reply("tools/list", response, enabled)
         later = filter_reply("tools/list", response, enabled, cursor="page-2")
