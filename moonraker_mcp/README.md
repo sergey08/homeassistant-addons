@@ -1,5 +1,14 @@
 # Moonraker MCP for Home Assistant — DEV
 
+## DEV6 — ChatGPT MCP discovery compatibility
+
+ChatGPT's tunnel-based custom-plugin creation sends `server/discover` using MCP `2026-07-28`, but the upstream `mcp-raker` currently implements the earlier MCP handshake. DEV5 rejected that valid discovery request with HTTP 403. DEV6 adds a **locally authenticated, read-only** discovery handler that advertises only the tools capability and a bounded stateless request translation for modern `tools/list`, `tools/call` and `ping`. Client-provided modern metadata is validated and never forwarded to the pinned legacy upstream. The same tool allowlist and authorization checks apply before forwarding. No new write capabilities, OAuth bypasses or external port mappings are introduced.
+
+**Español:** ChatGPT utiliza `server/discover` (MCP `2026-07-28`) al registrar un plugin a través del túnel. El gateway DEV5 respondía 403 porque solo admitía `initialize`. DEV6 responde de manera autenticada con las capacidades de solo lectura y traduce las solicitudes modernas al protocolo anterior del servidor Moonraker, conservando la lista cerrada de herramientas. No abre puertos ni elimina controles de autenticación.
+
+**Validation:** isolated CI coverage for `server/discover`, modern read-only `tools/list` and denied G-code control. Remote ChatGPT registration must still be retried and verified before this change is considered fully validated.
+
+
 ## DEV5 — Tunnel access without terminal commands
 
 In DEV5, the installer exposes a protected `openai_tunnel_api_key` password field in Home Assistant alongside `tunnel_id` and `enable_tunnel`. Each user creates their **own** OpenAI tunnel and restricted API key with the required Tunnel permissions; the add-on never issues credentials on behalf of an OpenAI account.
