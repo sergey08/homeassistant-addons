@@ -29,6 +29,9 @@ class FakeUpstream(BaseHTTPRequestHandler):
     sse_extra_lines = None
     session_headers = []
     response_session_id = None
+    require_initialized_session = False
+    initialized_session = False
+    session_marker = "modern-session-validated"
 
     def do_POST(self):
         if self.path == "/collect":
@@ -47,6 +50,23 @@ class FakeUpstream(BaseHTTPRequestHandler):
         self.calls.append(message)
         self.session_headers.append(self.headers.get("Mcp-Session-Id"))
         method = message["method"]
+        if self.require_initialized_session:
+            valid_session = self.headers.get("Mcp-Session-Id") == self.session_marker
+            if method == "initialize":
+                FakeUpstream.initialized_session = False
+            elif method == "notifications/initialized":
+                if valid_session:
+                    FakeUpstream.initialized_session = True
+                else:
+                    self.send_response(409)
+                    self.send_header("Content-Length", "0")
+                    self.end_headers()
+                    return
+            elif not valid_session or not self.initialized_session:
+                self.send_response(409)
+                self.send_header("Content-Length", "0")
+                self.end_headers()
+                return
         if method == "notifications/initialized":
             self.send_response(self.notification_status)
             self.send_header("Content-Length", "0")
@@ -97,7 +117,9 @@ class FakeUpstream(BaseHTTPRequestHandler):
             body = ("event: message\n" + "\n".join(lines) + "\ndata: " + body.decode() + "\n\n").encode()
         self.send_response(200)
         self.send_header("Content-Type", self.response_content_type)
-        if self.response_session_id:
+        if self.require_initialized_session and method == "initialize":
+            self.send_header("Mcp-Session-Id", self.session_marker)
+        elif self.response_session_id:
             self.send_header("Mcp-Session-Id", self.response_session_id)
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
@@ -1181,6 +1203,30 @@ class HTTPGatewayTests(unittest.TestCase):
                                                 "arguments": {"script": "M112"}, "_meta": metadata})
         self.assertEqual(status, 403)
         self.assertEqual(len(FakeUpstream.calls), before)
+
+
+    def test_modern_listing_initializes_stateful_legacy_upstream(self):
+        original = FakeUpstream.require_initialized_session
+        previous_initialized = FakeUpstream.initialized_session
+        try:
+            FakeUpstream.require_initialized_session = True
+            FakeUpstream.initialized_session = False
+            metadata = {"io.modelcontextprotocol/protocolVersion": "2026-07-28",
+                        "io.modelcontextprotocol/clientInfo": {"name": "ChatGPT", "version": "1"},
+                        "io.modelcontextprotocol/clientCapabilities": {}}
+            start = len(FakeUpstream.calls)
+            status, reply = self.request("tools/list", {"_meta": metadata})
+            self.assertEqual(status, 200)
+            self.assertEqual(reply["result"]["resultType"], "complete")
+            self.assertIn("moonraker_connection_status",
+                          [t["name"] for t in reply["result"]["tools"]])
+            self.assertEqual([call["method"] for call in FakeUpstream.calls[start:]],
+                             ["initialize", "notifications/initialized", "tools/list"])
+            self.assertEqual(FakeUpstream.session_headers[start:][-1],
+                             FakeUpstream.session_marker)
+        finally:
+            FakeUpstream.require_initialized_session = original
+            FakeUpstream.initialized_session = previous_initialized
 
 
 if __name__ == "__main__":
