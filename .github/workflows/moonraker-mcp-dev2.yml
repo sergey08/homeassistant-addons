@@ -69,7 +69,7 @@ jobs:
           tmpdir="$(mktemp -d)"
           trap 'rm -rf "$tmpdir"' EXIT
           chmod 755 "$tmpdir"
-          printf '%s\\n' '{"moonraker_url":"http://127.0.0.1:7125","moonraker_api_key":"","mcp_http_token":"ci-local-only-token","enable_tunnel":true,"tunnel_id":"ci-placeholder"}' > "$tmpdir/options.json"
+          printf '%s\n' '{"moonraker_url":"http://127.0.0.1:7125","moonraker_api_key":"","mcp_http_token":"ci-local-only-token","enable_tunnel":true,"tunnel_id":"ci-placeholder"}' > "$tmpdir/options.json"
           if docker run --rm --network none -v "$tmpdir:/data:ro" moonraker-mcp:ci >"$tmpdir/output" 2>&1; then
             echo "SECURITY FAILURE: tunnel launched without client or key"
             exit 1
