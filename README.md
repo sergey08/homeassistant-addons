@@ -38,11 +38,11 @@ https://github.com/sergey08/homeassistant-addons
 
 [App source](./obsidian_client/) · [Documentation (EN/ES)](./obsidian_client/DOCS.md)
 
-**Moonraker MCP — 0.1.0-dev4 (experimental; pending review and integration)**
+**Moonraker MCP — 0.1.0-dev5 (experimental; pending review and integration)**
 
 - Read-only MCP gateway to Moonraker for Snapmaker U1, with an explicit tool allowlist and optional features disabled by default.
-- Optional OpenAI tunnel is **off by default**, requires a separate restricted key and a locally installed official tunnel-client executable. This branch has passed isolated CI, **not** remote ChatGPT end-to-end testing for DEV3.
-- Do not expose port 8765, reuse Obsidian tunnel credentials or assume deployment from a PR. A development branch is not distributed by the Home Assistant add-on catalog; integration into `main` needs a separate review.
+- Optional OpenAI tunnel is **off by default**, requires each user to create a separate restricted OpenAI key. DEV5 adds a protected Home Assistant password field and automatically bundles and provisions the pinned official tunnel-client (amd64 only). **Remote ChatGPT end-to-end connectivity remains unverified.**
+- Do not expose port 8765, reuse Obsidian tunnel credentials or assume deployment from a PR. DEV is installed through a branch-specific add-on repository URL; integration into `main` needs separate review.
 
 [DEV source](./moonraker_mcp/) · [Security audit](./moonraker_mcp/SECURITY_AUDIT.md)
 
