@@ -358,7 +358,7 @@ class HTTPGatewayTests(unittest.TestCase):
                   "clientInfo": {"name": "mock-client", "version": "1.0"}}, 200),
                 ("notifications/initialized", None, {}, 202),
                 ("tools/list", 2, {}, 200),
-                ("tools/call", 3, {"name": "moonraker_temperature_store", "arguments": {}}, 200),
+                ("tools/call", 3, {"name": "moonraker_mcp_version", "arguments": {}}, 200),
             ]
             for method, request_id, params, expected_status in steps:
                 with self.subTest(method=method):
@@ -777,7 +777,7 @@ class HTTPGatewayTests(unittest.TestCase):
                                 "capabilities": {},
                                 "clientInfo": {"name": "test", "version": "1"}}),
                 ("tools/list", {}),
-                ("tools/call", {"name": "moonraker_temperature_store", "arguments": {}}),
+                ("tools/call", {"name": "moonraker_mcp_version", "arguments": {}}),
             ):
                 with self.subTest(method=method):
                     status, body = self.request(method, params)
@@ -980,7 +980,7 @@ class HTTPGatewayTests(unittest.TestCase):
                 ("tools/list", {}, {"tools": "not-a-list"}),
                 ("tools/list", {}, {"tools": [
                     {"name": "moonraker_printer_info", "inputSchema": {}}]}),
-                ("tools/call", {"name": "moonraker_temperature_store",
+                ("tools/call", {"name": "moonraker_mcp_version",
                                 "arguments": {}}, {"content": "not-a-list"}),
                 ("initialize", {"protocolVersion": "2025-06-18",
                                 "capabilities": {}, "clientInfo": {"name": "test", "version": "1"}},
@@ -1162,7 +1162,7 @@ class HTTPGatewayTests(unittest.TestCase):
     def test_allowed_call_reaches_fake_upstream(self):
         before = len(FakeUpstream.calls)
         status, _ = self.request("tools/call", {
-            "name": "moonraker_temperature_store", "arguments": {}})
+            "name": "moonraker_mcp_version", "arguments": {}})
         self.assertEqual(status, 200)
         self.assertEqual(len(FakeUpstream.calls), before + 1)
 
