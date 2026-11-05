@@ -63,6 +63,30 @@ jobs:
           test "$(docker image inspect moonraker-mcp:ci --format '{{.Config.User}}')" = root
           echo "Image starts as root for Supervisor options; services drop privileges."
 
+      - name: Verify official OpenAI tunnel-client v0.0.19 in Alpine (offline runtime)
+        run: |
+          set -eu
+          tmpdir="$(mktemp -d)"
+          trap 'rm -rf "$tmpdir"' EXIT
+          chmod 755 "$tmpdir"
+          mkdir -p "$tmpdir/incoming"
+          curl --fail --location --show-error --silent --retry 3 --max-time 120 \
+            "https://github.com/openai/tunnel-client/releases/download/v0.0.19/tunnel-client-v0.0.19-linux-amd64.zip" \
+            -o "$tmpdir/incoming/tunnel-client-v0.0.19-linux-amd64.zip"
+          curl --fail --location --show-error --silent --retry 3 --max-time 45 \
+            "https://github.com/openai/tunnel-client/releases/download/v0.0.19/SHA256SUMS.txt" \
+            -o "$tmpdir/incoming/SHA256SUMS.txt"
+          echo "9ee9448592345a9dd1517fb79791ab54d24f051142eb92bcbe8cd355effc9142  $tmpdir/incoming/tunnel-client-v0.0.19-linux-amd64.zip" | sha256sum -c -
+          docker run --rm --network none -v "$tmpdir:/data" \
+            --entrypoint python3 moonraker-mcp:ci \
+            /opt/moonraker-mcp/tunnel_provision.py --base /data install \
+            --archive /data/incoming/tunnel-client-v0.0.19-linux-amd64.zip \
+            --manifest /data/incoming/SHA256SUMS.txt
+          docker run --rm --network none -v "$tmpdir:/data:ro" \
+            --entrypoint su-exec moonraker-mcp:ci 65534:65534 \
+            /data/tunnel/bin/tunnel-client --version
+          echo "Official v0.0.19 executable verified and launched on Alpine without OpenAI or printer connectivity"
+
       - name: Refuse insecure tunnel startup before opening any listener
         run: |
           set -eu
