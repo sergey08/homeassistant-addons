@@ -1,5 +1,16 @@
 # Moonraker MCP for Home Assistant — DEV
 
+## DEV8 — Safer default printer information and redistributed licenses
+
+**English:** DEV8 is a development candidate, **not a stable release**. The previously default `moonraker_printer_info` response exposed a real device hostname, CPU details and absolute filesystem paths. DEV8 keeps the familiar tool name but reads `/printer/info` through a bounded local GET and returns only a conservative state and a validated software-version string. Requests through legacy MCP and the modern ChatGPT tunnel use the same local path; the returned fields no longer include `hostname`, `cpu_info`, `klipper_path`, `python_path`, `config_file`, or `log_file`. As a compatibility change, previously available host diagnostics are intentionally removed from this default result.
+
+**Español:** DEV8 es una versión experimental, **no estable**. La herramienta `moonraker_printer_info` devolvía el nombre real del equipo, CPU y rutas internas. DEV8 conserva el nombre de la herramienta, pero limita la respuesta al estado de Klippy y una cadena de versión validada. Se aplica tanto al protocolo MCP anterior como al usado por ChatGPT mediante túnel. Los datos internos del host dejan de enviarse en esa consulta.
+
+The Docker image now also carries the original license files and OpenAI `NOTICE` required for the included third-party binaries. Refer to [Privacy review / Revisión de privacidad](./PRIVACY_REVIEW_EN_ES.md) and [Licenses / Licencias](./licenses/).
+
+**Release gate:** remote ChatGPT calls must still be repeated against DEV8 and fresh onboarding must be demonstrated in a separate clean HA installation. The current successful end-to-end record refers to DEV7; it must not be relabelled as DEV8 validation.
+
+
 ## Current verified status / Estado real comprobado — 2026-11-05
 
 **EN:** **DEV7 is running in Home Assistant and was registered successfully as a private custom MCP server in ChatGPT.** The outbound OpenAI Secure MCP Tunnel was verified end-to-end by actual ChatGPT calls to `moonraker_connection_status`, `moonraker_server_info` and `moonraker_mcp_version` on a powered-on Snapmaker U1 (Moonraker 2.0.0, Klippy ready). ChatGPT discovers exactly five default read-only tools. The external add-on port remains unpublished, and all optional profiles remain off. This does **not** establish a stable or generally audited release; the powered-off printer remote test, fresh installation from scratch, privacy review and release approval remain pending.
