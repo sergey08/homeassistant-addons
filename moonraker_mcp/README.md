@@ -13,7 +13,7 @@ Experimental Home Assistant add-on wrapping [lexfrei/mcp-raker](https://github.c
 
 ## Security / Seguridad
 
-**DEV ONLY — DO NOT INSTALL OR EXPOSE TO THE INTERNET YET.**
+**DEV ONLY — already installed and locally tested on Home Assistant; do not expose remotely or publish a stable release yet.**
 
 The HTTP gateway is a prototype. Docker CI validates MCP initialization, tool listing, authentication and denied operations without connecting to a real printer. **A successful test does not by itself certify that all four default read-only tools are safe against every printer firmware version.** Review each tool's implementation and parameters before deployment.
 
@@ -25,9 +25,9 @@ A strong `mcp_http_token` is required. Home Assistant's add-on port mapping defa
 
 **No direct ChatGPT connection has been tested.** A green CI run validates the local gateway and pinned upstream in Docker, not external MCP registration or access through the Internet. The Home Assistant add-on is only a host for this service; it does not route queries through Home Assistant entities.
 
-Before any remote connection, confirm the intended ChatGPT client accepts this limited MCP HTTP implementation, design an HTTPS endpoint with valid TLS, keep bearer authentication, and restrict network exposure. Do not forward the raw upstream port 8766 or publish port 8765 by default. Session lifecycle, long-running SSE streams, and other unsupported transport features may require implementation changes. Obtain explicit approval separately for installation, printer connectivity, and remote exposure.
+Before any remote connection, confirm the intended ChatGPT client accepts this limited MCP HTTP implementation, design an HTTPS endpoint with valid TLS, keep bearer authentication, and restrict network exposure. Do not forward the raw upstream port 8766 or publish port 8765 by default. Session lifecycle, long-running SSE streams, and other unsupported transport features may require implementation changes. Local DEV installation and read-only printer connectivity were already approved and validated. Remote exposure and any printer-control operation require separate authorization.
 
-**Español:** No se ha probado la conexión directa desde ChatGPT. CI valida el gateway y el servidor original en Docker, no el registro remoto del MCP. Antes de conectarlo hay que comprobar compatibilidad real, HTTPS, autenticación y restricciones de acceso. Instalar, conectar la impresora y abrir acceso remoto requieren autorizaciones independientes.
+**Español:** No se ha probado la conexión directa desde ChatGPT. El complemento DEV2 ya se instaló y se probó localmente con consultas de solo lectura a la Snapmaker U1. La conexión externa requiere verificar la identidad independiente del túnel, autenticación y restricciones de acceso; no está autorizada aún.
 
 ## Comprobación de compatibilidad sin impresora / Printer-free compatibility check
 
@@ -45,7 +45,7 @@ The optional tunnel integration follows the **existing Obsidian Suite add-on** p
 - The loopback bridge rejects browser `Origin` headers and unexpected HTTP `Host` values; it does not provide a public unauthenticated port. Keep `8765/tcp` unmapped in the add-on network settings. Do not route external traffic directly to `8767` or `8766`.
 - **DEV ONLY**. Check the tunnel-client binary's compatibility with the Alpine runtime and complete an isolated tunnel end-to-end test before enabling it in Home Assistant. Never reuse Obsidian's tunnel ID or key.
 
-**Español:** siguiendo Obsidian, el cliente de túnel y el gateway se ejecutan dentro del **mismo complemento de Home Assistant**. La opción de túnel queda desactivada por defecto. El proxy de `127.0.0.1:8767` añade el token al gateway filtrado de `127.0.0.1:8765/mcp`; el túnel abre solo una conexión saliente. La identidad y la clave deben ser nuevas y privadas. Esta implementación aún no está instalada ni probada con ChatGPT o la Snapmaker U1.
+**Español:** siguiendo Obsidian, el cliente de túnel y el gateway se ejecutan dentro del **mismo complemento de Home Assistant**. La opción de túnel queda desactivada por defecto. El proxy de `127.0.0.1:8767` añade el token al gateway filtrado de `127.0.0.1:8765/mcp`; el túnel abre solo una conexión saliente. La identidad y la clave deben ser nuevas y privadas. El complemento DEV2 ya está instalado y validado localmente con la Snapmaker U1, pero el túnel aún no está probado con ChatGPT.
 
 ## Official SDK interoperability / Interoperabilidad con SDK oficial
 
@@ -66,19 +66,19 @@ On Snapmaker U1 with Moonraker 2.0.0 and firmware `2.0.0-paxx12-23`, authenticat
 1. **Completed in isolated Docker CI:** authenticated MCP initialization, tool listing, forbidden calls, four-tool default, and explicit history/objects profiles. No printer connection was used.
 2. **Source reviewed:** all sixteen permitted upstream handlers are GET-only or local; OCI revision is checked in CI. This is not a binary provenance attestation.
 3. **Pending:** inspect representative responses for sensitive information, especially server metadata, queued filenames, and optional object queries.
-4. **Pending user approval:** Home Assistant Supervisor installation on amd64 and actual Moonraker connectivity using only safe status queries.
+4. **Completed locally on 2026-11-05:** Home Assistant Supervisor installation on amd64 and real Moonraker connectivity through safe status queries.
 5. **Pending:** intended ChatGPT client compatibility, secure HTTPS access, and release documentation before publishing.
 
 ## Español
 
-El complemento usa el servidor original `mcp-raker` aislado en el puerto local 8766 y un intermediario HTTP con autenticación y lista explícita de 4 herramientas básicas en el puerto 8765. Las órdenes no permitidas se rechazan antes de llegar al servidor original. **Aún no debe instalarse:** faltan la auditoría funcional de las herramientas autorizadas y las pruebas reales con Home Assistant y la Snapmaker U1.
+El complemento usa el servidor original `mcp-raker` aislado en el puerto local 8766 y un intermediario HTTP con autenticación y lista explícita de 4 herramientas básicas en el puerto 8765. Las órdenes no permitidas se rechazan antes de llegar al servidor original. **DEV2 ya está instalado y probado localmente:** sigue pendiente la revisión de privacidad, la activación segura del túnel y la validación remota con ChatGPT.
 
 
 ### Default privacy profile (DEV)
 
 Only four tools are enabled by default: MCP version, server info, printer info and temperature store. Job queue status requires `enable_jobqueue: true` because queued filenames may be sensitive. Print history, device power, sensors and Spoolman tools remain disabled pending a separate privacy review. This is a conservative development default, not a finished user-selectable permissions system.
 
-**Español:** El perfil inicial permite cuatro consultas básicas. La cola de impresión requiere `enable_jobqueue: true` porque puede revelar nombres de archivos. Historial de impresiones, dispositivos eléctricos, sensores y Spoolman permanecen deshabilitados hasta revisar los datos expuestos. No instalar todavía.
+**Español:** El perfil inicial permite cuatro consultas básicas. La cola de impresión requiere `enable_jobqueue: true` porque puede revelar nombres de archivos. Historial de impresiones, dispositivos eléctricos, sensores y Spoolman permanecen deshabilitados hasta revisar los datos expuestos. No publicar ni conectar remotamente todavía.
 
 ### Klipper object access / Acceso a objetos Klipper
 
@@ -107,3 +107,15 @@ The optional `enable_files: true` profile adds three **read-only** MCP tools:
 4. Confirm Moonraker endpoint, authentication and permissions **without committing IPs, keys or tokens to GitHub**.
 5. Keep port 8765 unmapped until a secure access design (HTTPS, authentication, access restrictions) has been validated.
 6. Review representative responses for private data. No printing commands, file changes or real-printer tests without user approval.
+
+## GitHub-first DEV2 verification / Verificación de DEV2 en GitHub
+
+- Source branch / Rama: [`dev/moonraker-mcp-dev2`](https://github.com/sergey08/homeassistant-addons/tree/dev/moonraker-mcp-dev2).
+- Draft PR / PR borrador: [#89](https://github.com/sergey08/homeassistant-addons/pull/89).
+- Isolated CI / Pruebas aisladas: [Moonraker MCP DEV2 CI](https://github.com/sergey08/homeassistant-addons/actions/workflows/moonraker-mcp-dev2.yml) (successful run #8 at commit `93c48a7`).
+- The CI pipeline validates Python tests, shell and YAML syntax, Docker build, unauthenticated HTTP rejection and a non-root gateway startup. This **does not** establish tunnel interoperability or printer safety.
+- Local Home Assistant results: 111 Python tests passed and read-only MCP calls to version, printer info and server info succeeded. No printer-control commands were tested.
+
+**Tunnel key access / Acceso a la clave del túnel:** The add-on starts the tunnel bridge and client as UID 65534, so an API-key file with permissions `0600` **must be owned by UID 65534** (or supplied securely through a separately audited privilege handoff). A root-owned `0600` key is intentionally unreadable to this process. Do not weaken permissions to `0644`, paste keys into logs or commit credentials to GitHub. The path `/data/tunnel/api-key` must remain private; `/data/tunnel/bin/tunnel-client` must be a separately verified official executable. The Obsidian tunnel ID and key must never be reused.
+
+**Español:** CI verifica el arranque del contenedor y su autenticación local, pero no la conexión externa con ChatGPT. El cliente de túnel se ejecuta con UID 65534; un archivo de clave `0600` debe pertenecer a ese UID. Nunca hagas pública la clave ni reutilices la identidad de Obsidian. Rotar las credenciales de pruebas anteriores antes de habilitar el acceso externo.
