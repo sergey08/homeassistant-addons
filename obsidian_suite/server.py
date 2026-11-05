@@ -4,12 +4,33 @@ import shutil
 import datetime
 import hashlib
 import threading
+import fcntl
+from contextlib import contextmanager
 from mcp.server.fastmcp import FastMCP
 
 ROOT = Path("/vault").resolve()
 TRASH = Path("/trash").resolve()
 NOTE_WRITE_LOCK = threading.RLock()
 mcp = FastMCP("Obsidian HA", host="0.0.0.0", port=8765, stateless_http=True, json_response=True)
+
+@contextmanager
+def vault_write_lock():
+    """Serialize MCP edits with Obsidian Client edits on a shared /share vault.
+
+    This protects inter-addon changes, not the independent LiveSync process.
+    """
+    with NOTE_WRITE_LOCK:
+        fd = os.open(ROOT / ".obsidian-write.lock",
+                     os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX)
+            try:
+                yield
+            finally:
+                fcntl.flock(fd, fcntl.LOCK_UN)
+        finally:
+            os.close(fd)
+
 
 
 def note_path(name: str, must_exist: bool = False) -> Path:
@@ -67,7 +88,7 @@ def read_note(name: str) -> str:
 @mcp.tool()
 def read_note_with_revision(name: str) -> dict:
     """Read a note with its SHA-256 revision. Pass sha256 as expected_sha256 when editing."""
-    with NOTE_WRITE_LOCK:
+    with vault_write_lock():
         content = note_path(name, True).read_bytes()
         return {"name": name, "content": content.decode("utf-8"),
                 "sha256": hashlib.sha256(content).hexdigest()}
@@ -89,7 +110,7 @@ def check_revision(path: Path, expected_sha256: str) -> None:
 @mcp.tool()
 def write_note(name: str, content: str, overwrite: bool = False, expected_sha256: str = "") -> str:
     """Create a Markdown note. Replacing an existing note requires overwrite=True."""
-    with NOTE_WRITE_LOCK:
+    with vault_write_lock():
         p = note_path(name)
         p.parent.mkdir(parents=True, exist_ok=True)
         if p.exists() and not overwrite:
@@ -119,7 +140,7 @@ def write_note(name: str, content: str, overwrite: bool = False, expected_sha256
 @mcp.tool()
 def append_note(name: str, content: str, expected_sha256: str = "") -> str:
     """Append content to an existing Markdown note."""
-    with NOTE_WRITE_LOCK:
+    with vault_write_lock():
         p = note_path(name, True)
         check_revision(p, expected_sha256)
         with p.open("a", encoding="utf-8") as f:
@@ -130,7 +151,7 @@ def append_note(name: str, content: str, expected_sha256: str = "") -> str:
 @mcp.tool()
 def rename_note(source: str, destination: str, expected_sha256: str = "") -> str:
     """Move or rename a note without overwriting an existing destination."""
-    with NOTE_WRITE_LOCK:
+    with vault_write_lock():
         src, dst = note_path(source, True), note_path(destination)
         check_revision(src, expected_sha256)
         if dst.exists():
@@ -143,7 +164,7 @@ def rename_note(source: str, destination: str, expected_sha256: str = "") -> str
 @mcp.tool()
 def delete_note(name: str, expected_sha256: str = "") -> str:
     """Move a note to private recoverable trash instead of permanently deleting it."""
-    with NOTE_WRITE_LOCK:
+    with vault_write_lock():
         p = note_path(name, True)
         check_revision(p, expected_sha256)
         dest = TRASH / "deleted" / datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%S%f") / name
