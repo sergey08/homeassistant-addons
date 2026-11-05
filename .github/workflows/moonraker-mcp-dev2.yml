@@ -65,6 +65,21 @@ jobs:
           test "$(docker image inspect moonraker-mcp:ci --format '{{.Config.User}}')" = root
           echo "Image starts as root for Supervisor options; services drop privileges."
 
+      - name: Verify redistribution notices are present inside image
+        run: |
+          set -eu
+          docker run --rm --entrypoint sh moonraker-mcp:ci -c '
+            set -eu
+            d=/usr/share/doc/moonraker-mcp/licenses
+            test -s "$d/mcp-raker-BSD-3-Clause.txt"
+            test -s "$d/tunnel-client-Apache-2.0.txt"
+            test -s "$d/tunnel-client-NOTICE.txt"
+            grep -q "BSD 3-Clause License" "$d/mcp-raker-BSD-3-Clause.txt"
+            grep -q "Apache License" "$d/tunnel-client-Apache-2.0.txt"
+            grep -q "Copyright 2026 OpenAI" "$d/tunnel-client-NOTICE.txt"
+          '
+          echo "Upstream license and NOTICE files included in redistribution"
+
       - name: Verify official OpenAI tunnel-client v0.0.19 in Alpine (offline runtime)
         run: |
           set -eu
