@@ -137,3 +137,13 @@ The optional `enable_files: true` profile adds three **read-only** MCP tools:
 5. Only after verifying the specific official binary is compatible with the Alpine image and obtaining an independent tunnel ID should an operator consider `enable_tunnel: true`. Rotate previously exposed Moonraker and MCP tokens before any external test. Keep mapped port 8765 disabled. The remote ChatGPT end-to-end handshake is **not yet verified**.
 
 **Español:** La imagen incluye `tunnel_provision.py`, un instalador local que verifica el SHA-256 de un ZIP oficial y exige verificar **por separado su procedencia**. No descarga nada, no registra el túnel ni abre el acceso remoto. El operador aporta el ZIP y el manifiesto oficiales y ejecuta el comando `install` dentro del contenedor. Con el comando interactivo `key` introduce dos veces una **clave nueva y exclusiva de Moonraker**, sin mostrarla por pantalla ni incluirla en argumentos. El binario queda con permisos `0700` y la clave con `0600`, bajo UID 65534. La activación externa y la prueba real de ChatGPT siguen pendientes y requieren rotar las credenciales anteriores. No reutilizar la identidad de Obsidian ni abrir el puerto 8765.
+
+### Official source and tunnel registration / Fuente oficial y alta del túnel
+
+- Official client releases / Versiones oficiales: https://github.com/openai/tunnel-client/releases
+- Official Secure MCP Tunnel documentation: https://developers.openai.com/api/docs/guides/secure-mcp-tunnels
+- Official account setup and key scopes: https://github.com/openai/tunnel-client/blob/master/docs/onboarding.md
+- The runtime API key must have **Tunnels Read + Use** for its **own** Moonraker tunnel. An admin key is not required for the long-running client. Registration with ChatGPT is a separate, user-authorized step in ChatGPT Plugins → Add custom MCP server → Tunnel.
+- **Distribution limit:** Secure MCP Tunnel is for private MCP connections, not public plugin submission; a public plugin would require a stable public HTTPS MCP endpoint. This repository distributes a Home Assistant add-on, not an automatically registered public ChatGPT plugin.
+
+**Español:** el cliente oficial se distribuye en `openai/tunnel-client` con archivos de verificación. La clave de ejecución necesita únicamente los permisos **Tunnels Read + Use** sobre el túnel privado de Moonraker, y nunca debe ser una clave de administrador. La incorporación posterior a ChatGPT se realiza desde Plugins → Añadir servidor MCP personalizado → Túnel. No confundas la publicación de este complemento Home Assistant con la publicación pública de un plugin de ChatGPT.
