@@ -240,7 +240,7 @@ class GatewayTests(unittest.TestCase):
         ]}}
         result = filter_reply("tools/list", response, self.allowed)
         self.assertEqual([x["name"] for x in result["result"]["tools"]],
-                         ["moonraker_printer_info"])
+                         ["moonraker_printer_info", "moonraker_connection_status"])
 
     def test_malformed_arguments_blocked(self):
         for arguments in (None, "M112", ["M112"], 123):
@@ -288,7 +288,7 @@ class GatewayTests(unittest.TestCase):
             "moonraker_sensors_measurements", "moonraker_spoolman_status",
             "moonraker_spoolman_get_spool",
         )
-        self.assertEqual(len(self.allowed), 4)
+        self.assertEqual(len(self.allowed), 5)
         for name in excluded:
             with self.subTest(name=name), self.assertRaises(PolicyError):
                 check_message({"jsonrpc": "2.0", "id": 1, "method": "tools/call",
@@ -303,13 +303,13 @@ class GatewayTests(unittest.TestCase):
         self.assertEqual(len(self.allowed), 4)
         self.assertEqual(extend_allowed(self.allowed, []), self.allowed)
         history = extend_allowed(self.allowed, ["history"])
-        self.assertEqual(len(history), 7)
+        self.assertEqual(len(history), 8)
         self.assertIn("moonraker_history_job", history)
         self.assertNotIn("moonraker_spoolman_status", history)
         all_profiles = extend_allowed(
             self.allowed, ["history", "sensors", "spoolman", "power"])
-        self.assertEqual(len(all_profiles), 13)
-        self.assertEqual(len(extend_allowed(self.allowed, ["jobqueue", "objects", "history", "sensors", "spoolman", "power"])), 16)
+        self.assertEqual(len(all_profiles), 14)
+        self.assertEqual(len(extend_allowed(self.allowed, ["jobqueue", "objects", "history", "sensors", "spoolman", "power"])), 17)
         for invalid in (["admin"], ["history", "admin"], "history", [None]):
             with self.subTest(invalid=invalid), self.assertRaises(PolicyError):
                 extend_allowed(self.allowed, invalid)
@@ -339,7 +339,7 @@ class GatewayTests(unittest.TestCase):
             with self.subTest(name=name):
                 response = {"result": {"tools": [{"name": name, "description": "upstream", "inputSchema": {"type": "object"}}]}}
                 disabled = filter_reply("tools/list", response, self.allowed)
-                self.assertEqual(disabled["result"]["tools"], [])
+                self.assertEqual([t["name"] for t in disabled["result"]["tools"]], ["moonraker_connection_status"])
                 enabled = filter_reply("tools/list", response,
                                        extend_allowed(self.allowed, ["files"]))
                 names = [tool["name"] for tool in enabled["result"]["tools"]]
@@ -357,7 +357,7 @@ class GatewayTests(unittest.TestCase):
         enabled = extend_allowed(self.allowed, ["files"])
         first = filter_reply("tools/list", response, enabled)
         later = filter_reply("tools/list", response, enabled, cursor="page-2")
-        self.assertEqual(len(first["result"]["tools"]), 4)
+        self.assertEqual(len(first["result"]["tools"]), 5)
         self.assertEqual(len(later["result"]["tools"]), 1)
         for cursor in ("", 3, "a" * 513):
             with self.subTest(cursor=cursor), self.assertRaises(PolicyError):
