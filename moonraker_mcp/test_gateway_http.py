@@ -1103,14 +1103,20 @@ class HTTPGatewayTests(unittest.TestCase):
             for name in names:
                 with self.subTest(name=name):
                     before = len(FakeUpstream.calls)
-                    if name == "moonraker_connection_status":
+                    if name in ("moonraker_connection_status", "moonraker_printer_info"):
                         with patch.dict("os.environ", {"MOONRAKER_URL": "http://127.0.0.1:7125",
                                                        "MOONRAKER_API_KEY": ""}):
-                            with patch("gateway.connection_status", return_value={"state": "offline_or_unreachable", "message": "Impresora posiblemente apagada"}):
+                            if name == "moonraker_connection_status":
+                                target = "gateway.connection_status"
+                                fixture = {"state": "offline_or_unreachable"}
+                            else:
+                                target = "gateway.public_printer_info"
+                                fixture = {"state": "ready", "software_version": "v1.0"}
+                            with patch(target, return_value=fixture):
                                 status, response = self.request(
                                     "tools/call", {"name": name, "arguments": {}})
                         self.assertEqual(len(FakeUpstream.calls), before)
-                        self.assertIn("offline_or_unreachable", response["result"]["content"][0]["text"])
+                        self.assertEqual(json.loads(response["result"]["content"][0]["text"]), fixture)
                     else:
                         status, response = self.request(
                             "tools/call", {"name": name, "arguments": {}})
@@ -1227,6 +1233,29 @@ class HTTPGatewayTests(unittest.TestCase):
         finally:
             FakeUpstream.require_initialized_session = original
             FakeUpstream.initialized_session = previous_initialized
+
+    def test_printer_info_never_leaks_host_paths_modern_or_legacy(self):
+        fixture = {"state": "ready", "software_version": "v1.2.3"}
+        modern_meta = {"io.modelcontextprotocol/protocolVersion": "2026-07-28",
+                       "io.modelcontextprotocol/clientInfo": {"name": "ChatGPT", "version": "1"},
+                       "io.modelcontextprotocol/clientCapabilities": {}}
+        with patch.dict("os.environ", {"MOONRAKER_URL": "http://127.0.0.1:7125",
+                                       "MOONRAKER_API_KEY": ""}):
+            with patch("gateway.public_printer_info", return_value=fixture):
+                for params in ({"name": "moonraker_printer_info", "arguments": {}},
+                               {"name": "moonraker_printer_info", "arguments": {},
+                                "_meta": modern_meta}):
+                    with self.subTest(modern="_meta" in params):
+                        before = len(FakeUpstream.calls)
+                        status, response = self.request("tools/call", params)
+                        self.assertEqual(status, 200)
+                        self.assertEqual(len(FakeUpstream.calls), before)
+                        self.assertEqual(json.loads(response["result"]["content"][0]["text"]), fixture)
+                        self.assertNotIn("hostname", json.dumps(response))
+                        self.assertNotIn("klipper_path", json.dumps(response))
+                        if "_meta" in params:
+                            self.assertEqual(response["result"]["resultType"], "complete")
+
 
 
 if __name__ == "__main__":
