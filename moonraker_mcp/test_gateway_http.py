@@ -1139,5 +1139,49 @@ class HTTPGatewayTests(unittest.TestCase):
         self.assertEqual(len(FakeUpstream.calls), before)
 
 
+    def test_modern_discovery_without_upstream_or_printer(self):
+        metadata = {"io.modelcontextprotocol/protocolVersion": "2026-07-28",
+                    "io.modelcontextprotocol/clientInfo": {"name": "ChatGPT", "version": "1"},
+                    "io.modelcontextprotocol/clientCapabilities": {}}
+        before = len(FakeUpstream.calls)
+        status, body = self.request("server/discover", {"_meta": metadata})
+        self.assertEqual(status, 200)
+        self.assertEqual(body["result"]["supportedVersions"], ["2026-07-28"])
+        self.assertEqual(body["result"]["resultType"], "complete")
+        self.assertEqual(body["result"]["capabilities"], {"tools": {}})
+        self.assertEqual(len(FakeUpstream.calls), before)
+        bad_status, _ = self.request("server/discover", {"_meta": {
+            **metadata, "io.modelcontextprotocol/protocolVersion": "2026-08-01"}})
+        self.assertEqual(bad_status, 403)
+        unauthorized, _ = self.request("server/discover", {"_meta": metadata},
+                                       token="invalid")
+        self.assertEqual(unauthorized, 401)
+        self.assertEqual(len(FakeUpstream.calls), before)
+
+    def test_modern_tool_listing_translates_to_read_only_legacy_upstream(self):
+        metadata = {"io.modelcontextprotocol/protocolVersion": "2026-07-28",
+                    "io.modelcontextprotocol/clientInfo": {"name": "ChatGPT", "version": "1"},
+                    "io.modelcontextprotocol/clientCapabilities": {}}
+        status, response = self.request("tools/list", {"_meta": metadata})
+        self.assertEqual(status, 200)
+        self.assertEqual(response["result"]["resultType"], "complete")
+        names = {tool["name"] for tool in response["result"]["tools"]}
+        self.assertIn("moonraker_connection_status", names)
+        self.assertIn("moonraker_printer_info", names)
+        self.assertNotIn("moonraker_gcode_script", names)
+        self.assertEqual(FakeUpstream.calls[-1]["method"], "tools/list")
+        self.assertNotIn("_meta", FakeUpstream.calls[-1]["params"])
+
+    def test_modern_unsafe_tool_stays_denied_without_upstream_access(self):
+        metadata = {"io.modelcontextprotocol/protocolVersion": "2026-07-28",
+                    "io.modelcontextprotocol/clientInfo": {"name": "ChatGPT", "version": "1"},
+                    "io.modelcontextprotocol/clientCapabilities": {}}
+        before = len(FakeUpstream.calls)
+        status, _ = self.request("tools/call", {"name": "moonraker_gcode_script",
+                                                "arguments": {"script": "M112"}, "_meta": metadata})
+        self.assertEqual(status, 403)
+        self.assertEqual(len(FakeUpstream.calls), before)
+
+
 if __name__ == "__main__":
     unittest.main()
