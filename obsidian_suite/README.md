@@ -94,3 +94,33 @@ LiveSync synchronization with CouchDB has been verified using a disposable
 test note. There is **no automatic migration or production activation** in
 this change. Switching the MCP back to its previous vault does not copy notes
 back; preserve backups and coordinate writes across both add-ons.
+
+
+### Read-only migration verification (no production changes)
+
+Before enabling the shared vault, **make an external backup** and stop both add-ons
+and any other local writers. Identify the actual original vault and its
+settings from the running MCP; do not assume every installation uses the
+legacy path. Copy the entire directory to the proposed shared location
+using a separately reviewed backup/copy procedure. Include hidden files.
+
+The included verifier reads only the two paths and compares each file's
+relative name, size and SHA-256 digest, including hidden files:
+
+```sh
+python3 shared_vault_preflight.py /absolute/path/to/original/vault /share/obsidian-shared-vault
+```
+
+Exit 0 means identical snapshots and at least one Markdown file;
+exit 1 means missing, extra, modified or no Markdown files; exit 2
+means invalid input or an unsafe filesystem entry. It refuses symbolic
+links, including broken links. **It never migrates files, starts LiveSync,
+writes settings, or connects to CouchDB.**
+
+Once the snapshots match, an operator must verify the MCP's effective
+selected vault and the LiveSync CLI settings, then activate the new
+path with a coordinated restart. Test one disposable Markdown note
+round-trip via CouchDB and Obsidian, and test stale-write conflict
+handling. Only then enable `editor_storage_mode=mcp_shared` for the
+independent Obsidian Client. Preserve the original backup for rollback.
+A file snapshot is not proof of a successful LiveSync replication.
