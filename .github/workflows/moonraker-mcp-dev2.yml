@@ -78,6 +78,7 @@ jobs:
           go version -m moonraker-mcp-audit/tunnel-client > moonraker-mcp-audit/tunnel-client-modules.txt
           grep -Eq '[[:space:]]mod[[:space:]]' moonraker-mcp-audit/mcp-raker-modules.txt
           grep -Eq '[[:space:]]mod[[:space:]]' moonraker-mcp-audit/tunnel-client-modules.txt
+          rm -f moonraker-mcp-audit/mcp-raker moonraker-mcp-audit/tunnel-client
           docker run --rm --network none --entrypoint sh moonraker-mcp:ci -c 'apk info -vv' > moonraker-mcp-audit/alpine-packages.txt
           test -s moonraker-mcp-audit/alpine-packages.txt
           echo 'Inventory contains binary digests, Go embedded module metadata and Alpine package names (no secrets).'
