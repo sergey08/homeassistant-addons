@@ -38,7 +38,7 @@ https://github.com/sergey08/homeassistant-addons
 
 [App source](./obsidian_client/) · [Documentation (EN/ES)](./obsidian_client/DOCS.md)
 
-**Moonraker MCP — 0.1.0-dev3 (experimental; pending review and integration)**
+**Moonraker MCP — 0.1.0-dev4 (experimental; pending review and integration)**
 
 - Read-only MCP gateway to Moonraker for Snapmaker U1, with an explicit tool allowlist and optional features disabled by default.
 - Optional OpenAI tunnel is **off by default**, requires a separate restricted key and a locally installed official tunnel-client executable. This branch has passed isolated CI, **not** remote ChatGPT end-to-end testing for DEV3.
@@ -87,7 +87,7 @@ https://github.com/sergey08/homeassistant-addons
 
 [Código de la aplicación](./obsidian_client/) · [Documentación (EN/ES)](./obsidian_client/DOCS.md)
 
-**Moonraker MCP — 0.1.0-dev3 (experimental; pendiente de revisión e integración)**
+**Moonraker MCP — 0.1.0-dev4 (experimental; pendiente de revisión e integración)**
 
 - Pasarela MCP de solo lectura para Moonraker/Snapmaker U1, con lista cerrada de herramientas y funciones opcionales desactivadas por defecto.
 - El túnel opcional de OpenAI permanece **desactivado por defecto** y necesita una clave restringida independiente y el ejecutable oficial instalado localmente. La rama ha superado las pruebas aisladas de CI, **no** la prueba completa de conexión con ChatGPT para DEV3.
