@@ -1,5 +1,14 @@
 # Moonraker MCP for Home Assistant — DEV
 
+## DEV9 candidate — Private server status and credential regression
+
+**EN:** DEV9 is a **development-only candidate**, not yet deployed or confirmed from ChatGPT. `moonraker_server_info` now returns only a strictly validated Moonraker version, API version, Klippy connection state and Klippy readiness. Free-form warnings, failed-component names, installed components, host metadata and WebSocket counts are no longer returned by this default tool. The server status is read directly through a bounded read-only Moonraker HTTP request, not through Home Assistant entities. The `moonraker_temperature_store` response remains unchanged pending a user-experience decision on its 1,200-sample heater/sensor histories; these histories can reveal printer use. Expanded isolated tests exercise fresh GUI-option provisioning, safe credential rotation, restart idempotence, symlink resistance and invalid-password rejection. **These tests do not replace a truly clean Home Assistant installation by another user.**
+
+**ES:** DEV9 es una **versión candidata de desarrollo**, aún no instalada ni validada desde ChatGPT. La consulta `moonraker_server_info` se limita a versiones y estado de conexión de Klippy; ya no expone listas de componentes, advertencias de texto libre ni detalles internos. `moonraker_temperature_store` no cambia todavía: sus historiales pueden revelar patrones de uso, por lo que se documenta el riesgo antes de decidir un recorte. Se han ampliado las pruebas de aprovisionamiento desde los campos protegidos de Home Assistant, reinicio y rotación segura de claves. Sigue pendiente probar una instalación realmente limpia en otro Home Assistant.
+
+[Audit of server and temperature data / Auditoría de servidor y temperaturas](./SERVER_TEMPERATURE_PRIVACY_EN_ES.md).
+
+
 ## DEV8 — Safer default printer information and redistributed licenses
 
 **English:** DEV8 is a development candidate, **not a stable release**. The previously default `moonraker_printer_info` response exposed a real device hostname, CPU details and absolute filesystem paths. DEV8 keeps the familiar tool name but reads `/printer/info` through a bounded local GET and returns only a conservative state and a validated software-version string. Requests through legacy MCP and the modern ChatGPT tunnel use the same local path; the returned fields no longer include `hostname`, `cpu_info`, `klipper_path`, `python_path`, `config_file`, or `log_file`. As a compatibility change, previously available host diagnostics are intentionally removed from this default result.
