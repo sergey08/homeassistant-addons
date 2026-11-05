@@ -24,6 +24,7 @@ FORWARD_HEADERS = ("Mcp-Session-Id", "MCP-Protocol-Version")
 LOCAL_STATUS_TOOL = "moonraker_connection_status"
 PRIVACY_SAFE_PRINTER_INFO = "moonraker_printer_info"
 PRIVACY_SAFE_SERVER_INFO = "moonraker_server_info"
+PRIVACY_SAFE_TEMPERATURE_STORE = "moonraker_temperature_store"
 LOCAL_STATUS_DEFINITION = {
     "name": LOCAL_STATUS_TOOL,
     "description": ("Check whether Moonraker is reachable and Klippy is ready. "
