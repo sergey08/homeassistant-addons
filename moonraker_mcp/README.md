@@ -147,3 +147,9 @@ The optional `enable_files: true` profile adds three **read-only** MCP tools:
 - **Distribution limit:** Secure MCP Tunnel is for private MCP connections, not public plugin submission; a public plugin would require a stable public HTTPS MCP endpoint. This repository distributes a Home Assistant add-on, not an automatically registered public ChatGPT plugin.
 
 **Español:** el cliente oficial se distribuye en `openai/tunnel-client` con archivos de verificación. La clave de ejecución necesita únicamente los permisos **Tunnels Read + Use** sobre el túnel privado de Moonraker, y nunca debe ser una clave de administrador. La incorporación posterior a ChatGPT se realiza desde Plugins → Añadir servidor MCP personalizado → Túnel. No confundas la publicación de este complemento Home Assistant con la publicación pública de un plugin de ChatGPT.
+
+### Pinned official client compatibility check / Comprobación del cliente oficial
+
+**English:** The DEV CI additionally downloads the exact official `tunnel-client-v0.0.19-linux-amd64.zip` and its `SHA256SUMS.txt` from [OpenAI's v0.0.19 release](https://github.com/openai/tunnel-client/releases/tag/v0.0.19). The ZIP's expected SHA-256 is `9ee9448592345a9dd1517fb79791ab54d24f051142eb92bcbe8cd355effc9142`. CI verifies the digest, runs the offline provisioning utility inside the actual Alpine add-on container and invokes `tunnel-client --version` as UID 65534, with `--network none`. This verifies executable compatibility only; it does not register the tunnel or contact ChatGPT.
+
+**Español:** La CI descarga el ZIP oficial `v0.0.19` y su manifiesto, comprueba el hash SHA-256 anterior, instala el binario en el contenedor Alpine de pruebas y ejecuta `--version` con UID 65534, sin conexión de red. Comprueba la **compatibilidad del ejecutable**, no el funcionamiento del túnel contra el servicio OpenAI ni su autorización desde ChatGPT.
