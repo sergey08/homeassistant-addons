@@ -467,6 +467,15 @@ class Handler(BaseHTTPRequestHandler):
                 value = self.headers.get(key)
                 if value:
                     validated_headers[key] = validate_mcp_header(value)
+            if method == "tools/call" and message["params"]["name"] == PRIVACY_SAFE_TEMPERATURE_STORE:
+                result = public_temperature_store(os.environ["MOONRAKER_URL"],
+                                                  os.environ.get("MOONRAKER_API_KEY", ""))
+                output = {"content": [{"type": "text",
+                                       "text": json.dumps(result, ensure_ascii=False)}],
+                          "isError": False}
+                if is_modern:
+                    output["resultType"] = "complete"
+                return self.reply(200, {"jsonrpc": "2.0", "id": message["id"], "result": output})
             if method == "tools/call" and message["params"]["name"] == PRIVACY_SAFE_SERVER_INFO:
                 result = public_server_info(os.environ["MOONRAKER_URL"],
                                             os.environ.get("MOONRAKER_API_KEY", ""))
