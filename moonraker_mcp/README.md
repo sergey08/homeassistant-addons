@@ -1,5 +1,14 @@
 # Moonraker MCP for Home Assistant — DEV
 
+## DEV10 — Bounded, anonymized temperature histories
+
+**EN:** DEV10 adds a privacy-filtered local adapter for `moonraker_temperature_store`. The tool retains its existing name, but its response is limited to the **120 latest finite readings** in each `temperatures`, `targets`, and `powers` series. Standard `extruder`, `extruderN`, and `heater_bed` sensor names remain readable; custom names become generic `sensor_N` identifiers. The helper limits response size and rejects malformed data. Both legacy MCP and ChatGPT's modern MCP protocol use the same authenticated gateway path. This is a compatibility change: clients that previously used longer histories or original custom sensor names must adjust. The exact time span represented by 120 samples depends on Moonraker's sampling cadence. No timestamp data is fabricated.
+
+**ES:** DEV10 incorpora el filtrado de privacidad de `moonraker_temperature_store`. La herramienta mantiene su nombre, pero devuelve como máximo las **120 últimas lecturas válidas por serie** de temperatura, objetivo y potencia. Los nombres estándar de extrusores y cama se conservan; los sensores personalizados se renombran `sensor_N` para no revelar datos internos. Se limita el tamaño de las respuestas y se rechazan datos no válidos. Compatible con MCP antiguo y moderno de ChatGPT. Este cambio reduce la historia disponible; 120 muestras no equivalen a una duración fija.
+
+**Status / Estado:** GitHub branch DEV candidate. Deployment and real ChatGPT verification must be checked independently of CI. No stable release or merge of the draft PR is authorized.
+
+
 ## DEV9 candidate — Private server status and credential regression
 
 **EN:** DEV9 is a **development-only candidate**, not yet deployed or confirmed from ChatGPT. `moonraker_server_info` now returns only a strictly validated Moonraker version, API version, Klippy connection state and Klippy readiness. Free-form warnings, failed-component names, installed components, host metadata and WebSocket counts are no longer returned by this default tool. The server status is read directly through a bounded read-only Moonraker HTTP request, not through Home Assistant entities. The `moonraker_temperature_store` response remains unchanged pending a user-experience decision on its 1,200-sample heater/sensor histories; these histories can reveal printer use. Expanded isolated tests exercise fresh GUI-option provisioning, safe credential rotation, restart idempotence, symlink resistance and invalid-password rejection. **These tests do not replace a truly clean Home Assistant installation by another user.**
