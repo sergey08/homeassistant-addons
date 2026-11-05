@@ -4,7 +4,7 @@ import json
 import unittest
 import urllib.error
 from unittest.mock import patch
-from moonraker_status import connection_status, public_printer_info
+from moonraker_status import connection_status, public_printer_info, public_server_info
 
 
 class MockResponse:
@@ -91,6 +91,44 @@ class StatusTests(unittest.TestCase):
             "http://private-host", 403, "private-key", {}, None)):
             result = public_printer_info("http://private-host", "private-key")
         self.assertEqual(result, {"state": "authentication_error"})
+
+
+    def test_server_info_sanitizes_components_and_freeform_warning_text(self):
+        upstream = {"result": {
+            "moonraker_version": "2.0.0",
+            "api_version_string": "1.4.0",
+            "klippy_connected": True,
+            "klippy_state": "ready",
+            "components": ["private-integration"],
+            "warnings": ["/secret/path"],
+            "failed_components": ["private-component"],
+            "websocket_count": 11,
+            "hostname": "private-host"
+        }}
+        with patch("moonraker_status._OPENER.open", return_value=MockResponse(upstream)):
+            result = public_server_info("http://printer.local:7125", "private-key")
+        self.assertEqual(result, {
+            "moonraker_version": "2.0.0", "api_version_string": "1.4.0",
+            "klippy_connected": True, "klippy_state": "ready"
+        })
+        self.assertNotIn("private", json.dumps(result))
+        self.assertNotIn("warnings", result)
+        self.assertNotIn("components", result)
+
+    def test_server_info_disallows_version_path_and_freeform_klippy_state(self):
+        upstream = {"result": {
+            "moonraker_version": "/private/path", "klippy_state": "/private/error",
+            "klippy_connected": True}}
+        with patch("moonraker_status._OPENER.open", return_value=MockResponse(upstream)):
+            self.assertEqual(public_server_info("http://printer.local:7125"),
+                             {"klippy_connected": True})
+
+    def test_server_info_failure_does_not_leak_urls_or_credentials(self):
+        with patch("moonraker_status._OPENER.open",
+                   side_effect=urllib.error.URLError("private-host and secret")):
+            result = public_server_info("http://private-host:7125", "secret")
+        self.assertEqual(result, {"state": "offline_or_unreachable"})
+        self.assertNotIn("private", json.dumps(result))
 
 
 if __name__ == "__main__":
