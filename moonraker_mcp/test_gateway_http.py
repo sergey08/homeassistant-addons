@@ -818,7 +818,7 @@ class HTTPGatewayTests(unittest.TestCase):
             self.assertEqual(first_status, 200)
             self.assertEqual(first["result"]["nextCursor"], "page-2")
             self.assertEqual([tool["name"] for tool in first["result"]["tools"]],
-                             ["moonraker_printer_info"])
+                             ["moonraker_printer_info", "moonraker_connection_status"])
             second_status, second = self.request("tools/list", {"cursor": "page-2"})
             self.assertEqual(second_status, 200)
             self.assertNotIn("nextCursor", second["result"])
