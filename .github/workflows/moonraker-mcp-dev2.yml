@@ -119,6 +119,43 @@ jobs:
           grep -q 'Configure OpenAI tunnel API key in Home Assistant' "$tmpdir/output"
           echo "Fail-closed tunnel preflight verified without printer or network"
 
+      - name: Clean first-run tunnel provisioning without terminal or network
+        run: |
+          set -eu
+          tmpdir="$(mktemp -d)"
+          trap 'sudo rm -rf -- "$tmpdir"' EXIT
+          chmod 755 "$tmpdir"
+          # Only Home Assistant-style options are provided. No manual tunnel
+          # client executable, /data/tunnel directory, or precreated key.
+          printf '%s\n' '{"moonraker_url":"http://127.0.0.1:7125","moonraker_api_key":"","mcp_http_token":"ci-only-local-token","enable_tunnel":true,"tunnel_id":"ci-fake-tunnel","openai_tunnel_api_key":"ci-synthetic-restricted-key-123456"}' > "$tmpdir/options.json"
+          chmod 600 "$tmpdir/options.json"
+          # A fake tunnel ID cannot connect to OpenAI in --network none.
+          # The add-on is expected to stop; automatic local provisioning
+          # must have happened securely before the startup failure.
+          docker run --rm --network none --stop-timeout 12 \
+            -v "$tmpdir:/data" moonraker-mcp:ci >"$tmpdir/output.log" 2>&1 || true
+          docker run --rm --network none -v "$tmpdir:/data:ro" \
+            --entrypoint python3 moonraker-mcp:ci -c '
+          import os, pathlib, stat
+          base=pathlib.Path("/data/tunnel")
+          key=base/"api-key"
+          exe=base/"bin/tunnel-client"
+          assert key.is_file() and not key.is_symlink()
+          assert exe.is_file() and not exe.is_symlink()
+          assert key.read_bytes() == b"ci-synthetic-restricted-key-123456"
+          assert stat.S_IMODE(key.stat().st_mode) == 0o600
+          assert stat.S_IMODE(exe.stat().st_mode) == 0o700
+          assert key.stat().st_uid == 65534
+          assert exe.stat().st_uid == 65534
+          assert exe.stat().st_size > 100000
+          print("Clean options-only provisioning created private key and executable")
+          '
+          if grep -q 'ci-synthetic-restricted-key-123456' "$tmpdir/output.log"; then
+            echo "SECURITY FAILURE: synthetic tunnel secret appeared in logs"
+            exit 1
+          fi
+          echo "No synthetic key leaked to startup logs; no OpenAI/printer network access"
+
       - name: Stop add-on when a simulated tunnel process exits
         run: |
           set -eu
