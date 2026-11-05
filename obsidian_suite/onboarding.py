@@ -34,13 +34,17 @@ def collect_status(data=DATA, legacy=LEGACY):
         mode, vault, sync = select_storage(options, base / "vault")
         vault_ready = vault.is_dir()
         vault_error = ""
+        vault_location = str(vault.resolve(strict=False))
     except (ValueError, OSError) as exc:
         mode = "invalid"
         vault_ready = False
         vault_error = str(exc)
+        vault_location = "not available"
         sync = False
     return {
         "vault": vault_ready,
+        "vault_location": vault_location,
+        "vault_origin": ("legacy app config" if base == legacy else "add-on private data"),
         "storage_mode": mode,
         "vault_error": vault_error,
         "trash": (base / "mcp-trash").is_dir(),
@@ -69,6 +73,9 @@ def render_page(status, message=""):
         "</td><td>"+html.escape(hint)+"</td></tr>"
         for label, ready, hint in items
     )
+    vault_details = ("<p>Active Markdown vault: <code>" +
+                     html.escape(status["vault_location"]) + "</code> "
+                     "(" + html.escape(status["vault_origin"]) + ")</p>")
     message_html = ("<p role='status'>" + html.escape(message) + "</p>") if message else ""
     setup_form = ""
     if status["storage_mode"] == "livesync" and not status["sync_settings"] and not status["sync_enabled"]:
@@ -115,7 +122,7 @@ def render_page(status, message=""):
         "<h1>Obsidian MCP for Home Assistant</h1>"
         "<p>Setup checklist: file presence is not proof of secure installation or working connectivity. No secrets or note contents are displayed.</p>"
         "<table><thead><tr><th>Requirement</th><th>Status</th><th>Next step</th></tr></thead>"
-        "<tbody>"+rows+"</tbody></table>"+message_html+setup_form
+        "<tbody>"+rows+"</tbody></table>"+vault_details+message_html+setup_form
         +"<p class='hint'>CouchDB connection and end-to-end synchronization have not been verified by this checklist.</p>"
         "<p><a href='https://github.com/sergey08/homeassistant-addons/blob/main/obsidian_suite/DOCS.md'"
         " target='_blank' rel='noopener noreferrer'>Setup documentation</a></p></html>")
