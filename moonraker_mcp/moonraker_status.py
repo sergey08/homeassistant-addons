@@ -153,3 +153,65 @@ def public_server_info(url, api_key="", timeout=4):
         return {"state": "offline_or_unreachable"}
     except (ValueError, UnicodeError):
         return {"state": "unavailable"}
+
+
+def public_temperature_store(url, api_key="", timeout=5):
+    """Expose recent heater telemetry only, without arbitrary sensor names.
+
+    Limit each series to the latest 120 finite numeric readings. Nonstandard
+    sensor names are replaced by deterministic generic identifiers, because
+    user-created sensor names can contain personal or internal details.
+    """
+    import math
+    import re
+    base = url.rstrip("/")
+    if not base.startswith(("http://", "https://")):
+        return {"state": "unavailable"}
+    headers = {"Accept": "application/json"}
+    if api_key:
+        headers["X-Api-Key"] = api_key
+    req = urllib.request.Request(base + "/server/temperature_store", headers=headers)
+    try:
+        with _OPENER.open(req, timeout=timeout) as res:
+            if res.status != 200:
+                return {"state": "unavailable"}
+            raw = res.read(262145)
+        if len(raw) > 262144:
+            return {"state": "unavailable"}
+        data = json.loads(raw)
+        source = data.get("result") if isinstance(data, dict) else None
+        if not isinstance(source, dict) or len(source) > 32:
+            raise ValueError("Invalid temperature data")
+        result = {}
+        unnamed = 0
+        for key, series in sorted(source.items()):
+            if not isinstance(key, str) or not isinstance(series, dict):
+                raise ValueError("Invalid sensor data")
+            if re.fullmatch(r"extruder[0-9]{0,2}|heater_bed", key):
+                visible_name = key
+            else:
+                unnamed += 1
+                visible_name = "sensor_" + str(unnamed)
+            if visible_name in result:
+                raise ValueError("Duplicate sensor output name")
+            public = {}
+            for field in ("temperatures", "targets", "powers"):
+                values = series.get(field)
+                if values is None:
+                    continue
+                if not isinstance(values, list) or len(values) > 2400:
+                    raise ValueError("Invalid temperature series")
+                last_values = values[-120:]
+                if not all(type(v) in (int, float) and math.isfinite(v)
+                           and -100000 <= v <= 100000 for v in last_values):
+                    raise ValueError("Invalid temperature readings")
+                public[field] = last_values
+            if public:
+                result[visible_name] = public
+        return result if result else {"state": "unavailable"}
+    except urllib.error.HTTPError as exc:
+        return {"state": "authentication_error" if exc.code in (401, 403) else "unavailable"}
+    except (urllib.error.URLError, TimeoutError, OSError):
+        return {"state": "offline_or_unreachable"}
+    except (ValueError, UnicodeError, TypeError):
+        return {"state": "unavailable"}
