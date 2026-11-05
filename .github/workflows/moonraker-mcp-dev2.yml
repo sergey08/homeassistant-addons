@@ -67,7 +67,8 @@ jobs:
         run: |
           set -eu
           tmpdir="$(mktemp -d)"
-          trap 'rm -rf "$tmpdir"' EXIT
+          # UID 65534 owns private tunnel assets, so host cleanup needs privileges.
+          trap 'sudo rm -rf -- "$tmpdir"' EXIT
           chmod 755 "$tmpdir"
           mkdir -p "$tmpdir/incoming"
           curl --fail --location --show-error --silent --retry 3 --max-time 120 \
