@@ -19,7 +19,7 @@ https://github.com/sergey08/homeassistant-addons
 
 ### Available apps
 
-**Obsidian MCP for Home Assistant — 0.2.2 (stable)**
+**Obsidian MCP for Home Assistant — see installed app version**
 
 - Markdown MCP tools for ChatGPT, private secure tunnel and bidirectional Self-hosted LiveSync.
 - Uses the same persistent vault directory as the original app when configured.
@@ -28,7 +28,7 @@ https://github.com/sergey08/homeassistant-addons
 [App source](./obsidian_suite/) · [Documentation](./obsidian_suite/DOCS.md)
 
 
-**Obsidian Client — 0.1.0-dev2 (experimental)**
+**Obsidian Client — see installed app version (experimental)**
 
 - Browse local Markdown notes under `/share` using Home Assistant Ingress.
 - Search note paths/names and render Markdown, tables and code blocks.
@@ -37,6 +37,14 @@ https://github.com/sergey08/homeassistant-addons
 **Not yet supported:** LiveSync/CouchDB connection and decryption, automatic sync, embedded attachments and wiki links. The app has been installed and tested on Home Assistant OS (HTTP 200, Gunicorn). Markdown rendering with real notes and LiveSync are not yet validated; this is not a stable release.
 
 [App source](./obsidian_client/) · [Documentation (EN/ES)](./obsidian_client/DOCS.md)
+
+**Moonraker MCP — 0.1.0-dev3 (experimental; pending review and integration)**
+
+- Read-only MCP gateway to Moonraker for Snapmaker U1, with an explicit tool allowlist and optional features disabled by default.
+- Optional OpenAI tunnel is **off by default**, requires a separate restricted key and a locally installed official tunnel-client executable. This branch has passed isolated CI, **not** remote ChatGPT end-to-end testing for DEV3.
+- Do not expose port 8765, reuse Obsidian tunnel credentials or assume deployment from a PR. A development branch is not distributed by the Home Assistant add-on catalog; integration into `main` needs a separate review.
+
+[DEV source](./moonraker_mcp/) · [Security audit](./moonraker_mcp/SECURITY_AUDIT.md)
 
 ### Related project
 
@@ -60,7 +68,7 @@ https://github.com/sergey08/homeassistant-addons
 
 ### Aplicaciones disponibles
 
-**Obsidian MCP for Home Assistant — 0.2.2 (estable)**
+**Obsidian MCP for Home Assistant — consultar versión del complemento**
 
 - Herramientas MCP para ChatGPT, túnel privado y LiveSync bidireccional.
 - Reutiliza la bóveda persistente del complemento original si está configurada.
@@ -69,7 +77,7 @@ https://github.com/sergey08/homeassistant-addons
 [Código](./obsidian_suite/) · [Documentación](./obsidian_suite/DOCS.md)
 
 
-**Obsidian Client — 0.1.0-dev2 (experimental)**
+**Obsidian Client — consultar versión del complemento (experimental)**
 
 - Navega por notas Markdown locales dentro de `/share` mediante Ingress.
 - Busca por ruta o nombre y muestra Markdown, tablas y bloques de código.
@@ -78,6 +86,14 @@ https://github.com/sergey08/homeassistant-addons
 **Todavía no disponible:** conexión y descifrado LiveSync/CouchDB, sincronización automática, adjuntos y enlaces wiki. La aplicación ya se ha instalado y probado en Home Assistant OS (HTTP 200 y Gunicorn). Falta validar la lectura de notas reales y LiveSync; no es una versión estable.
 
 [Código de la aplicación](./obsidian_client/) · [Documentación (EN/ES)](./obsidian_client/DOCS.md)
+
+**Moonraker MCP — 0.1.0-dev3 (experimental; pendiente de revisión e integración)**
+
+- Pasarela MCP de solo lectura para Moonraker/Snapmaker U1, con lista cerrada de herramientas y funciones opcionales desactivadas por defecto.
+- El túnel opcional de OpenAI permanece **desactivado por defecto** y necesita una clave restringida independiente y el ejecutable oficial instalado localmente. La rama ha superado las pruebas aisladas de CI, **no** la prueba completa de conexión con ChatGPT para DEV3.
+- No publicar el puerto 8765 ni reutilizar la identidad del túnel Obsidian. Una PR no aparece en el catálogo de complementos; integrar en `main` exige revisión aparte.
+
+[Código DEV](./moonraker_mcp/) · [Auditoría de seguridad](./moonraker_mcp/SECURITY_AUDIT.md)
 
 ### Proyecto relacionado
 
