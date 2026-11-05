@@ -87,11 +87,11 @@ https://github.com/sergey08/homeassistant-addons
 
 [Código de la aplicación](./obsidian_client/) · [Documentación (EN/ES)](./obsidian_client/DOCS.md)
 
-**Moonraker MCP — 0.1.0-dev4 (experimental; pendiente de revisión e integración)**
+**Moonraker MCP — 0.1.0-dev5 (experimental; pendiente de revisión e integración)**
 
 - Pasarela MCP de solo lectura para Moonraker/Snapmaker U1, con lista cerrada de herramientas y funciones opcionales desactivadas por defecto.
-- El túnel opcional de OpenAI permanece **desactivado por defecto** y necesita una clave restringida independiente y el ejecutable oficial instalado localmente. La rama ha superado las pruebas aisladas de CI, **no** la prueba completa de conexión con ChatGPT para DEV3.
-- No publicar el puerto 8765 ni reutilizar la identidad del túnel Obsidian. Una PR no aparece en el catálogo de complementos; integrar en `main` exige revisión aparte.
+- El túnel OpenAI permanece **desactivado por defecto**. DEV5 permite introducir la clave restringida en un campo protegido de Home Assistant e instala automáticamente el cliente oficial verificado (solo amd64). **La conexión completa con ChatGPT sigue pendiente de validación.**
+- No publicar el puerto 8765 ni reutilizar la identidad del túnel Obsidian. La rama DEV se puede instalar como un catálogo independiente de Home Assistant con sufijo `#rama`; integrar en `main` exige revisión aparte.
 
 [Código DEV](./moonraker_mcp/) · [Auditoría de seguridad](./moonraker_mcp/SECURITY_AUDIT.md)
 
