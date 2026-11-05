@@ -53,3 +53,50 @@ def connection_status(url, api_key="", timeout=4):
                 "message": "No se puede contactar con Moonraker. La impresora podria estar apagada o desconectada; comprueba su alimentacion y la red."}
     except (ValueError, UnicodeError):
         return {"state": "unavailable", "message": "Moonraker devolvio una respuesta no valida."}
+
+
+def public_printer_info(url, api_key="", timeout=4):
+    """Expose only state and software version, never hostnames or file paths.
+
+    Query the real Moonraker API directly through a bounded, no-redirect GET.
+    When the printer is offline or authorization fails, return a safe status
+    instead of propagating internal URLs or exception text.
+    """
+    base = url.rstrip("/")
+    if not base.startswith(("http://", "https://")):
+        return {"state": "unavailable"}
+    headers = {"Accept": "application/json"}
+    if api_key:
+        headers["X-Api-Key"] = api_key
+    req = urllib.request.Request(base + "/printer/info", headers=headers)
+    try:
+        with _OPENER.open(req, timeout=timeout) as res:
+            if res.status != 200:
+                return {"state": "unavailable"}
+            raw = res.read(65537)
+        if len(raw) > 65536:
+            return {"state": "unavailable"}
+        data = json.loads(raw)
+        info = data.get("result") if isinstance(data, dict) else None
+        if not isinstance(info, dict):
+            raise ValueError("Invalid Moonraker printer info")
+        state = info.get("state", "unknown")
+        if not isinstance(state, str) or state not in (
+                "ready", "startup", "shutdown", "error", "disconnected"):
+            state = "unknown"
+        result = {"state": state}
+        version = info.get("software_version")
+        # Version may be an arbitrary upstream string; allow only a tightly
+        # bounded version-shaped ASCII value without internal paths/URLs.
+        if (isinstance(version, str) and 0 < len(version) <= 100
+                and all(ch.isalnum() or ch in ".+_:-" for ch in version)
+                and version.isascii()):
+            result["software_version"] = version
+        return result
+    except urllib.error.HTTPError as exc:
+        return {"state": ("authentication_error" if exc.code in (401, 403)
+                          else "unavailable")}
+    except (urllib.error.URLError, TimeoutError, OSError):
+        return {"state": "offline_or_unreachable"}
+    except (ValueError, UnicodeError):
+        return {"state": "unavailable"}
