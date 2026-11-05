@@ -97,11 +97,11 @@ jobs:
           trap 'rm -rf "$tmpdir"' EXIT
           chmod 755 "$tmpdir"
           printf '%s\n' '{"moonraker_url":"http://127.0.0.1:7125","moonraker_api_key":"","mcp_http_token":"ci-local-only-token","enable_tunnel":true,"tunnel_id":"ci-placeholder"}' > "$tmpdir/options.json"
-          if docker run --rm --network none -v "$tmpdir:/data:ro" moonraker-mcp:ci >"$tmpdir/output" 2>&1; then
+          if docker run --rm --network none -v "$tmpdir:/data" moonraker-mcp:ci >"$tmpdir/output" 2>&1; then
             echo "SECURITY FAILURE: tunnel launched without client or key"
             exit 1
           fi
-          grep -q 'Tunnel configuration incomplete or inaccessible to runtime UID' "$tmpdir/output"
+          grep -q 'Configure OpenAI tunnel API key in Home Assistant' "$tmpdir/output"
           echo "Fail-closed tunnel preflight verified without printer or network"
 
       - name: Stop add-on when a simulated tunnel process exits
