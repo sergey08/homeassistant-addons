@@ -1,5 +1,16 @@
 # Privacy review of default Moonraker tools / Revisión de privacidad de herramientas predeterminadas
 
+## DEV8 implementation and live verification / Implementación y validación real de DEV8 — 2026-11-05
+
+**English:** The default `moonraker_printer_info` handler has now been changed to a bounded read-only local request to `/printer/info` and a strict response schema (`state`, plus validated `software_version` if present). CI tests verify legacy and modern MCP responses, error paths and non-disclosure of host fields. **Real remote verification through ChatGPT and the OpenAI tunnel** returned only `state: ready` and `software_version: 2.0.0-paxx12-23` from DEV8. The connection-status tool also returned `online` / `ready`. No hostname, CPU metadata or file paths were in that response.
+
+**Español:** Ya se ha implementado el filtrado de privacidad en DEV8. La herramienta `moonraker_printer_info` realiza una petición de solo lectura y devuelve solo `state` y `software_version` validada. Las pruebas de CI están en verde y **la llamada real desde ChatGPT por el túnel** devolvió exclusivamente `state: ready` y `software_version: 2.0.0-paxx12-23`; no contiene hostname, rutas ni datos de CPU.
+
+**Residual risk / Riesgo restante:** This does not audit all other enabled tools (`moonraker_server_info`, `moonraker_temperature_store`, optional profiles) or all error payloads and clients. Clean installation, third-party license attribution completeness and endpoint hardening remain release gates. / No se han auditado aún todos los resultados de otras herramientas ni todas las variantes de errores; instalación limpia y seguridad global siguen pendientes.
+
+---
+
+
 **Date / Fecha:** 2026-11-05. **Status:** release-blocking review; no public stable release approved.
 
 ## English
