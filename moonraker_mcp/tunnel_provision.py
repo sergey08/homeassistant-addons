@@ -4,6 +4,8 @@ Does not download releases or access the network. The release ZIP and its
 SHA256SUMS manifest MUST be sourced and verified independently. Provisioning is
 a separate operator action, never invoked during add-on startup.
 """
+import argparse
+import getpass
 import hashlib
 import os
 import shutil
@@ -50,7 +52,7 @@ def install_official_archive(archive_path, manifest_path, base="/data", uid=6553
             checksum = fields[0].lower()
     if checksum is None or any(c not in "0123456789abcdef" for c in checksum):
         raise ProvisionError("Missing or invalid release manifest entry")
-    digest = hashlib.file_digest(archive.open("rb"), "sha256").hexdigest()
+    with archive.open("rb") as source:\n        digest = hashlib.file_digest(source, "sha256").hexdigest()
     if digest != checksum:
         raise ProvisionError("Release checksum mismatch")
     root = Path(base)
@@ -126,3 +128,28 @@ def provision_key(raw: bytes, base="/data", uid=65534):
         target.unlink(missing_ok=True)
         raise
     return "Stored private tunnel key without printing it."
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(description="Offline Moonraker tunnel provisioning (operator only)")
+    parser.add_argument("--base", default="/data", help="Private add-on data directory")
+    sub = parser.add_subparsers(dest="action", required=True)
+    install = sub.add_parser("install", help="Verify release ZIP + manifest and stage binary")
+    install.add_argument("--archive", required=True)
+    install.add_argument("--manifest", required=True)
+    sub.add_parser("key", help="Enter an independent tunnel API key without echoing")
+    args = parser.parse_args(argv)
+    if os.geteuid() != 0:
+        parser.error("Provisioning requires root privileges to set runtime UID 65534")
+    if args.action == "install":
+        print(install_official_archive(args.archive, args.manifest, args.base))
+    else:
+        first = getpass.getpass("New Moonraker tunnel API key (hidden): ")
+        second = getpass.getpass("Repeat key (hidden): ")
+        if first != second:
+            raise ProvisionError("Confirmation mismatch; nothing stored")
+        print(provision_key(first.encode("utf-8"), args.base))
+
+
+if __name__ == "__main__":
+    main()
