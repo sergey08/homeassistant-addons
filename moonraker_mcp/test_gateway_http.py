@@ -1283,5 +1283,29 @@ class HTTPGatewayTests(unittest.TestCase):
 
 
 
+    def test_temperature_privacy_for_legacy_and_modern_tool_calls(self):
+        metadata = {"io.modelcontextprotocol/protocolVersion": "2026-07-28",
+                    "io.modelcontextprotocol/clientInfo": {"name": "ChatGPT", "version": "1"},
+                    "io.modelcontextprotocol/clientCapabilities": {}}
+        fixture = {"extruder": {"temperatures": [22.1, 23.2]},
+                   "sensor_1": {"temperatures": [24.5]}}
+        with patch.dict("os.environ", {"MOONRAKER_URL": "http://127.0.0.1:7125",
+                                       "MOONRAKER_API_KEY": ""}):
+            with patch("gateway.public_temperature_store", return_value=fixture):
+                for params in (
+                    {"name": "moonraker_temperature_store", "arguments": {}},
+                    {"name": "moonraker_temperature_store", "arguments": {}, "_meta": metadata},
+                ):
+                    with self.subTest(modern="_meta" in params):
+                        before = len(FakeUpstream.calls)
+                        status, response = self.request("tools/call", params)
+                        self.assertEqual(status, 200)
+                        self.assertEqual(len(FakeUpstream.calls), before)
+                        self.assertEqual(json.loads(response["result"]["content"][0]["text"]), fixture)
+                        if "_meta" in params:
+                            self.assertEqual(response["result"]["resultType"], "complete")
+
+
+
 if __name__ == "__main__":
     unittest.main()
