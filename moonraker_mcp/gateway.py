@@ -12,6 +12,7 @@ import urllib.request
 import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from moonraker_files import FileAccessError, list_gcodes, gcode_metadata, gcode_preview
+from moonraker_status import connection_status
 from tool_policy import PolicyError, authorize_call, extend_allowed, filter_tools, load_allowed
 
 ALLOWED_METHODS = frozenset((
@@ -20,6 +21,15 @@ ALLOWED_METHODS = frozenset((
 MAX_BODY = 1024 * 1024
 MAX_TOOL_ARGUMENTS = 16 * 1024
 FORWARD_HEADERS = ("Mcp-Session-Id", "MCP-Protocol-Version")
+LOCAL_STATUS_TOOL = "moonraker_connection_status"
+LOCAL_STATUS_DEFINITION = {
+    "name": LOCAL_STATUS_TOOL,
+    "description": ("Check whether Moonraker is reachable and Klippy is ready. "
+                    "Use before printer queries; an unreachable printer may be switched off "
+                    "or disconnected. Read-only; never powers on the printer."),
+    "inputSchema": {"type": "object", "properties": {}, "additionalProperties": False},
+}
+
 LOCAL_FILE_TOOLS = {
     "moonraker_files_list": {
         "name": "moonraker_files_list",
@@ -116,8 +126,9 @@ def check_message(message, allowed):
             raise PolicyError("Tool arguments too large")
         authorize_call(params.get("name"), allowed)
         name = params.get("name")
-        if name in LOCAL_FILE_TOOLS:
-            schema = LOCAL_FILE_TOOLS[name]["inputSchema"]
+        if name in LOCAL_FILE_TOOLS or name == LOCAL_STATUS_TOOL:
+            schema = (LOCAL_STATUS_DEFINITION if name == LOCAL_STATUS_TOOL
+                      else LOCAL_FILE_TOOLS[name])["inputSchema"]
             required = set(schema.get("required", []))
             permitted = set(schema.get("properties", {}))
             if set(arguments) != required or not set(arguments).issubset(permitted):
@@ -212,10 +223,11 @@ def filter_reply(method, response, allowed, cursor=None):
     response = dict(response)
     # Local file names are reserved: ignore upstream definitions and never
     # forward calls to them. This also supports upstreams with matching names.
-    local_tools = ([tool for name, tool in LOCAL_FILE_TOOLS.items() if name in allowed]
+    local_tools = (([LOCAL_STATUS_DEFINITION] if LOCAL_STATUS_TOOL in allowed else []) +
+                   [tool for name, tool in LOCAL_FILE_TOOLS.items() if name in allowed]
                    if cursor is None else [])
     response["result"] = dict(result, tools=[tool for tool in filter_tools(result.get("tools"), allowed)
-                                                   if tool["name"] not in LOCAL_FILE_TOOLS] + local_tools)
+                                                   if tool["name"] not in LOCAL_FILE_TOOLS and tool["name"] != LOCAL_STATUS_TOOL] + local_tools)
     return response
 
 
@@ -334,6 +346,13 @@ class Handler(BaseHTTPRequestHandler):
                 value = self.headers.get(key)
                 if value:
                     validated_headers[key] = validate_mcp_header(value)
+            if method == "tools/call" and message["params"]["name"] == LOCAL_STATUS_TOOL:
+                result = connection_status(os.environ["MOONRAKER_URL"],
+                                           os.environ.get("MOONRAKER_API_KEY", ""))
+                return self.reply(200, {"jsonrpc": "2.0", "id": message["id"],
+                                        "result": {"content": [{"type": "text",
+                                                               "text": json.dumps(result, ensure_ascii=False)}],
+                                                   "isError": False}})
             if method == "tools/call" and message["params"]["name"] in LOCAL_FILE_TOOLS:
                 name = message["params"]["name"]
                 args = message["params"].get("arguments", {})
