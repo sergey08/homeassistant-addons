@@ -12,7 +12,7 @@ import urllib.request
 import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from moonraker_files import FileAccessError, list_gcodes, gcode_metadata, gcode_preview
-from moonraker_status import connection_status, public_printer_info, public_server_info
+from moonraker_status import connection_status, public_printer_info, public_server_info, public_temperature_store
 from tool_policy import PolicyError, authorize_call, extend_allowed, filter_tools, load_allowed
 
 ALLOWED_METHODS = frozenset((
