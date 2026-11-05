@@ -2,6 +2,15 @@
 
 **Date / Fecha: 2026-11-05 · DEV10.** Evidence collected against the pinned code and the development Docker build, not a formal third-party security certification.
 
+## 2026-11-05 — Embedded dependency inventory, CI and secret handling
+
+**EN:** GitHub Actions now extracts the exact `mcp-raker` and `tunnel-client` binaries from the built add-on image, records their SHA-256 hashes and embedded Go build-module metadata (`go version -m`), and inventories installed Alpine packages (`apk info -vv`). The workflow publishes a short-retention artifact containing **text metadata only, not the executables or secrets**. The initial inventory run was green and produced an artifact; the final optimized upload is separately CI-checked. This is an **inventory**, not a CycloneDX/SPDX SBOM, not license clearance, and not a vulnerability scan.
+
+**ES:** La CI obtiene ahora de la imagen realmente construida las huellas SHA-256 y el inventario de módulos Go incorporados de ambos ejecutables, además de la lista de paquetes Alpine instalados. El artefacto conserva solo metadatos de texto, sin binarios ni contraseñas. Esto facilita la auditoría, pero **todavía no acredita todas las licencias, vulnerabilidades ni la procedencia de compilación**.
+
+The operating guide [Secret rotation and backup safety / Rotación de claves y copias](./SECRET_ROTATION_BACKUPS_EN_ES.md) covers provider-side revocation, Home Assistant encrypted backups and the fact that clearing the tunnel key option does not delete an already provisioned legacy key. **Actual rotation and backup restore on a disposable second HA installation remain untested.**
+
+
 ## English
 
 ### Binary provenance
