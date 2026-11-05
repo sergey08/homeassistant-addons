@@ -1,5 +1,14 @@
 # Moonraker MCP for Home Assistant — DEV
 
+## DEV7 — Legacy upstream session handshake for ChatGPT
+
+The first remote ChatGPT plugin registration attempt on DEV6 reached `tools/list` after successful modern `server/discover`, but the pinned upstream `mcp-raker` rejected the request with `method invalid during initialization`. The modern MCP protocol is stateless, while the pinned upstream expects the legacy `initialize` → `notifications/initialized` handshake for each new session.
+
+DEV7 now initializes a private legacy session before forwarding each modern `tools/list`, `tools/call`, or `ping` request, checks the upstream initialization result, and retains the validated session identifier only for the internal request. The public gateway still validates bearer authentication and its read-only allowlist; it never forwards client-controlled session IDs or modern client metadata to the upstream.
+
+**Español:** En la prueba real con ChatGPT, DEV6 superó el descubrimiento MCP pero `mcp-raker` rechazó `tools/list` porque aún no había completado la inicialización del protocolo antiguo. DEV7 realiza internamente `initialize` y `notifications/initialized` antes de enviar la consulta, con un identificador de sesión privado y verificado. La autenticación y los filtros de herramientas se mantienen. La prueba final de registro en ChatGPT sigue pendiente.
+
+
 ## DEV6 — ChatGPT MCP discovery compatibility
 
 ChatGPT's tunnel-based custom-plugin creation sends `server/discover` using MCP `2026-07-28`, but the upstream `mcp-raker` currently implements the earlier MCP handshake. DEV5 rejected that valid discovery request with HTTP 403. DEV6 adds a **locally authenticated, read-only** discovery handler that advertises only the tools capability and a bounded stateless request translation for modern `tools/list`, `tools/call` and `ping`. Client-provided modern metadata is validated and never forwarded to the pinned legacy upstream. The same tool allowlist and authorization checks apply before forwarding. No new write capabilities, OAuth bypasses or external port mappings are introduced.
