@@ -358,7 +358,7 @@ class HTTPGatewayTests(unittest.TestCase):
                   "clientInfo": {"name": "mock-client", "version": "1.0"}}, 200),
                 ("notifications/initialized", None, {}, 202),
                 ("tools/list", 2, {}, 200),
-                ("tools/call", 3, {"name": "moonraker_server_info", "arguments": {}}, 200),
+                ("tools/call", 3, {"name": "moonraker_temperature_store", "arguments": {}}, 200),
             ]
             for method, request_id, params, expected_status in steps:
                 with self.subTest(method=method):
@@ -777,7 +777,7 @@ class HTTPGatewayTests(unittest.TestCase):
                                 "capabilities": {},
                                 "clientInfo": {"name": "test", "version": "1"}}),
                 ("tools/list", {}),
-                ("tools/call", {"name": "moonraker_server_info", "arguments": {}}),
+                ("tools/call", {"name": "moonraker_temperature_store", "arguments": {}}),
             ):
                 with self.subTest(method=method):
                     status, body = self.request(method, params)
@@ -980,7 +980,7 @@ class HTTPGatewayTests(unittest.TestCase):
                 ("tools/list", {}, {"tools": "not-a-list"}),
                 ("tools/list", {}, {"tools": [
                     {"name": "moonraker_printer_info", "inputSchema": {}}]}),
-                ("tools/call", {"name": "moonraker_server_info",
+                ("tools/call", {"name": "moonraker_temperature_store",
                                 "arguments": {}}, {"content": "not-a-list"}),
                 ("initialize", {"protocolVersion": "2025-06-18",
                                 "capabilities": {}, "clientInfo": {"name": "test", "version": "1"}},
@@ -1103,15 +1103,18 @@ class HTTPGatewayTests(unittest.TestCase):
             for name in names:
                 with self.subTest(name=name):
                     before = len(FakeUpstream.calls)
-                    if name in ("moonraker_connection_status", "moonraker_printer_info"):
+                    if name in ("moonraker_connection_status", "moonraker_printer_info", "moonraker_server_info"):
                         with patch.dict("os.environ", {"MOONRAKER_URL": "http://127.0.0.1:7125",
                                                        "MOONRAKER_API_KEY": ""}):
                             if name == "moonraker_connection_status":
                                 target = "gateway.connection_status"
                                 fixture = {"state": "offline_or_unreachable"}
-                            else:
+                            elif name == "moonraker_printer_info":
                                 target = "gateway.public_printer_info"
                                 fixture = {"state": "ready", "software_version": "v1.0"}
+                            else:
+                                target = "gateway.public_server_info"
+                                fixture = {"moonraker_version": "2.0.0", "klippy_state": "ready"}
                             with patch(target, return_value=fixture):
                                 status, response = self.request(
                                     "tools/call", {"name": name, "arguments": {}})
@@ -1255,6 +1258,25 @@ class HTTPGatewayTests(unittest.TestCase):
                         self.assertNotIn("klipper_path", json.dumps(response))
                         if "_meta" in params:
                             self.assertEqual(response["result"]["resultType"], "complete")
+
+
+    def test_server_info_private_component_names_not_forwarded(self):
+        fixture = {"moonraker_version": "2.0.0", "klippy_connected": True, "klippy_state": "ready"}
+        meta = {"io.modelcontextprotocol/protocolVersion": "2026-07-28",
+                "io.modelcontextprotocol/clientInfo": {"name": "ChatGPT", "version": "1"},
+                "io.modelcontextprotocol/clientCapabilities": {}}
+        with patch.dict("os.environ", {"MOONRAKER_URL": "http://127.0.0.1:7125",
+                                       "MOONRAKER_API_KEY": ""}):
+            with patch("gateway.public_server_info", return_value=fixture):
+                for params in ({"name": "moonraker_server_info", "arguments": {}},
+                               {"name": "moonraker_server_info", "arguments": {}, "_meta": meta}):
+                    before = len(FakeUpstream.calls)
+                    status, response = self.request("tools/call", params)
+                    self.assertEqual(status, 200)
+                    self.assertEqual(len(FakeUpstream.calls), before)
+                    self.assertEqual(json.loads(response["result"]["content"][0]["text"]), fixture)
+                    self.assertNotIn("components", json.dumps(response))
+                    self.assertNotIn("warnings", json.dumps(response))
 
 
 
