@@ -116,7 +116,7 @@ def modern_discovery(request):
         "supportedVersions": [MODERN_PROTOCOL],
         "capabilities": {"tools": {}},
         "_meta": {"io.modelcontextprotocol/serverInfo": {
-            "name": "moonraker-mcp-gateway", "version": "0.1.0-dev6"}},
+            "name": "moonraker-mcp-gateway", "version": "0.1.0-dev8"}},
         "ttlMs": 0,
         "cacheScope": "private",
     }}
