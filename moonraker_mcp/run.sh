@@ -51,13 +51,19 @@ KEEPALIVE_PID=$!
 su-exec 65534:65534 sh -c 'exec /usr/local/bin/mcp-raker < /run/moonraker-stdin' &
 UPSTREAM_PID=$!
 TUNNEL_PID=""
+GATEWAY_PID=""
 cleanup() {
+  if [ -n "$GATEWAY_PID" ]; then
+    kill "$GATEWAY_PID" 2>/dev/null || true
+  fi
   if [ -n "$TUNNEL_PID" ]; then
     kill "$TUNNEL_PID" 2>/dev/null || true
   fi
   kill "$UPSTREAM_PID" "$KEEPALIVE_PID" 2>/dev/null || true
+  wait 2>/dev/null || true
 }
-trap cleanup EXIT INT TERM
+trap cleanup EXIT
+trap 'exit 143' INT TERM
 cd /opt/moonraker-mcp
 if [ "$MCP_ENABLE_TUNNEL" = "true" ]; then
   # Dedicated loopback bridge injects the bearer token without passing it in
@@ -65,4 +71,23 @@ if [ "$MCP_ENABLE_TUNNEL" = "true" ]; then
   su-exec 65534:65534 python3 -u tunnel_runtime.py &
   TUNNEL_PID=$!
 fi
-su-exec 65534:65534 python3 -u gateway.py
+su-exec 65534:65534 python3 -u gateway.py &
+GATEWAY_PID=$!
+
+# Fail closed if any required child exits, including a successfully exiting
+# tunnel-client. BusyBox ash wait -n has known edge cases in version 1.37,
+# so inspect live child process states without relying on its exit status.
+while :; do
+  for pid in "$UPSTREAM_PID" "$KEEPALIVE_PID" "$GATEWAY_PID" ${TUNNEL_PID:+"$TUNNEL_PID"}; do
+    if ! kill -0 "$pid" 2>/dev/null; then
+      echo "Required Moonraker MCP process exited; stopping add-on" >&2
+      exit 1
+    fi
+    # A zombie still answers kill -0 until reaped; treat it as an exit.
+    if [ -r "/proc/$pid/stat" ] && [ "$(cut -d ' ' -f 3 "/proc/$pid/stat")" = "Z" ]; then
+      echo "Required Moonraker MCP process stopped; stopping add-on" >&2
+      exit 1
+    fi
+  done
+  sleep 1
+done
