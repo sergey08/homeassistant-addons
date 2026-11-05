@@ -1,12 +1,37 @@
 # Moonraker MCP for Home Assistant — DEV
 
+## Printer power / connectivity status (DEV4)
+
+The default read-only MCP tool `moonraker_connection_status` makes a bounded HTTP GET to Moonraker's `/server/info` endpoint, with the configured Moonraker API key if present. Its result includes:
+
+- `online`: Moonraker responds and Klippy is `ready`.
+- `not_ready`: Moonraker responds, but Klippy is not ready yet.
+- `authentication_error`: Moonraker responds but rejects the configured credentials.
+- `offline_or_unreachable`: Moonraker cannot be reached within the short timeout. **This is not proof that the printer is powered off**; it may also be a network outage or an address problem.
+- `unavailable`: invalid endpoint or unexpected/invalid Moonraker response.
+
+**ChatGPT behavior:** invoke this status tool before querying printer data; if the result is `offline_or_unreachable`, tell the user that the Snapmaker U1 may be switched off or disconnected and do not claim to have obtained live data. This tool never starts or controls the printer. It is local to the MCP gateway, so the MCP gateway can remain available even when Moonraker is off. No remote ChatGPT tunnel validation has yet been performed.
+
+## Estado de encendido y conectividad (DEV4)
+
+La nueva herramienta MCP de lectura `moonraker_connection_status` realiza una petición GET con tiempo de espera limitado a `/server/info` y emplea la clave de Moonraker configurada si existe. Devuelve:
+
+- `online`: Moonraker responde y Klippy está en `ready`.
+- `not_ready`: Moonraker responde, pero Klippy todavía no está listo.
+- `authentication_error`: Moonraker responde, pero rechaza las credenciales.
+- `offline_or_unreachable`: no se puede contactar con Moonraker; **podría estar apagada**, desconectada o existir un problema de red.
+- `unavailable`: dirección inválida o respuesta inesperada.
+
+**Comportamiento esperado en ChatGPT:** consultar esta herramienta antes de solicitar datos de la impresora y avisar de que la Snapmaker U1 podría estar apagada cuando no responda. No debe inventar datos actuales ni intentar encender la impresora. El gateway sigue activo incluso con Moonraker apagado. Queda pendiente validar la conexión real desde ChatGPT mediante el túnel.
+
+
 Experimental Home Assistant add-on wrapping [lexfrei/mcp-raker](https://github.com/lexfrei/mcp-raker) (upstream BSD-3-Clause).
 
 ## Current architecture / Arquitectura actual
 
 - Upstream `mcp-raker` runs on **127.0.0.1:8766 inside the container**, never on the published interface.
 - A Python HTTP gateway listens on port **8765** and checks a bearer token.
-- `tools/list` is filtered using `read_only_allowlist.json` (4 minimal status tools by default).
+- `tools/list` is filtered using `read_only_allowlist.json` (five default read-only tools (four upstream tools and one local availability check)).
 - `tools/call` is independently checked against the same explicit allowlist; unknown tools and unsupported MCP methods fail closed.
 - The upstream image is pinned to `sha256:cdfbb9b4ead2b3f8a253eb55c1996a69cfdbc17088cc111b7d265d8b71f7090e`.
 - The Alpine runtime contains Python, jq, CA certificates and the upstream Go executable. The launcher starts as root to read Supervisor-protected options, then starts the long-lived gateway and upstream services as UID 65534.
@@ -15,7 +40,7 @@ Experimental Home Assistant add-on wrapping [lexfrei/mcp-raker](https://github.c
 
 **DEV ONLY — already installed and locally tested on Home Assistant; do not expose remotely or publish a stable release yet.**
 
-The HTTP gateway is a prototype. Docker CI validates MCP initialization, tool listing, authentication and denied operations without connecting to a real printer. **A successful test does not by itself certify that all four default read-only tools are safe against every printer firmware version.** Review each tool's implementation and parameters before deployment.
+The HTTP gateway is a prototype. Docker CI validates MCP initialization, tool listing, authentication and denied operations without connecting to a real printer. **A successful test does not by itself certify that the upstream status tools are safe against every printer firmware version.** Review each tool's implementation and parameters before deployment.
 
 The gateway supports a restricted subset of MCP Streamable HTTP: authenticated POST requests, JSON or single-event SSE upstream responses, and filtered `tools/list` pagination using cursors. It does **not** support GET event streams, DELETE session termination, streaming/multiple SSE events or full session lifecycle management. Pagination support is not equivalent to full Streamable HTTP compliance. Test compatibility with the intended ChatGPT client before deployment.
 
@@ -49,21 +74,21 @@ The optional tunnel integration follows the **existing Obsidian Suite add-on** p
 
 ## Official SDK interoperability / Interoperabilidad con SDK oficial
 
-**Validated in isolated Docker CI (2026-11-04):** the official Python MCP SDK `mcp==1.30.0`, using Streamable HTTP, can establish an authenticated connection to the actual pinned upstream behind the gateway, negotiate an older supported protocol revision, receive the tools-only capabilities, discover the four default tools, and successfully invoke `moonraker_mcp_version`. A second SDK session attempts `moonraker_gcode_script` and verifies rejection with HTTP 403. These checks passed in both GitHub Actions workflows at commit `6e2e06c`.
+**Validated in isolated Docker CI (2026-11-04):** the official Python MCP SDK `mcp==1.30.0`, using Streamable HTTP, can establish an authenticated connection to the actual pinned upstream behind the gateway, negotiate an older supported protocol revision, receive the tools-only capabilities, discover the default tools, and successfully invoke `moonraker_mcp_version`. A second SDK session attempts `moonraker_gcode_script` and verifies rejection with HTTP 403. These checks passed in both GitHub Actions workflows at commit `6e2e06c`.
 
-**Español:** el SDK oficial MCP para Python conecta con el contenedor real, negocia el protocolo, descubre las cuatro herramientas predeterminadas y ejecuta la consulta de versión. Una llamada de ejecución de G-code se bloquea con 403. Todo ello se comprueba sin conectar ninguna impresora.
+**Español:** el SDK oficial MCP para Python conecta con el contenedor real, negocia el protocolo, descubre las herramientas predeterminadas y ejecuta la consulta de versión. Una llamada de ejecución de G-code se bloquea con 403. Todo ello se comprueba sin conectar ninguna impresora.
 
 **What remains unverified / Pendiente:** ChatGPT's actual remote registration, credential/tunnel configuration, HTTPS or secure tunnel access, real Home Assistant add-on installation, live Moonraker responses and private-data redaction. The gateway remains a limited Streamable HTTP implementation and is **not** certified production-ready. Never put a token or private endpoint in this repository; secure exposure and printer access require separate authorization.
 
 ## Live validation / Validación real (2026-11-04)
 
-On Snapmaker U1 with Moonraker 2.0.0 and firmware `2.0.0-paxx12-23`, authenticated MCP initialization, initialized notification, `tools/list` (four default tools), and read-only `moonraker_printer_info` were verified successfully against the real printer. This does **not** verify operation while the printer is powered off, recovery after power-on, or remote ChatGPT connectivity. A previous Supervisor rebuild reused an older `0.1.0-dev1` image tag; the package version has therefore been incremented to `0.1.0-dev2`. CI checks image launcher identity. Never expose ports by default.
+On Snapmaker U1 with Moonraker 2.0.0 and firmware `2.0.0-paxx12-23`, authenticated MCP initialization, initialized notification, `tools/list` (default tools), and read-only `moonraker_printer_info` were verified successfully against the real printer. This does **not** verify operation while the printer is powered off, recovery after power-on, or remote ChatGPT connectivity. A previous Supervisor rebuild reused an older `0.1.0-dev1` image tag; the package version has therefore been incremented to `0.1.0-dev2`. CI checks image launcher identity. Never expose ports by default.
 
 **Español:** validado el funcionamiento real de las cuatro herramientas visibles y la llamada de consulta `moonraker_printer_info` en una Snapmaker U1 encendida. Pendiente comprobar desconexión y reconexión, reconstrucción por Supervisor con la nueva versión y conexión externa segura. Rotar las credenciales usadas en pruebas antes de cualquier exposición.
 
 ## Next / Próximos pasos
 
-1. **Completed in isolated Docker CI:** authenticated MCP initialization, tool listing, forbidden calls, four-tool default, and explicit history/objects profiles. No printer connection was used.
+1. **Completed in isolated Docker CI:** authenticated MCP initialization, tool listing, forbidden calls, default tool allowlist, and explicit history/objects profiles. No printer connection was used.
 2. **Source reviewed:** all sixteen permitted upstream handlers are GET-only or local; OCI revision is checked in CI. This is not a binary provenance attestation.
 3. **Pending:** inspect representative responses for sensitive information, especially server metadata, queued filenames, and optional object queries.
 4. **Completed locally on 2026-11-05:** Home Assistant Supervisor installation on amd64 and real Moonraker connectivity through safe status queries.
@@ -76,9 +101,9 @@ El complemento usa el servidor original `mcp-raker` aislado en el puerto local 8
 
 ### Default privacy profile (DEV)
 
-Only four tools are enabled by default: MCP version, server info, printer info and temperature store. Job queue status requires `enable_jobqueue: true` because queued filenames may be sensitive. Print history, device power, sensors and Spoolman tools remain disabled pending a separate privacy review. This is a conservative development default, not a finished user-selectable permissions system.
+Five tools are enabled by default: the four upstream queries (MCP version, server info, printer info and temperature store) plus the local read-only connection status tool. Job queue status requires `enable_jobqueue: true` because queued filenames may be sensitive. Print history, device power, sensors and Spoolman tools remain disabled pending a separate privacy review. This is a conservative development default, not a finished user-selectable permissions system.
 
-**Español:** El perfil inicial permite cuatro consultas básicas. La cola de impresión requiere `enable_jobqueue: true` porque puede revelar nombres de archivos. Historial de impresiones, dispositivos eléctricos, sensores y Spoolman permanecen deshabilitados hasta revisar los datos expuestos. No publicar ni conectar remotamente todavía.
+**Español:** El perfil inicial permite cuatro consultas upstream y el diagnóstico local de conectividad. La cola de impresión requiere `enable_jobqueue: true` porque puede revelar nombres de archivos. Historial de impresiones, dispositivos eléctricos, sensores y Spoolman permanecen deshabilitados hasta revisar los datos expuestos. No publicar ni conectar remotamente todavía.
 
 ### Klipper object access / Acceso a objetos Klipper
 
