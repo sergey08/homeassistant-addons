@@ -1,9 +1,11 @@
 import hashlib
+import fcntl
+import os
 import tempfile
 import unittest
 from pathlib import Path
 
-from private_markdown_vault import LocalVaultError, read_note, save_note, list_notes
+from private_markdown_vault import LocalVaultError, read_note, save_note, list_notes, vault_write_lock
 
 
 class PrivateMarkdownVaultTests(unittest.TestCase):
@@ -55,6 +57,22 @@ class PrivateMarkdownVaultTests(unittest.TestCase):
         (self.vault / ".hidden.md").write_text("hidden")
         (self.vault / "Notes" / "link.md").symlink_to(self.vault / "Notes" / "first.md")
         self.assertEqual(list_notes(self.vault), ["Notes/first.md"])
+
+    def test_lock_blocks_independent_file_descriptor(self):
+        """The two add-ons can coordinate via one advisory lock file."""
+        with vault_write_lock(self.vault):
+            fd = os.open(self.vault / ".obsidian-write.lock", os.O_RDWR)
+            try:
+                with self.assertRaises(BlockingIOError):
+                    fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            finally:
+                os.close(fd)
+        fd = os.open(self.vault / ".obsidian-write.lock", os.O_RDWR)
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            fcntl.flock(fd, fcntl.LOCK_UN)
+        finally:
+            os.close(fd)
 
     def test_invalid_revision_and_content(self):
         save_note(self.vault, self.backups, "x.md", "ok", "create")
