@@ -97,7 +97,7 @@ jobs:
             fi
             sleep 1
           done
-          docker exec moonraker-mcp-ci python3 -c 'import os; pids=[p for p in os.listdir("/proc") if p.isdigit() and os.path.exists("/proc/"+p+"/cmdline") and b"gateway.py" in open("/proc/"+p+"/cmdline","rb").read()]; assert pids and all(int(open("/proc/"+p+"/status").read().split("Uid:")[1].split()[0]) == 65534 for p in pids), pids' || {
+          docker exec moonraker-mcp-ci python3 -c 'import os; pids=[p for p in os.listdir("/proc") if p.isdigit() and os.path.exists("/proc/"+p+"/cmdline") and b"gateway.py" in open("/proc/"+p+"/cmdline","rb").read().split(b"\\x00")]; assert pids and all(int(open("/proc/"+p+"/status").read().split("Uid:")[1].split()[0]) == 65534 for p in pids), pids' || {
             echo "Gateway privileges check failed"
             exit 1
           }
