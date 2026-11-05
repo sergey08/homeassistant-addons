@@ -1159,7 +1159,7 @@ class HTTPGatewayTests(unittest.TestCase):
     def test_allowed_call_reaches_fake_upstream(self):
         before = len(FakeUpstream.calls)
         status, _ = self.request("tools/call", {
-            "name": "moonraker_server_info", "arguments": {}})
+            "name": "moonraker_temperature_store", "arguments": {}})
         self.assertEqual(status, 200)
         self.assertEqual(len(FakeUpstream.calls), before + 1)
 
