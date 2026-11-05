@@ -1,5 +1,22 @@
 # Moonraker MCP for Home Assistant — DEV
 
+## DEV5 — Tunnel access without terminal commands
+
+In DEV5, the installer exposes a protected `openai_tunnel_api_key` password field in Home Assistant alongside `tunnel_id` and `enable_tunnel`. Each user creates their **own** OpenAI tunnel and restricted API key with the required Tunnel permissions; the add-on never issues credentials on behalf of an OpenAI account.
+
+The Docker image bundles the **official, pinned OpenAI tunnel-client v0.0.19 for amd64**, after verifying the release archive's SHA-256 during the image build. When tunnel access is enabled, the launcher automatically copies this executable to private add-on data, imports the Home Assistant password field into a mode 0600 file owned by UID 65534, and starts the loopback-only bridge and client. No terminal, Docker commands or manual ZIP downloads are required for new installations.
+
+Existing DEV4 installations with `/data/tunnel/api-key` remain compatible if the password field is left empty; entering a new password rotates the private key atomically. If no valid key is available, the tunnel fails closed. Neither the password nor the gateway token is logged or placed in process arguments. **The tunnel is OFF by default and port 8765 stays unpublished.** This change provides automated provisioning, not a claim of remote ChatGPT connectivity or completed onboarding. Only amd64 is supported in DEV5 until a trusted arm64 release is pinned and tested.
+
+## DEV5 — Acceso mediante túnel sin usar el terminal
+
+En DEV5 Home Assistant incorpora un campo protegido `openai_tunnel_api_key`, además de `tunnel_id` y `enable_tunnel`. Cada usuario debe crear **su propio túnel OpenAI y una clave restringida** con los permisos necesarios; el complemento no puede crear credenciales en nombre de la cuenta de OpenAI.
+
+La imagen del complemento incluye el cliente oficial OpenAI v0.0.19 **para amd64**, verificando el SHA-256 durante la construcción. Cuando se habilita el túnel, el complemento guarda automáticamente la clave de Home Assistant en un archivo privado con permisos 0600 y propietario UID 65534 e instala el ejecutable, sin comandos ni descargas manuales. La conexión utiliza un puente local autenticado.
+
+Las instalaciones DEV4 que ya tienen la clave en `/data/tunnel/api-key` siguen siendo compatibles dejando vacío el campo nuevo. Si el usuario cambia la clave desde la configuración, se actualiza el archivo privado. Ante una clave ausente o inválida, el acceso remoto no se inicia. El túnel permanece desactivado por defecto y el puerto MCP no se publica. Esta mejora **no equivale a haber validado todavía la conexión remota con ChatGPT**. DEV5 solo es compatible con amd64 mientras no se verifique la distribución oficial de arm64.
+
+
 ## Printer power / connectivity status (DEV4)
 
 The default read-only MCP tool `moonraker_connection_status` makes a bounded HTTP GET to Moonraker's `/server/info` endpoint, with the configured Moonraker API key if present. Its result includes:
