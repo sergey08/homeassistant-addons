@@ -9,6 +9,8 @@ import os
 import re
 import shutil
 import tempfile
+import fcntl
+from contextlib import contextmanager
 from datetime import datetime, timezone
 
 MAX_BYTES = 2_000_000
@@ -77,12 +79,37 @@ def read_note(root, name):
     return {"path": name, "content": content, "sha256": hashlib.sha256(data).hexdigest()}
 
 
+@contextmanager
+def vault_write_lock(root):
+    """Coordinate writers in separate HA add-ons using the same mounted vault."""
+    base = _root(root)
+    flags = os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW
+    fd = os.open(base / ".obsidian-write.lock", flags, 0o600)
+    try:
+        if not os.path.isfile(base / ".obsidian-write.lock"):
+            raise LocalVaultError("unsafe_lock_file")
+        fcntl.flock(fd, fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(fd, fcntl.LOCK_UN)
+    finally:
+        os.close(fd)
+
+
 def save_note(root, backup_root, name, content, mode, expected_sha256=None):
     """Caller serializes access with one process-level lock."""
-    base, target = _path(root, name)
     data = _content_bytes(content)
     if mode not in ("create", "update"):
         raise LocalVaultError("invalid_mode")
+    # Lock the same inode the MCP uses; the existence and revision checks below
+    # must execute inside this lock to prevent an inter-addon lost update.
+    with vault_write_lock(root):
+        return _save_note_locked(root, backup_root, name, data, mode, expected_sha256)
+
+
+def _save_note_locked(root, backup_root, name, data, mode, expected_sha256):
+    base, target = _path(root, name)
     exists = target.exists()
     if mode == "create" and exists:
         raise LocalVaultError("note_exists")
