@@ -94,7 +94,7 @@ jobs:
         run: |
           set -eu
           tmpdir="$(mktemp -d)"
-          trap 'rm -rf "$tmpdir"' EXIT
+          trap 'sudo rm -rf "$tmpdir"' EXIT
           chmod 755 "$tmpdir"
           printf '%s\n' '{"moonraker_url":"http://127.0.0.1:7125","moonraker_api_key":"","mcp_http_token":"ci-local-only-token","enable_tunnel":true,"tunnel_id":"ci-placeholder"}' > "$tmpdir/options.json"
           if docker run --rm --network none -v "$tmpdir:/data" moonraker-mcp:ci >"$tmpdir/output" 2>&1; then
@@ -110,17 +110,17 @@ jobs:
           tmpdir="$(mktemp -d)"
           cleanup() {
             docker rm -f moonraker-mcp-tunnel-exit >/dev/null 2>&1 || true
-            rm -rf "$tmpdir"
+            sudo rm -rf "$tmpdir"
           }
           trap cleanup EXIT
           mkdir -p "$tmpdir/tunnel/bin"
           chmod 755 "$tmpdir" "$tmpdir/tunnel" "$tmpdir/tunnel/bin"
           printf '%s\n' '{"moonraker_url":"http://127.0.0.1:7125","moonraker_api_key":"","mcp_http_token":"ci-local-only-token","enable_tunnel":true,"tunnel_id":"ci-mock-only"}' > "$tmpdir/options.json"
           printf '#!/bin/sh\nexit 0\n' > "$tmpdir/tunnel/bin/tunnel-client"
-          chmod 755 "$tmpdir/tunnel/bin/tunnel-client"
+          chmod 700 "$tmpdir/tunnel/bin/tunnel-client"
           printf 'ci-only-fake-key-12345' > "$tmpdir/tunnel/api-key"
           chmod 600 "$tmpdir/tunnel/api-key"
-          docker run --rm -v "$tmpdir:/data" --entrypoint chown moonraker-mcp:ci 65534:65534 /data/tunnel/api-key
+          docker run --rm -v "$tmpdir:/data" --entrypoint chown moonraker-mcp:ci 65534:65534 /data/tunnel/api-key /data/tunnel/bin/tunnel-client
           docker run -d --name moonraker-mcp-tunnel-exit --network none \
             -v "$tmpdir:/data:ro" moonraker-mcp:ci >/dev/null
           python3 - <<'PY'
