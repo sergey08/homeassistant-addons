@@ -5,7 +5,6 @@ description: "MCP bridge to Moonraker / Puente MCP para Moonraker"
 url: "https://github.com/sergey08/homeassistant-addons"
 arch:
   - amd64
-  - aarch64
 startup: services
 boot: manual
 init: false
