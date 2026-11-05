@@ -16,7 +16,7 @@ from moonraker_status import connection_status
 from tool_policy import PolicyError, authorize_call, extend_allowed, filter_tools, load_allowed
 
 ALLOWED_METHODS = frozenset((
-    "initialize", "notifications/initialized", "ping", "tools/list", "tools/call"
+    "initialize", "notifications/initialized", "ping", "tools/list", "tools/call", "server/discover"
 ))
 MAX_BODY = 1024 * 1024
 MAX_TOOL_ARGUMENTS = 16 * 1024
@@ -51,6 +51,7 @@ LOCAL_FILE_TOOLS = {
 }
 SAFE_HEADER_VALUE = re.compile(r"^[A-Za-z0-9._-]{1,128}$")
 SUPPORTED_PROTOCOL_VERSIONS = frozenset(("2025-03-26", "2025-06-18"))
+MODERN_PROTOCOL = "2026-07-28"
 # A newer client may propose 2025-11-25 during initialize. Negotiate back
 # to the upstream-compatible 2025-06-18; do not claim 2025-11-25 support.
 CLIENT_INITIALIZE_VERSIONS = SUPPORTED_PROTOCOL_VERSIONS | {"2025-11-25"}
@@ -80,6 +81,46 @@ def strict_json_loads(payload):
                       parse_constant=_reject_json_constant)
 
 
+def modern_request(message):
+    """Recognize the new per-request protocol while keeping legacy strict."""
+    if not isinstance(message, dict):
+        return False
+    params = message.get("params", {})
+    if not isinstance(params, dict):
+        return False
+    meta = params.get("_meta")
+    return isinstance(meta, dict) and meta.get("io.modelcontextprotocol/protocolVersion") == MODERN_PROTOCOL
+
+
+def validate_modern_meta(message):
+    """Only known protocol metadata is used; never forward client metadata upstream."""
+    params = message.get("params")
+    if not isinstance(params, dict):
+        raise PolicyError("Modern MCP requires request parameters")
+    meta = params.get("_meta")
+    if not isinstance(meta, dict) or meta.get("io.modelcontextprotocol/protocolVersion") != MODERN_PROTOCOL:
+        raise PolicyError("Unsupported modern MCP protocol")
+    info = meta.get("io.modelcontextprotocol/clientInfo")
+    caps = meta.get("io.modelcontextprotocol/clientCapabilities")
+    if (not isinstance(info, dict) or not isinstance(info.get("name"), str)
+            or not info["name"] or not isinstance(info.get("version"), str)
+            or not info["version"] or not isinstance(caps, dict)):
+        raise PolicyError("Invalid modern MCP client metadata")
+
+
+def modern_discovery(request):
+    """Local, read-only discovery: upstream has no modern discovery operation."""
+    return {"jsonrpc": "2.0", "id": request["id"], "result": {
+        "resultType": "complete",
+        "supportedVersions": [MODERN_PROTOCOL],
+        "capabilities": {"tools": {}},
+        "_meta": {"io.modelcontextprotocol/serverInfo": {
+            "name": "moonraker-mcp-gateway", "version": "0.1.0-dev6"}},
+        "ttlMs": 0,
+        "cacheScope": "private",
+    }}
+
+
 def check_message(message, allowed):
     if not isinstance(message, dict) or message.get("jsonrpc") != "2.0":
         raise PolicyError("Invalid JSON-RPC request")
@@ -96,11 +137,17 @@ def check_message(message, allowed):
         raise PolicyError("MCP request must have an id")
     if "params" in message and not isinstance(message["params"], dict):
         raise PolicyError("MCP params must be an object")
+    modern = modern_request(message)
+    if method == "server/discover" or modern:
+        validate_modern_meta(message)
+    if method == "server/discover":
+        if set(message["params"]) != {"_meta"}:
+            raise PolicyError("Unexpected discovery parameters")
     if method in ("ping", "notifications/initialized") and message.get("params", {}) != {}:
         raise PolicyError("Unexpected parameters for MCP method")
     if method == "tools/list":
         params = message.get("params", {})
-        if set(params) - {"cursor"} or ("cursor" in params and
+        if set(params) - ({"cursor", "_meta"} if modern else {"cursor"}) or ("cursor" in params and
                 (not isinstance(params["cursor"], str) or not 0 < len(params["cursor"]) <= 512)):
             raise PolicyError("Invalid MCP tools/list cursor")
     if method == "initialize":
@@ -334,11 +381,18 @@ class Handler(BaseHTTPRequestHandler):
             method = check_message(message, self.allowed)
             protocol_version = self.headers.get("MCP-Protocol-Version")
             permitted_versions = (CLIENT_INITIALIZE_VERSIONS if method == "initialize"
-                                  else SUPPORTED_PROTOCOL_VERSIONS)
+                                  else SUPPORTED_PROTOCOL_VERSIONS | {MODERN_PROTOCOL})
             if protocol_version and protocol_version not in permitted_versions:
                 return self.reply(400, {"error": "Unsupported MCP protocol version"})
             if method == "initialize" and protocol_version and protocol_version != message["params"]["protocolVersion"]:
                 return self.reply(400, {"error": "MCP protocol version header does not match initialize request"})
+            if method == "server/discover":
+                if protocol_version and protocol_version != MODERN_PROTOCOL:
+                    return self.reply(400, {"error": "Discovery protocol version mismatch"})
+                return self.reply(200, modern_discovery(message))
+            is_modern = modern_request(message)
+            if is_modern and protocol_version and protocol_version != MODERN_PROTOCOL:
+                return self.reply(400, {"error": "Modern protocol version mismatch"})
             # Validate session/protocol headers before any local file-tool dispatch.
             # Local tools do not traverse the upstream forwarding path.
             validated_headers = {}
@@ -349,10 +403,13 @@ class Handler(BaseHTTPRequestHandler):
             if method == "tools/call" and message["params"]["name"] == LOCAL_STATUS_TOOL:
                 result = connection_status(os.environ["MOONRAKER_URL"],
                                            os.environ.get("MOONRAKER_API_KEY", ""))
+                response_result = {"content": [{"type": "text",
+                                                "text": json.dumps(result, ensure_ascii=False)}],
+                                   "isError": False}
+                if is_modern:
+                    response_result["resultType"] = "complete"
                 return self.reply(200, {"jsonrpc": "2.0", "id": message["id"],
-                                        "result": {"content": [{"type": "text",
-                                                               "text": json.dumps(result, ensure_ascii=False)}],
-                                                   "isError": False}})
+                                        "result": response_result})
             if method == "tools/call" and message["params"]["name"] in LOCAL_FILE_TOOLS:
                 name = message["params"]["name"]
                 args = message["params"].get("arguments", {})
@@ -387,6 +444,16 @@ class Handler(BaseHTTPRequestHandler):
             }
             headers.update(validated_headers)
             upstream_message = message
+            if is_modern:
+                # Translate modern stateless request metadata to the pinned
+                # legacy upstream. Preserve method and arguments, never widen
+                # the allowlist or forward untrusted metadata.
+                upstream_message = dict(message, params={
+                    key: value for key, value in message.get("params", {}).items()
+                    if key != "_meta"
+                })
+                headers.pop("MCP-Protocol-Version", None)
+                headers.pop("Mcp-Session-Id", None)
             if method == "initialize" and message["params"]["protocolVersion"] == "2025-11-25":
                 upstream_message = dict(message, params=dict(
                     message["params"], protocolVersion="2025-06-18"))
@@ -430,6 +497,9 @@ class Handler(BaseHTTPRequestHandler):
                     session = upstream.headers.get("Mcp-Session-Id")
                     if session:
                         extra["Mcp-Session-Id"] = validate_mcp_header(session)
+                    if is_modern and "result" in parsed and method in ("tools/list", "tools/call"):
+                        parsed = dict(parsed, result=dict(parsed["result"], resultType="complete"))
+                        extra.pop("Mcp-Session-Id", None)
                     return self.reply(200, parsed, extra)
             except (urllib.error.URLError, TimeoutError):
                 return self.reply(502, {"error": "Upstream unavailable"})
