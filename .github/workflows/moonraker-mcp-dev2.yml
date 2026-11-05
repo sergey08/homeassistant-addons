@@ -77,6 +77,42 @@ jobs:
           grep -q 'Tunnel configuration incomplete or inaccessible to runtime UID' "$tmpdir/output"
           echo "Fail-closed tunnel preflight verified without printer or network"
 
+      - name: Stop add-on when a simulated tunnel process exits
+        run: |
+          set -eu
+          tmpdir="$(mktemp -d)"
+          cleanup() {
+            docker rm -f moonraker-mcp-tunnel-exit >/dev/null 2>&1 || true
+            rm -rf "$tmpdir"
+          }
+          trap cleanup EXIT
+          mkdir -p "$tmpdir/tunnel/bin"
+          chmod 755 "$tmpdir" "$tmpdir/tunnel" "$tmpdir/tunnel/bin"
+          printf '%s\n' '{"moonraker_url":"http://127.0.0.1:7125","moonraker_api_key":"","mcp_http_token":"ci-local-only-token","enable_tunnel":true,"tunnel_id":"ci-mock-only"}' > "$tmpdir/options.json"
+          printf '#!/bin/sh\nexit 0\n' > "$tmpdir/tunnel/bin/tunnel-client"
+          chmod 755 "$tmpdir/tunnel/bin/tunnel-client"
+          printf 'ci-only-fake-key-12345' > "$tmpdir/tunnel/api-key"
+          chmod 600 "$tmpdir/tunnel/api-key"
+          docker run --rm -v "$tmpdir:/data" --entrypoint chown moonraker-mcp:ci 65534:65534 /data/tunnel/api-key
+          docker run -d --name moonraker-mcp-tunnel-exit --network none \
+            -v "$tmpdir:/data:ro" moonraker-mcp:ci >/dev/null
+          python3 - <<'PY'
+          import subprocess,time
+          name="moonraker-mcp-tunnel-exit"
+          for _ in range(45):
+              value=subprocess.check_output(["docker","inspect","-f","{{.State.Status}} {{.State.ExitCode}}",name],text=True).strip()
+              status,code=value.split()
+              if status == "exited":
+                  assert code != "0", "Supervisor must report failure after tunnel-client exits"
+                  logs=subprocess.check_output(["docker","logs",name],stderr=subprocess.STDOUT,text=True)
+                  assert "Required Moonraker MCP process" in logs, "Supervisor did not detect a child exit"
+                  print("Simulated tunnel exit stopped the add-on with failure, as required")
+                  break
+              time.sleep(1)
+          else:
+              raise AssertionError("Add-on remained running after tunnel-client exited")
+          PY
+
       - name: Check runtime health and auth without a printer
         run: |
           set -eu
