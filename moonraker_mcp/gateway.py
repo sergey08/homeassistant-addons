@@ -12,7 +12,7 @@ import urllib.request
 import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from moonraker_files import FileAccessError, list_gcodes, gcode_metadata, gcode_preview
-from moonraker_status import connection_status, public_printer_info
+from moonraker_status import connection_status, public_printer_info, public_server_info
 from tool_policy import PolicyError, authorize_call, extend_allowed, filter_tools, load_allowed
 
 ALLOWED_METHODS = frozenset((
@@ -23,6 +23,7 @@ MAX_TOOL_ARGUMENTS = 16 * 1024
 FORWARD_HEADERS = ("Mcp-Session-Id", "MCP-Protocol-Version")
 LOCAL_STATUS_TOOL = "moonraker_connection_status"
 PRIVACY_SAFE_PRINTER_INFO = "moonraker_printer_info"
+PRIVACY_SAFE_SERVER_INFO = "moonraker_server_info"
 LOCAL_STATUS_DEFINITION = {
     "name": LOCAL_STATUS_TOOL,
     "description": ("Check whether Moonraker is reachable and Klippy is ready. "
@@ -280,6 +281,9 @@ def filter_reply(method, response, allowed, cursor=None):
         if tool["name"] == PRIVACY_SAFE_PRINTER_INFO:
             tool["description"] = ("Read printer state and software version only. "
                                    "Hostnames, CPU details and internal paths are withheld.")
+        if tool["name"] == PRIVACY_SAFE_SERVER_INFO:
+            tool["description"] = ("Read Moonraker version and Klippy connectivity only. "
+                                   "Component lists and warning details are withheld.")
     return response
 
 
@@ -462,6 +466,15 @@ class Handler(BaseHTTPRequestHandler):
                 value = self.headers.get(key)
                 if value:
                     validated_headers[key] = validate_mcp_header(value)
+            if method == "tools/call" and message["params"]["name"] == PRIVACY_SAFE_SERVER_INFO:
+                result = public_server_info(os.environ["MOONRAKER_URL"],
+                                            os.environ.get("MOONRAKER_API_KEY", ""))
+                output = {"content": [{"type": "text",
+                                       "text": json.dumps(result, ensure_ascii=False)}],
+                          "isError": False}
+                if is_modern:
+                    output["resultType"] = "complete"
+                return self.reply(200, {"jsonrpc": "2.0", "id": message["id"], "result": output})
             if method == "tools/call" and message["params"]["name"] == PRIVACY_SAFE_PRINTER_INFO:
                 result = public_printer_info(os.environ["MOONRAKER_URL"],
                                              os.environ.get("MOONRAKER_API_KEY", ""))
