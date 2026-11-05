@@ -100,3 +100,56 @@ def public_printer_info(url, api_key="", timeout=4):
         return {"state": "offline_or_unreachable"}
     except (ValueError, UnicodeError):
         return {"state": "unavailable"}
+
+
+def public_server_info(url, api_key="", timeout=4):
+    """Return a minimal Moonraker health snapshot without component names.
+
+    Server warnings, component lists and free-form diagnostic strings are
+    intentionally not forwarded to remote MCP clients.
+    """
+    base = url.rstrip("/")
+    if not base.startswith(("http://", "https://")):
+        return {"state": "unavailable"}
+    headers = {"Accept": "application/json"}
+    if api_key:
+        headers["X-Api-Key"] = api_key
+    req = urllib.request.Request(base + "/server/info", headers=headers)
+    try:
+        with _OPENER.open(req, timeout=timeout) as res:
+            if res.status != 200:
+                return {"state": "unavailable"}
+            raw = res.read(65537)
+        if len(raw) > 65536:
+            return {"state": "unavailable"}
+        data = json.loads(raw)
+        info = data.get("result") if isinstance(data, dict) else None
+        if not isinstance(info, dict):
+            raise ValueError("Invalid server status")
+        response = {}
+        version = info.get("moonraker_version")
+        if (isinstance(version, str) and 0 < len(version) <= 80
+                and version.isascii()
+                and all(ch.isalnum() or ch in ".+_:-" for ch in version)):
+            response["moonraker_version"] = version
+        connected = info.get("klippy_connected")
+        if isinstance(connected, bool):
+            response["klippy_connected"] = connected
+        klippy_state = info.get("klippy_state")
+        if isinstance(klippy_state, str) and klippy_state in (
+                "ready", "startup", "shutdown", "error", "disconnected"):
+            response["klippy_state"] = klippy_state
+        api_version = info.get("api_version_string")
+        if (isinstance(api_version, str) and 0 < len(api_version) <= 32
+                and api_version.isascii()
+                and all(ch.isdigit() or ch == "." for ch in api_version)):
+            response["api_version_string"] = api_version
+        if not response:
+            return {"state": "unavailable"}
+        return response
+    except urllib.error.HTTPError as exc:
+        return {"state": "authentication_error" if exc.code in (401, 403) else "unavailable"}
+    except (urllib.error.URLError, TimeoutError, OSError):
+        return {"state": "offline_or_unreachable"}
+    except (ValueError, UnicodeError):
+        return {"state": "unavailable"}
