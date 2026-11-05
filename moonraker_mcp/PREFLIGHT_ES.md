@@ -122,3 +122,13 @@ La opción de alta está confirmada, **pero la compatibilidad funcional de este 
 ### Estado de desarrollo
 
 La CI Docker sin impresora, con SDK oficial MCP `mcp==1.30.0`, ha confirmado la conexión, el descubrimiento de cuatro herramientas de lectura, la ejecución de `moonraker_mcp_version` y el bloqueo con HTTP 403 de `moonraker_gcode_script`. **Todavía no se ha desplegado el túnel de Moonraker ni instalado el complemento en el HA del usuario.** No confundir la prueba del SDK aislado con una conexión ChatGPT real.
+
+
+## Actualización de estado — 05/11/2026, DEV3 (prevalece sobre referencias antiguas)
+
+- Desarrollo activo: rama `dev/moonraker-mcp-dev2`, PR #89, versión del complemento `0.1.0-dev3`. Las referencias anteriores a PR #48 y a una instalación todavía no realizada son históricas.
+- La versión DEV2 **sí se instaló y se validó localmente** en Home Assistant con la Snapmaker U1 mediante consultas de solo lectura. La DEV3 **no se ha instalado** ni validado con la impresora.
+- La CI #46 concluyó correctamente para el commit `87cc0419e038665fb752feb71fc91891cbd99b9a`: pruebas Python, construcción Docker, autenticación, cliente OpenAI oficial v0.0.19 aislado y fallos seguros del túnel. La integración real de OpenAI con DEV3 sigue sin probarse.
+- El usuario creó un túnel independiente para Moonraker y una clave restringida, guardada fuera de GitHub. **No escribir ni registrar la clave** en la documentación, código o chat.
+- Distribución elegida: **un solo repositorio de complementos** `sergey08/homeassistant-addons`. Para aparecer en el catálogo, el contenido revisado debe integrarse en `main`; no se distribuye desde la PR. El directorio local `/addons/local/moonraker_mcp` (slug `local_moonraker_mcp`) se conserva como DEV2 hasta migración explícita.
+- Las verificaciones de CI **no sustituyen** la validación de Home Assistant ni autorizan activar el túnel, abrir puertos o ejecutar comandos de control de impresora. Mantener `enable_tunnel: false` y puerto externo sin asignar hasta pruebas y aprobación.
