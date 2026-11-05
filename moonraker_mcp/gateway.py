@@ -143,7 +143,7 @@ def check_message(message, allowed):
     if method == "server/discover":
         if set(message["params"]) != {"_meta"}:
             raise PolicyError("Unexpected discovery parameters")
-    if method in ("ping", "notifications/initialized") and message.get("params", {}) != {}:
+    if method in ("ping", "notifications/initialized") and message.get("params", {}) != ({"_meta": message["params"]["_meta"]} if modern else {}):
         raise PolicyError("Unexpected parameters for MCP method")
     if method == "tools/list":
         params = message.get("params", {})
@@ -433,10 +433,13 @@ class Handler(BaseHTTPRequestHandler):
                     return self.file_tool_error(message["id"], error_text)
                 except (urllib.error.URLError, TimeoutError):
                     return self.file_tool_error(message["id"], "Moonraker file service unavailable")
+                file_result = {"content": [{"type": "text",
+                                            "text": json.dumps(result, ensure_ascii=False)}],
+                               "isError": False}
+                if is_modern:
+                    file_result["resultType"] = "complete"
                 return self.reply(200, {"jsonrpc": "2.0", "id": message["id"],
-                                        "result": {"content": [{"type": "text",
-                                                               "text": json.dumps(result, ensure_ascii=False)}],
-                                                   "isError": False}})
+                                        "result": file_result})
             headers = {
                 "Authorization": "Bearer " + self.token,
                 "Content-Type": "application/json",
