@@ -1,5 +1,16 @@
 # Moonraker MCP for Home Assistant — DEV
 
+## Current verified status / Estado real comprobado — 2026-11-05
+
+**EN:** **DEV7 is running in Home Assistant and was registered successfully as a private custom MCP server in ChatGPT.** The outbound OpenAI Secure MCP Tunnel was verified end-to-end by actual ChatGPT calls to `moonraker_connection_status`, `moonraker_server_info` and `moonraker_mcp_version` on a powered-on Snapmaker U1 (Moonraker 2.0.0, Klippy ready). ChatGPT discovers exactly five default read-only tools. The external add-on port remains unpublished, and all optional profiles remain off. This does **not** establish a stable or generally audited release; the powered-off printer remote test, fresh installation from scratch, privacy review and release approval remain pending.
+
+**ES:** **DEV7 está funcionando en Home Assistant y se ha registrado correctamente como servidor MCP personalizado y privado en ChatGPT.** El túnel seguro saliente de OpenAI se verificó de extremo a extremo mediante consultas reales a `moonraker_connection_status`, `moonraker_server_info` y `moonraker_mcp_version` con una Snapmaker U1 encendida (Moonraker 2.0.0, Klippy preparado). ChatGPT descubre cinco herramientas predeterminadas de solo lectura. El puerto externo no está publicado y los perfiles opcionales siguen desactivados. **Aún no es una versión estable**: falta probar desde ChatGPT la impresora apagada, hacer una instalación limpia sin terminal, revisar los datos expuestos y autorizar la publicación.
+
+**New user installation / Instalación para nuevos usuarios:** [Full step-by-step guide in English and Spanish / Manual detallado en inglés y español](./INSTALLATION_EN_ES.md).
+
+> **Historical notes below / Notas históricas a continuación:** DEV2–DEV6 paragraphs retain their original development-stage wording (e.g. “not yet connected to ChatGPT”). Those statements are **superseded** by the current verified DEV7 status above; do not treat them as current release or security guidance.
+
+
 ## DEV7 — Legacy upstream session handshake for ChatGPT
 
 The first remote ChatGPT plugin registration attempt on DEV6 reached `tools/list` after successful modern `server/discover`, but the pinned upstream `mcp-raker` rejected the request with `method invalid during initialization`. The modern MCP protocol is stateless, while the pinned upstream expects the legacy `initialize` → `notifications/initialized` handshake for each new session.
