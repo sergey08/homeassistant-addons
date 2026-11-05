@@ -4,7 +4,7 @@ import json
 import unittest
 import urllib.error
 from unittest.mock import patch
-from moonraker_status import connection_status
+from moonraker_status import connection_status, public_printer_info
 
 
 class MockResponse:
@@ -55,6 +55,43 @@ class StatusTests(unittest.TestCase):
     def test_no_redirect(self):
         from moonraker_status import _NoRedirect
         self.assertIsNone(_NoRedirect().redirect_request(None, None, 302, "", {}, "https://another.example"))
+
+
+    def test_printer_info_redacts_paths_hostname_and_cpu(self):
+        private = {"result": {"state": "ready", "software_version": "v2.0.0",
+                              "hostname": "private-home-host",
+                              "cpu_info": "private-platform",
+                              "klipper_path": "/private/path",
+                              "python_path": "/usr/local/bin/python3",
+                              "config_file": "/private/printer.cfg",
+                              "log_file": "/private/klippy.log",
+                              "state_message": "internal diagnostic"}}
+        with patch("moonraker_status._OPENER.open", return_value=MockResponse(private)):
+            result = public_printer_info("http://printer.local:7125", "private-key")
+        self.assertEqual(result, {"state": "ready", "software_version": "v2.0.0"})
+        text = json.dumps(result)
+        for secret in ("private", "hostname", "path", "cpu", "log_file"):
+            self.assertNotIn(secret, text)
+
+    def test_printer_info_rejects_embedded_path_in_version(self):
+        with patch("moonraker_status._OPENER.open", return_value=MockResponse(
+            {"result": {"state": "ready", "software_version": "/private/version"}})):
+            self.assertEqual(public_printer_info("http://printer.local"),
+                             {"state": "ready"})
+
+    def test_printer_info_unavailable_without_leaking_request_url(self):
+        with patch("moonraker_status._OPENER.open",
+                   side_effect=urllib.error.URLError("http://private-secret:7125")):
+            result = public_printer_info("http://private-secret:7125", "private-key")
+        self.assertEqual(result, {"state": "offline_or_unreachable"})
+        self.assertNotIn("private", str(result))
+
+    def test_printer_info_authentication_error_is_generic(self):
+        with patch("moonraker_status._OPENER.open", side_effect=urllib.error.HTTPError(
+            "http://private-host", 403, "private-key", {}, None)):
+            result = public_printer_info("http://private-host", "private-key")
+        self.assertEqual(result, {"state": "authentication_error"})
+
 
 if __name__ == "__main__":
     unittest.main()
