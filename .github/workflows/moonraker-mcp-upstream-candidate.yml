@@ -91,6 +91,31 @@ jobs:
                   print("Candidate RPC failure",method,exc.code,
                         exc.read(4096).decode("utf-8","replace"))
                   raise
+          # Diagnose version negotiation without copying token or session IDs.
+          probe={"jsonrpc":"2.0","id":"_ci_probe","method":"initialize",
+                 "params":{"protocolVersion":"2025-06-18",
+                           "capabilities":{},
+                           "clientInfo":{"name":"candidate-diagnostic","version":"1"}}}
+          preq=urllib.request.Request("http://127.0.0.1:8766/",
+                                     data=json.dumps(probe).encode(),
+                                     headers={"Content-Type":"application/json",
+                                              "Accept":"application/json, text/event-stream"})
+          try:
+              with urllib.request.urlopen(preq,timeout=12) as res:
+                  raw=res.read(16384).decode("utf-8","replace")
+                  ctype=res.headers.get("Content-Type","").split(";")[0]
+                  if ctype=="text/event-stream":
+                      data_lines=[ln[5:].lstrip() for ln in raw.splitlines() if ln.startswith("data:")]
+                      raw=data_lines[0] if data_lines else "{}"
+                  obj=json.loads(raw)
+                  result=obj.get("result",{})
+                  print("Raw upstream init:",res.status,ctype,
+                        "agreed_protocol=",result.get("protocolVersion"),
+                        "result_keys=",sorted(result),
+                        "has_session=",bool(res.headers.get("Mcp-Session-Id")))
+          except urllib.error.HTTPError as exc:
+              print("Raw upstream init failed",exc.code,
+                    exc.read(1000).decode("utf-8","replace"))
           discovery=rpc("server/discover",{"_meta":metadata})
           assert discovery["result"]["supportedVersions"]==["2026-07-28"],discovery
           listing=rpc("tools/list",{"_meta":metadata})
@@ -107,6 +132,7 @@ jobs:
           PY
 
       - name: Scan patched candidate image
+        if: always()
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # reviewed v0.36.0
         with:
           image-ref: moonraker-mcp:patched-candidate
