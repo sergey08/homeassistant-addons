@@ -1,6 +1,7 @@
 # Upstream is a FROM scratch image: it contains no shell or jq.
 # Copy its statically linked Go binary into a minimal Alpine runtime.
-FROM ghcr.io/lexfrei/mcp-raker@sha256:cdfbb9b4ead2b3f8a253eb55c1996a69cfdbc17088cc111b7d265d8b71f7090e AS upstream
+ARG UPSTREAM_IMAGE=ghcr.io/lexfrei/mcp-raker@sha256:cdfbb9b4ead2b3f8a253eb55c1996a69cfdbc17088cc111b7d265d8b71f7090e
+FROM ${UPSTREAM_IMAGE} AS upstream
 # Pin vendor binary independently of any runtime GitHub availability.
 # For DEV5, automatic provisioning is limited to amd64 until the official
 # aarch64 artifact can be independently validated and pinned.
