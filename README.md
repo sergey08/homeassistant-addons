@@ -19,7 +19,7 @@ https://github.com/sergey08/homeassistant-addons
 
 ### Available apps
 
-**Obsidian MCP for Home Assistant — 0.2.2 (stable)**
+**Obsidian MCP for Home Assistant — see installed app version**
 
 - Markdown MCP tools for ChatGPT, private secure tunnel and bidirectional Self-hosted LiveSync.
 - Uses the same persistent vault directory as the original app when configured.
@@ -28,7 +28,7 @@ https://github.com/sergey08/homeassistant-addons
 [App source](./obsidian_suite/) · [Documentation](./obsidian_suite/DOCS.md)
 
 
-**Obsidian Client — 0.1.0-dev2 (experimental)**
+**Obsidian Client — see installed app version (experimental)**
 
 - Browse local Markdown notes under `/share` using Home Assistant Ingress.
 - Search note paths/names and render Markdown, tables and code blocks.
@@ -37,6 +37,14 @@ https://github.com/sergey08/homeassistant-addons
 **Not yet supported:** LiveSync/CouchDB connection and decryption, automatic sync, embedded attachments and wiki links. The app has been installed and tested on Home Assistant OS (HTTP 200, Gunicorn). Markdown rendering with real notes and LiveSync are not yet validated; this is not a stable release.
 
 [App source](./obsidian_client/) · [Documentation (EN/ES)](./obsidian_client/DOCS.md)
+
+**Moonraker MCP — 0.1.0-dev7 (experimental; pending review and integration)**
+
+- Read-only MCP gateway to Moonraker for Snapmaker U1, with an explicit tool allowlist and optional features disabled by default.
+- Optional OpenAI tunnel is **off by default**, requires each user to create a separate restricted OpenAI key. DEV5 adds a protected Home Assistant password field and automatically bundles and provisions the pinned official tunnel-client (amd64 only). DEV6 adds authenticated modern `server/discover` compatibility for the ChatGPT tunnel. **ChatGPT tunnel registration and three live read-only tool calls have been validated on Snapmaker U1. Stable release pending security/onboarding gates.**
+- Do not expose port 8765, reuse Obsidian tunnel credentials or assume deployment from a PR. DEV is installed through a branch-specific add-on repository URL; integration into `main` needs separate review.
+
+[DEV source](./moonraker_mcp/) · [Installation guide EN/ES](./moonraker_mcp/INSTALLATION_EN_ES.md) · [Security audit](./moonraker_mcp/SECURITY_AUDIT.md)
 
 ### Related project
 
@@ -60,7 +68,7 @@ https://github.com/sergey08/homeassistant-addons
 
 ### Aplicaciones disponibles
 
-**Obsidian MCP for Home Assistant — 0.2.2 (estable)**
+**Obsidian MCP for Home Assistant — consultar versión del complemento**
 
 - Herramientas MCP para ChatGPT, túnel privado y LiveSync bidireccional.
 - Reutiliza la bóveda persistente del complemento original si está configurada.
@@ -69,7 +77,7 @@ https://github.com/sergey08/homeassistant-addons
 [Código](./obsidian_suite/) · [Documentación](./obsidian_suite/DOCS.md)
 
 
-**Obsidian Client — 0.1.0-dev2 (experimental)**
+**Obsidian Client — consultar versión del complemento (experimental)**
 
 - Navega por notas Markdown locales dentro de `/share` mediante Ingress.
 - Busca por ruta o nombre y muestra Markdown, tablas y bloques de código.
@@ -78,6 +86,14 @@ https://github.com/sergey08/homeassistant-addons
 **Todavía no disponible:** conexión y descifrado LiveSync/CouchDB, sincronización automática, adjuntos y enlaces wiki. La aplicación ya se ha instalado y probado en Home Assistant OS (HTTP 200 y Gunicorn). Falta validar la lectura de notas reales y LiveSync; no es una versión estable.
 
 [Código de la aplicación](./obsidian_client/) · [Documentación (EN/ES)](./obsidian_client/DOCS.md)
+
+**Moonraker MCP — 0.1.0-dev7 (experimental; pendiente de revisión e integración)**
+
+- Pasarela MCP de solo lectura para Moonraker/Snapmaker U1, con lista cerrada de herramientas y funciones opcionales desactivadas por defecto.
+- El túnel OpenAI permanece **desactivado por defecto**. DEV5 permite introducir la clave restringida en un campo protegido de Home Assistant e instala automáticamente el cliente oficial verificado (solo amd64). DEV6 incorpora compatibilidad con `server/discover` para el túnel de ChatGPT. **Validado el registro del complemento en ChatGPT y tres consultas reales de solo lectura a Snapmaker U1. Pendientes pruebas de seguridad e instalación limpia antes de publicar estable.**
+- No publicar el puerto 8765 ni reutilizar la identidad del túnel Obsidian. La rama DEV se puede instalar como un catálogo independiente de Home Assistant con sufijo `#rama`; integrar en `main` exige revisión aparte.
+
+[Código DEV](./moonraker_mcp/) · [Manual de instalación EN/ES](./moonraker_mcp/INSTALLATION_EN_ES.md) · [Auditoría de seguridad](./moonraker_mcp/SECURITY_AUDIT.md)
 
 ### Proyecto relacionado
 
