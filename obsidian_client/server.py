@@ -271,6 +271,8 @@ No utiliza Obsidian MCP y no modifica las notas remotas ni tu bóveda local.</p>
 <p><button id="load" type="button">Consultar notas en CouchDB</button>
 <span id="status" role="status" aria-live="polite"></span></p>
 <ul id="notes"></ul><h2 id="selected-title"></h2><pre id="content"></pre>
+<p id="edit-action" hidden><a id="edit-link" href="#">Abrir editor Markdown (copia local independiente)</a></p>
+<p>El editor guarda una copia local privada. No modifica CouchDB ni sincroniza las notas.</p>
 <p><a href="../">Volver / Back</a></p>
 <script>
 const button=document.getElementById("load");
@@ -278,6 +280,8 @@ const status=document.getElementById("status");
 const list=document.getElementById("notes");
 const title=document.getElementById("selected-title");
 const content=document.getElementById("content");
+const editAction=document.getElementById("edit-action");
+const editLink=document.getElementById("edit-link");
 async function preview(path){
   const endpoint=path===undefined
     ?"../api/remote/encrypted-notes"
@@ -291,6 +295,7 @@ async function preview(path){
 }
 button.addEventListener("click",async()=>{
   button.disabled=true;list.replaceChildren();title.textContent="";content.textContent="";
+  editAction.hidden=true;editLink.removeAttribute("href");
   status.textContent="Consultando CouchDB…";
   try{
     const data=await preview();
@@ -300,8 +305,14 @@ button.addEventListener("click",async()=>{
       control.type="button";control.textContent=path;
       control.addEventListener("click",async()=>{
         title.textContent=path;content.textContent="Cargando…";
-        try{const note=await preview(path);content.textContent=note.content||"";}
-        catch(error){content.textContent="Error: "+error.message;}
+        editAction.hidden=true;editLink.removeAttribute("href");
+        try{
+          const note=await preview(path);
+          if(typeof note.content!=="string")throw Error("remote_content_missing");
+          content.textContent=note.content;
+          editLink.href="../remote/edit?path="+encodeURIComponent(path);
+          editAction.hidden=false;
+        }catch(error){content.textContent="Error: "+error.message;}
       });
       item.appendChild(control);list.appendChild(item);
     }
