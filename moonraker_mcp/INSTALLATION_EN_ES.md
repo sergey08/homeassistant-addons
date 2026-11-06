@@ -1,6 +1,6 @@
 # Moonraker MCP — Installation and configuration / Instalación y configuración
 
-> **Development preview (DEV7, 2026-11-05).** Do not merge into `main` or publish a stable release until release gates below are complete. English first, Spanish second.
+> **Development preview (DEV11, 2026-11-06).** Do not merge into `main` or publish a stable release until release gates below are complete. English first, Spanish second.
 
 ## English — Install without terminal commands
 
@@ -43,7 +43,7 @@ Open the official OpenAI Platform tunnel administration screen at `https://platf
 
 In `https://platform.openai.com/settings/organization/api-keys`, generate an **independent restricted API key** for the tunnel, with only the permissions required by the platform for the tunnel (currently **Tunnels: Read + Use** where offered). Enter that key in `openai_tunnel_api_key` in the **Home Assistant UI**. Do not paste it into terminal commands and do not reuse another MCP tunnel's key.
 
-DEV7 bundles the official pinned `tunnel-client` for amd64 in the add-on image. The add-on automatically provisions a private executable and token file when tunnel access is enabled. **New users do not need to install a ZIP or run Docker commands.**
+DEV11 bundles the official pinned `tunnel-client` for amd64 in the add-on image. The add-on automatically provisions a private executable and token file when tunnel access is enabled. **New users do not need to install a ZIP or run Docker commands.**
 
 ### 4. Start the app and enable the tunnel
 
@@ -57,17 +57,17 @@ DEV7 bundles the official pinned `tunnel-client` for amd64 in the add-on image. 
 
 Open **Settings → Plugins → Add → Custom MCP server** (menu labels vary by client). Select **Tunnel**, pick the tunnel you created for Moonraker, choose **No authentication** for the MCP endpoint **behind the tunnel**, then create the plugin. This does **not** mean the tunnel is publicly unauthenticated: the outbound OpenAI tunnel uses your restricted API key and an internal authenticated bridge uses the separate MCP bearer token.
 
-The actual DEV7 installation was verified with ChatGPT: five read-only tools were discovered, and live `moonraker_connection_status`, `moonraker_server_info` and `moonraker_mcp_version` calls succeeded. Other accounts/workspaces may behave differently. **Never expose the raw gateway port** to mimic this flow.
+The actual DEV11 installation was verified from ChatGPT using **all five read-only tools** through the private tunnel. This is a test of an existing installation, **not** a clean first-install test on another Home Assistant. Other accounts/workspaces may behave differently. **Never expose the raw gateway port** to mimic this flow.
 
 ### What ChatGPT can read by default
 
 - `moonraker_connection_status`: printer online / unavailable / not ready / credentials rejected.
 - `moonraker_mcp_version`: upstream MCP server version.
-- `moonraker_printer_info`: Klippy state and host/software information.
-- `moonraker_server_info`: Moonraker version and components.
-- `moonraker_temperature_store`: cached sensor/heater temperature history.
+- `moonraker_printer_info`: validated Klippy state and firmware/software version only; no host paths or CPU information.
+- `moonraker_server_info`: Moonraker version, API version and Klippy connection/readiness only; no component lists or warnings.
+- `moonraker_temperature_store`: up to 120 recent numeric readings per sensor series, with nonstandard sensor names anonymized.
 
-Some of these read-only tools expose hostnames, file paths and device metadata. The default profile has **no G-code execution, print start/stop, power control, upload, deletion, full file access, or Home Assistant administration**.
+The DEV11 default tools deliberately suppress hostnames and filesystem paths, but still reveal machine availability, versions and limited temperature activity. The default profile has **no G-code execution, print start/stop, power control, upload, deletion, full file access, or Home Assistant administration**.
 
 ### Troubleshooting / safety
 
@@ -77,7 +77,7 @@ Some of these read-only tools expose hostnames, file paths and device metadata. 
 | `authentication_error` | Moonraker API key and permissions |
 | Tunnel disabled or exits on startup | Ensure tunnel ID and restricted OpenAI key are filled in; check private file permissions and logs |
 | ChatGPT cannot add the server | Verify tunnel selection, account/workspace access, and the app's running status; review logs without disclosing credentials |
-| Add-on needs terminal intervention | Report as a DEV usability bug; a clean DEV7 install should not require manual provisioning |
+| Add-on needs terminal intervention | Report as a DEV usability bug; a clean DEV11 install should not require manual provisioning |
 
 ## Español — Instalación sin utilizar el terminal
 
@@ -120,7 +120,7 @@ En **Moonraker MCP (DEV) → Configuración**, introduce:
 
 En `https://platform.openai.com/settings/organization/tunnels`, crea un túnel exclusivo para esta impresora y copia su identificador en `tunnel_id`.
 
-En `https://platform.openai.com/settings/organization/api-keys`, crea una clave **Restricted** con los permisos mínimos necesarios para usar ese túnel (opciones **Tunnels Read + Use** cuando estén disponibles). Copia la clave **directamente en el campo protegido** `openai_tunnel_api_key` de Home Assistant. No es necesario abrir terminal, usar Docker ni descargar el cliente OpenAI: DEV7 ya lo incluye y aprovisiona automáticamente al activar el túnel.
+En `https://platform.openai.com/settings/organization/api-keys`, crea una clave **Restricted** con los permisos mínimos necesarios para usar ese túnel (opciones **Tunnels Read + Use** cuando estén disponibles). Copia la clave **directamente en el campo protegido** `openai_tunnel_api_key` de Home Assistant. No es necesario abrir terminal, usar Docker ni descargar el cliente OpenAI: DEV11 ya lo incluye y aprovisiona automáticamente al activar el túnel.
 
 ### 4. Arrancar y comprobar
 
@@ -132,11 +132,11 @@ Si Moonraker no responde, ChatGPT podrá indicar que la impresora **podría esta
 
 Abre **Configuración → Complementos → Añadir → Servidor MCP personalizado**, selecciona **Túnel**, elige tu túnel y usa **Sin autenticación** para el endpoint MCP *interno al túnel*. El túnel se autentica por separado y el gateway sigue protegido por su propio token.
 
-En nuestra prueba DEV7 real se descubrieron las cinco herramientas de lectura y se realizaron consultas desde ChatGPT a la Snapmaker U1. Eso no implica que todas las cuentas de ChatGPT tengan la misma función habilitada.
+En nuestra prueba DEV11 real se descubrieron las cinco herramientas de lectura y se realizaron consultas desde ChatGPT a la Snapmaker U1. Eso no implica que todas las cuentas de ChatGPT tengan la misma función habilitada.
 
 ### Permisos y limitaciones
 
-Por defecto solo se consultan conectividad, versión del MCP, información de Moonraker, información de Klippy y temperaturas almacenadas. Se mantienen desactivadas las consultas opcionales de ficheros G-code, historial, sensores, inventario Spoolman, energía y objetos Klipper. **No se pueden ejecutar G-code, iniciar o detener impresiones, borrar archivos ni controlar la alimentación mediante el perfil predeterminado.**
+Por defecto solo se consultan conectividad, versión del MCP, información de Moonraker, información de Klippy y temperaturas almacenadas. Se mantienen desactivadas las consultas opcionales de ficheros G-code, historial, sensores, inventario Spoolman, energía y objetos Klipper. En DEV11, el estado de servidor e impresora oculta rutas, nombres de host y detalles internos; el historial térmico está limitado a **120 muestras por serie** y los sensores personalizados se anonimizan. **No se pueden ejecutar G-code, iniciar o detener impresiones, borrar archivos ni controlar la alimentación mediante el perfil predeterminado.**
 
 ### Incidencias frecuentes
 
@@ -153,11 +153,11 @@ Por defecto solo se consultan conectividad, versión del MCP, información de Mo
 - [x] Pruebas CI, instalación de la rama desde GitHub y túnel con conexión real desde ChatGPT
 - [x] Cinco herramientas de lectura detectadas y consultas reales a una impresora encendida
 - [x] Puerto externo sin publicar; perfiles opcionales desactivados
-- [ ] Validar desde ChatGPT la impresora **apagada**, y su recuperación tras encenderla
-- [ ] Auditoría de datos reales expuestos por las herramientas predeterminadas; revisar redacción de hostname y rutas
+- [x] Validar desde ChatGPT la impresora **apagada**, y su recuperación tras encenderla
+- [x] Filtrado y pruebas reales de privacidad de las cinco herramientas predeterminadas de DEV11 (incluido historial térmico acotado)
 - [ ] Instalar desde cero en Home Assistant limpio **sin terminal**, con credenciales nuevas
-- [ ] Revisar consistencia de versión anunciada y mensajes de diagnóstico
+- [x] Comprobar la versión anunciada y las cinco herramientas reales de DEV11 desde ChatGPT
 - [ ] Verificar mantenimiento, rotación de secretos, recuperación ante fallos y copias de seguridad
 - [ ] Validar compatibilidad arm64 o documentar la limitación final
-- [ ] Revisar licencias/distribución del binario upstream y del cliente OpenAI incluido
+- [ ] Completar revisión humana de atribuciones y avisos de los componentes exactos del SBOM, obligaciones GPL/LGPL y distribución
 - [ ] Obtener autorización explícita para fusionar a `main` y publicar estable
