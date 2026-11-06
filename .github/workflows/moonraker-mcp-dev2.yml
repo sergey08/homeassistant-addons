@@ -231,6 +231,15 @@ jobs:
           test -s moonraker-mcp-audit/go-license-evidence.csv
           test -s moonraker-mcp-audit/go-license-evidence-summary.json
 
+      - name: Archive verified original Go LICENSE and NOTICE texts for maintainer review
+        run: |
+          set -eu
+          python3 moonraker_mcp/legal_text_bundle.py \
+            moonraker-mcp-audit/go-license-evidence.csv \
+            moonraker-mcp-audit/third-party-legal-texts.zip
+          test -s moonraker-mcp-audit/third-party-legal-texts.zip
+          test -s moonraker-mcp-audit/legal-text-bundle-summary.json
+
       - name: Generate unapproved reviewer worksheet for exact image SBOM
         run: |
           set -eu
@@ -271,6 +280,8 @@ jobs:
             moonraker-mcp-audit/license-review-summary.json
             moonraker-mcp-audit/go-license-evidence.csv
             moonraker-mcp-audit/go-license-evidence-summary.json
+            moonraker-mcp-audit/third-party-legal-texts.zip
+            moonraker-mcp-audit/legal-text-bundle-summary.json
             moonraker-mcp-audit/license-human-review-worksheet.csv
             moonraker-mcp-audit/license-review-pending.json
             moonraker-mcp-audit/trivy-results.json
