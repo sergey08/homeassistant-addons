@@ -28,6 +28,10 @@ class IndependentLibraryTests(unittest.TestCase):
         self.assertIn('content.textContent=note.content', body)
         self.assertIn('id="edit-action" hidden', body)
         self.assertIn('id="compare-local"', body)
+        for key in ("local_changed", "remote_changed", "conflict_both_changed", "same_result_both_changed", "local_missing", "no_baseline", "unchanged"):
+            self.assertIn(key + ':"', body)
+        self.assertIn("data.sync_state", body)
+        self.assertIn("data.remote_write_enabled===false", body)
         self.assertIn('id="import-private"', body)
         self.assertIn('../api/remote/import-private', body)
         self.assertIn('X-Obsidian-Client-Action":"import-private', body)

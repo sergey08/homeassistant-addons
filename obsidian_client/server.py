@@ -345,8 +345,10 @@ button.addEventListener("click",async()=>{
                   finally{importButton.disabled=false;}
                 };
               }
-              const labels={remote_only:"No hay copia local",identical:"Copia local idéntica",diverged_unknown_origin:"Las versiones difieren; requiere revisión manual"};
-              comparisonResult.textContent=labels[data.state]||"Estado desconocido";
+              const labels={no_baseline:"Sin línea base: no se puede atribuir el cambio",unchanged:"Sin cambios desde la línea base",local_changed:"Solo la copia privada ha cambiado",remote_changed:"Solo la nota remota ha cambiado",conflict_both_changed:"Conflicto: ambas versiones han cambiado de forma distinta",same_result_both_changed:"Ambas versiones convergen al mismo contenido",local_missing:"La copia local ha desaparecido"};
+              const legacy={remote_only:"No hay copia local",identical:"Copia local idéntica",diverged_unknown_origin:"Las versiones difieren; requiere revisión manual"};
+              const state=labels[data.sync_state]||legacy[data.state]||"Estado desconocido";
+              comparisonResult.textContent=state+(data.remote_write_enabled===false?" · CouchDB: solo lectura":"");
             }catch(error){if(currentSelection===selectionVersion)comparisonResult.textContent="Error: "+error.message;}
           };
           editAction.hidden=false;
