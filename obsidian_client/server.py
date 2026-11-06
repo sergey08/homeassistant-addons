@@ -282,6 +282,7 @@ const title=document.getElementById("selected-title");
 const content=document.getElementById("content");
 const editAction=document.getElementById("edit-action");
 const editLink=document.getElementById("edit-link");
+let selectionVersion=0;
 async function preview(path){
   const endpoint=path===undefined
     ?"../api/remote/encrypted-notes"
@@ -294,6 +295,7 @@ async function preview(path){
   return data;
 }
 button.addEventListener("click",async()=>{
+  selectionVersion++;
   button.disabled=true;list.replaceChildren();title.textContent="";content.textContent="";
   editAction.hidden=true;editLink.removeAttribute("href");
   status.textContent="Consultando CouchDB…";
@@ -304,15 +306,17 @@ button.addEventListener("click",async()=>{
       const control=document.createElement("button");
       control.type="button";control.textContent=path;
       control.addEventListener("click",async()=>{
+        const currentSelection=++selectionVersion;
         title.textContent=path;content.textContent="Cargando…";
         editAction.hidden=true;editLink.removeAttribute("href");
         try{
           const note=await preview(path);
+          if(currentSelection!==selectionVersion)return;
           if(typeof note.content!=="string")throw Error("remote_content_missing");
           content.textContent=note.content;
           editLink.href="../remote/edit?path="+encodeURIComponent(path);
           editAction.hidden=false;
-        }catch(error){content.textContent="Error: "+error.message;}
+        }catch(error){if(currentSelection===selectionVersion)content.textContent="Error: "+error.message;}
       });
       item.appendChild(control);list.appendChild(item);
     }
