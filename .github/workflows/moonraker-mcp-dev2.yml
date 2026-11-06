@@ -153,6 +153,11 @@ jobs:
               output.write("\n".join(summary)+"\n")
           PY
 
+      - name: Enforce patched-image HIGH and CRITICAL vulnerability threshold
+        run: |
+          set -eu
+          python3 moonraker_mcp/security_release_gate.py moonraker-mcp-audit/trivy-results.json
+
       - name: Verify redistribution notices are present inside image
         run: |
           set -eu
