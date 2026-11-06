@@ -35,6 +35,12 @@ The operating guide [Secret rotation and backup safety / Rotación de claves y c
 
 **ES:** El workflow de GitHub Actions **42220551342** ha validado la cola de conciliación de licencias. De **129 componentes** detectados, **92** carecen de metadatos de licencia en el SBOM: **89 son módulos Go con identificador `pkg:golang` y 3 no incluyen PURL**. Ningún paquete `pkg:apk` figura en este grupo específico. Los CSV/JSON de revisión se adjuntan al SBOM y al informe Trivy como artefactos temporales (14 días). Debemos contrastar las 89 versiones concretas de Go y los 3 componentes no identificados con sus fuentes y avisos legales antes de distribuir la versión estable.
 
+## 2026-11-06 — Exact Go source legal-file evidence / Fuentes originales contrastadas
+
+**EN:** A new CI step uses the exact public Go PURLs and versions from the CycloneDX license review queue, queries the public Go module proxy with checksum verification, and records hashes of bounded, non-symlink `LICENSE`, `COPYING`, `NOTICE`, `COPYRIGHT` or `AUTHORS` files found at module roots. It **never executes downloaded module code**, copies private keys or assumes an SPDX license from a filename. [Successful Actions run 42222304256](https://github.com/sergey08/homeassistant-addons/actions/runs/42222304256) processed all **92 pending component references**: **86** yielded source legal-file evidence and **6** remain manual review. Since 3 of the 92 have no Go PURL, the six unresolved include those three plus three remaining Go module references. This is provenance evidence only: actual license text, copyleft obligations and required redistribution notices have not been legally cleared. Artifacts retain a CSV of source file hashes and module checksums for 14 days.
+
+**ES:** Una nueva comprobación de CI contrasta las versiones exactas de los módulos Go con sus fuentes públicas y registra las huellas SHA-256 de archivos legales encontrados, sin ejecutar el código de las dependencias ni inferir automáticamente sus licencias. La ejecución real de GitHub Actions **42222304256** terminó correctamente: **86 de 92 componentes pendientes** tienen ahora evidencia de archivos legales en origen; **6 siguen pendientes** (3 sin identificador PURL y 3 módulos Go). No supone aprobación de redistribución: todavía hay que revisar las condiciones y los avisos de cada licencia.
+
 ## English
 
 ### Binary provenance
