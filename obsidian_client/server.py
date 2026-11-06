@@ -1373,11 +1373,67 @@ def compare_local_and_remote():
             local = None
         else:
             return jsonify(error="local_read_failed", read_only=True), 409
+    from client_sync_baseline import load_baseline, classify, BaselineError
+    try:
+        baseline = load_baseline("/data/obsidian-client-sync-baselines", path)
+        lineage = classify(baseline, remote, local)
+    except BaselineError:
+        return jsonify(error="baseline_unavailable", read_only=True), 409
     result = compare_note_contents(remote, local)
-    response = jsonify(path=path, **result, read_only=True,
-                       remote_write_enabled=False, baseline_available=False)
+    response = jsonify(path=path, **result, **lineage, read_only=True,
+                       remote_write_enabled=False)
     response.headers["Cache-Control"] = "no-store"
     return response
+
+
+@app.post("/api/remote/establish-baseline")
+def establish_verified_baseline():
+    """Explicit enrollment only when private/local and verified remote copies match."""
+    from private_markdown_vault import LocalVaultError, read_note, _path
+    from client_sync_baseline import establish_baseline, BaselineError, digest
+    from storage_selection import select_storage, StorageSelectionError
+    if request.headers.get("X-Obsidian-Client-Action") != "establish-baseline":
+        return jsonify(error="missing_action_header"), 403
+    if request.headers.get("Sec-Fetch-Site") not in (None, "same-origin"):
+        return jsonify(error="cross_origin_blocked"), 403
+    if request.headers.get("Origin") and request.headers.get("Sec-Fetch-Site") != "same-origin":
+        return jsonify(error="cross_origin_blocked"), 403
+    if request.mimetype != "application/json" or request.content_length is None or request.content_length > 2048:
+        return jsonify(error="invalid_request"), 400
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict) or set(payload) != {"path", "expected_sha256"}:
+        return jsonify(error="invalid_request"), 400
+    path = payload.get("path")
+    expected = payload.get("expected_sha256")
+    try:
+        selected = select_storage(options(), private_vault=_PRIVATE_VAULT,
+                                  shared_vault=_MCP_SHARED_VAULT)
+        if not selected["independent_of_mcp"] or selected["mode"] != "local":
+            return jsonify(error="independent_local_mode_required"), 409
+        _path(editor_markdown_vault(), path)
+        if not isinstance(expected, str) or len(expected) != 64:
+            return jsonify(error="invalid_expected_hash"), 400
+    except (StorageSelectionError, LocalVaultError):
+        return jsonify(error="invalid_storage_or_path"), 409
+    remote, error = read_encrypted_note(path, verify_revision=True)
+    if error:
+        return jsonify(error="remote_snapshot_not_verified"), 409
+    if digest(remote) != expected:
+        return jsonify(error="remote_content_changed"), 409
+    try:
+        with _local_save_lock:
+            local = read_note(editor_markdown_vault(), path)["content"]
+            if digest(local) != expected:
+                return jsonify(error="local_content_changed"), 409
+            baseline = establish_baseline("/data/obsidian-client-sync-baselines",
+                                          path, remote, local)
+    except LocalVaultError:
+        return jsonify(error="local_copy_unavailable"), 409
+    except BaselineError:
+        return jsonify(error="baseline_conflict"), 409
+    return jsonify(status="baseline_established", created=baseline["created"],
+                   sha256=baseline["sha256"], remote_write_enabled=False,
+                   sync_enabled=False), 201 if baseline["created"] else 200
 
 
 @app.get("/api/editor/storage-status")

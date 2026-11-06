@@ -79,7 +79,8 @@ RUN mkdir -p /data/livesync-client \
     && node --version \
     && node /opt/livesync-cli/dist/index.cjs --help >/dev/null
 RUN pip install --no-cache-dir flask==3.1.1 Markdown==3.8.2 gunicorn==23.0.0 cryptography==46.0.3
-COPY server.py client_note_comparison.py client_sync_engine.py storage_selection.py private_markdown_vault.py livesync_plain.py livesync_crypto.py livesync_metadata.py livesync_encrypted_parent_snapshot.py livesync_revision_contract.py livesync_write_preflight.py couchdb_cas.py livesync_cli_bridge.py /app/
+COPY server.py client_sync_baseline.py client_note_comparison.py client_sync_engine.py storage_selection.py private_markdown_vault.py livesync_plain.py livesync_crypto.py livesync_metadata.py livesync_encrypted_parent_snapshot.py livesync_revision_contract.py livesync_write_preflight.py couchdb_cas.py livesync_cli_bridge.py /app/
+RUN python -c "from client_sync_baseline import classify, digest; assert classify(digest('a'), 'a', 'a')['sync_state']=='unchanged'"
 RUN python -c "from client_note_comparison import compare_note_contents; from livesync_encrypted_parent_snapshot import validate_encrypted_parent_snapshot; from livesync_revision_contract import require_matching_revision; assert compare_note_contents('same', 'same')['identical']"
 EXPOSE 8099
 CMD ["sh", "-c", "mkdir -p /data/livesync-client && chmod 700 /data/livesync-client && exec gunicorn --bind 0.0.0.0:8099 --workers 1 --threads 4 --access-logfile - server:app"]
