@@ -271,7 +271,7 @@ No utiliza Obsidian MCP y no modifica las notas remotas ni tu bóveda local.</p>
 <p><button id="load" type="button">Consultar notas en CouchDB</button>
 <span id="status" role="status" aria-live="polite"></span></p>
 <ul id="notes"></ul><h2 id="selected-title"></h2><pre id="content"></pre>
-<p id="edit-action" hidden><a id="edit-link" href="#">Abrir editor Markdown (copia local independiente)</a> <button id="compare-local" type="button">Comparar con copia local</button></p>
+<p id="edit-action" hidden><a id="edit-link" href="#">Abrir editor Markdown (copia local independiente)</a> <button id="compare-local" type="button">Comparar con copia local</button> <button id="import-private" type="button" hidden>Importar copia privada</button></p>
 <p id="comparison-result" role="status" aria-live="polite"></p>
 <p>El editor guarda una copia local privada. No modifica CouchDB ni sincroniza las notas.</p>
 <p><a href="../">Volver / Back</a></p>
@@ -284,6 +284,7 @@ const content=document.getElementById("content");
 const editAction=document.getElementById("edit-action");
 const editLink=document.getElementById("edit-link");
 const compareButton=document.getElementById("compare-local");
+const importButton=document.getElementById("import-private");
 const comparisonResult=document.getElementById("comparison-result");
 let selectionVersion=0;
 async function preview(path){
@@ -300,7 +301,7 @@ async function preview(path){
 button.addEventListener("click",async()=>{
   selectionVersion++;
   button.disabled=true;list.replaceChildren();title.textContent="";content.textContent="";
-  editAction.hidden=true;editLink.removeAttribute("href");comparisonResult.textContent="";
+  editAction.hidden=true;editLink.removeAttribute("href");importButton.hidden=true;comparisonResult.textContent="";
   status.textContent="Consultando CouchDB…";
   try{
     const data=await preview();
@@ -311,7 +312,7 @@ button.addEventListener("click",async()=>{
       control.addEventListener("click",async()=>{
         const currentSelection=++selectionVersion;
         title.textContent=path;content.textContent="Cargando…";
-        editAction.hidden=true;editLink.removeAttribute("href");comparisonResult.textContent="";
+        editAction.hidden=true;editLink.removeAttribute("href");importButton.hidden=true;comparisonResult.textContent="";
         try{
           const note=await preview(path);
           if(currentSelection!==selectionVersion)return;
@@ -325,6 +326,25 @@ button.addEventListener("click",async()=>{
               const data=await result.json();
               if(currentSelection!==selectionVersion)return;
               if(!result.ok)throw Error(data.error||"comparison_failed");
+              importButton.hidden=!(data.state==="remote_only"&&data.baseline_available===false&&data.remote_write_enabled===false);
+              if(!importButton.hidden){
+                importButton.onclick=async()=>{
+                  if(currentSelection!==selectionVersion)return;
+                  if(!confirm("¿Crear una copia Markdown privada de esta nota? No se modifica CouchDB."))return;
+                  importButton.disabled=true;comparisonResult.textContent="Importando en el almacenamiento privado…";
+                  try{
+                    const response=await fetch("../api/remote/import-private",{method:"POST",credentials:"same-origin",
+                      headers:{"Content-Type":"application/json","X-Obsidian-Client-Action":"import-private"},
+                      body:JSON.stringify({path:path,expected_sha256:data.remote_sha256})});
+                    const imported=await response.json();
+                    if(currentSelection!==selectionVersion)return;
+                    if(!response.ok)throw Error(imported.error||"private_import_failed");
+                    importButton.hidden=true;
+                    comparisonResult.textContent="Copia privada creada con línea base. CouchDB sin cambios.";
+                  }catch(error){if(currentSelection===selectionVersion)comparisonResult.textContent="Importación no completada: "+error.message;}
+                  finally{importButton.disabled=false;}
+                };
+              }
               const labels={remote_only:"No hay copia local",identical:"Copia local idéntica",diverged_unknown_origin:"Las versiones difieren; requiere revisión manual"};
               comparisonResult.textContent=labels[data.state]||"Estado desconocido";
             }catch(error){if(currentSelection===selectionVersion)comparisonResult.textContent="Error: "+error.message;}
