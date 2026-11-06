@@ -47,6 +47,21 @@ The operating guide [Secret rotation and backup safety / Rotación de claves y c
 
 **ES:** Los registros de CI identifican las seis referencias restantes: **dos registros de `stdlib` Go 1.27.3**, **un registro de `github.com/openai/tunnel-client` sin versión normalizada**, **Alpine 3.22.8** y **dos registros de archivos ejecutables** (el binario de túnel y `mcp-raker`). No son seis librerías Go desconocidas. Deben conciliarse con las licencias originales de la distribución Go, cliente OpenAI, imagen Alpine y código fuente `mcp-raker`. Mantener la distinción entre una atribución candidata y el cumplimiento legal completo.
 
+## 2026-11-06 — Verified official legal sources for special components / Licencias originales verificadas
+
+**EN:** Compared exact authoritative GitHub revisions, not guessed SPDX classifications:
+
+| SBOM component | Verified authoritative license source | Distribution evidence |
+| --- | --- | --- |
+| Go `stdlib v1.27.3` (two entries) | [`golang/go` `go1.27.3` `LICENSE`](https://github.com/golang/go/blob/go1.27.3/LICENSE), copyright Go Authors, BSD-style 3-condition terms | Added the **complete** text verbatim to `licenses/go-toolchain-BSD-3-Clause.txt`; Docker copies `licenses/` to `/usr/share/doc/moonraker-mcp/licenses`; CI checks text present |
+| `mcp-raker` compiled executable | [`lexfrei/mcp-raker` pinned source commit `f01636bec21a21cfc5f9ee84dc68dad7d44d6dd9` `LICENSE`](https://github.com/lexfrei/mcp-raker/blob/f01636bec21a21cfc5f9ee84dc68dad7d44d6dd9/LICENSE), BSD-3-Clause | Existing exact license `mcp-raker-BSD-3-Clause.txt` bundled and verified in CI |
+| OpenAI tunnel-client v0.0.19 and its copied executable | [`LICENSE`](https://github.com/openai/tunnel-client/blob/v0.0.19/LICENSE) Apache-2.0 and [`NOTICE`](https://github.com/openai/tunnel-client/blob/v0.0.19/NOTICE) | Both texts already bundled and checked by CI; release artifact ZIP SHA-256 separately verified |
+| Alpine 3.22.8 base image | Alpine is a collection of packages under **different licenses**, not one uniform Alpine license. `apk info -a` reports installed package details including license metadata. | DEV CI now archives `alpine-package-metadata.txt` and `alpine-packages.txt`; Trivy license scan and CycloneDX SBOM retained for obligations review |
+
+These checks address primary attribution for the **six exceptional SBOM entries**, not the obligations of every transitively redistributed dependency. In particular, retaining GPL/LGPL software packages may trigger corresponding license/source provisions; no blanket redistribution approval is granted here. The Alpine `3.22` Docker tag is still mutable and needs a digest before stable release.
+
+**ES:** Se han verificado las fuentes oficiales exactas de **Go 1.27.3 (licencia BSD de la distribución Go)**, **mcp-raker (BSD-3-Clause en el commit fijado)** y **tunnel-client OpenAI v0.0.19 (Apache-2.0 + NOTICE)**. La licencia de Go ya está incluida en la imagen y validada por CI. Alpine no tiene una sola licencia para todos sus componentes: se guardará la información de licencias de los paquetes efectivamente instalados mediante `apk info -a`. Los seis registros especiales cuentan así con un origen de atribución definido, pero **no se declara cerrada la auditoría legal** de toda la distribución. Pendientes: obligaciones GPL/LGPL y otras licencias transitivas, atribuciones y revisión del inventario completo; fijación digest de Alpine; instalación limpia en otro Home Assistant y aprobación final.
+
 ## English
 
 ### Binary provenance
