@@ -158,6 +158,54 @@ jobs:
           set -eu
           python3 moonraker_mcp/security_release_gate.py moonraker-mcp-audit/trivy-results.json
 
+      - name: Generate CycloneDX inventory from actual DEV11 Docker image
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # full SHA, same reviewed scanner
+        with:
+          image-ref: moonraker-mcp:ci
+          format: cyclonedx
+          output: moonraker-mcp-audit/sbom.cdx.json
+          scanners: vuln,license
+          exit-code: '0'
+
+      - name: Validate machine-readable SBOM provenance and required component types
+        run: |
+          python3 - <<'PY'
+          import collections,json,pathlib
+          p=pathlib.Path("moonraker-mcp-audit/sbom.cdx.json")
+          if not p.is_file() or p.stat().st_size < 100:
+              raise SystemExit("SBOM missing or empty")
+          doc=json.loads(p.read_text())
+          if doc.get("bomFormat")!="CycloneDX" or not doc.get("specVersion"):
+              raise SystemExit("Invalid CycloneDX document")
+          components=doc.get("components")
+          if not isinstance(components,list) or not components:
+              raise SystemExit("SBOM has no components")
+          ids=[item.get("bom-ref") for item in components if isinstance(item,dict)]
+          if not ids or len(set(ids)) != len(ids):
+              raise SystemExit("SBOM component identifiers absent or duplicated")
+          types=collections.Counter(c.get("type","unknown") for c in components)
+          licenses=sum(bool(c.get("licenses")) for c in components)
+          summary={"bomFormat":doc["bomFormat"],"specVersion":doc["specVersion"],
+                   "components":len(components),"component_types":dict(types),
+                   "components_with_license_metadata":licenses,
+                   "warning":"An SBOM is not independent legal clearance or reproducible-build attestation"}
+          pathlib.Path("moonraker-mcp-audit/sbom-summary.json").write_text(
+              json.dumps(summary,indent=2,sort_keys=True)+"\n")
+          print(json.dumps(summary,indent=2,sort_keys=True))
+          PY
+
+      - name: Retain signed-off candidate SBOM evidence for maintainer review
+        uses: actions/upload-artifact@v4
+        with:
+          name: moonraker-mcp-dev11-cyclonedx-sbom
+          path: |
+            moonraker-mcp-audit/sbom.cdx.json
+            moonraker-mcp-audit/sbom-summary.json
+            moonraker-mcp-audit/trivy-results.json
+            moonraker-mcp-audit/scan-summary.md
+          retention-days: 14
+          if-no-files-found: error
+
       - name: Verify redistribution notices are present inside image
         run: |
           set -eu
