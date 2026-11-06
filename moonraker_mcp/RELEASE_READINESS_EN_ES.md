@@ -84,6 +84,12 @@ Además, ambas etapas Alpine del Dockerfile se han fijado al **digest SHA-256 ex
 
 **ES:** Incorporado un control de publicación que solo acepta una **revisión humana documentada para cada componente de la versión exacta del SBOM**, vinculada mediante SHA-256 canónico. Si hay un componente sin revisar, faltan avisos/obligaciones, se duplica una referencia o cambia el SBOM, la versión estable queda bloqueada. Las pruebas y la CI comprueban que, sin aprobaciones, no es posible pasar este control. **No es una certificación legal automática** ni sustituye la autorización expresa de publicación. Hasta completar los avisos y obligaciones reales (incluidas GPL/LGPL), se mantiene la PR en borrador.
 
+## 2026-11-06 — Human license review worksheet / Plantilla para revisión humana
+
+**EN:** The new deterministic `license_review_worksheet.py` converts the **exact built-image CycloneDX SBOM** into two artifacts: `license-human-review-worksheet.csv` (a reviewer-friendly table including detected license metadata) and `license-review-pending.json` (an exact-SBOM SHA-256-bound manifest). **Every component starts as PENDING**, whether or not the scanner reports a license. The reviewer must verify authoritative license text and source/NOTICE obligations and record evidence, reviewer and completed status. The stable release gate explicitly rejects the generated pending manifest, and CI tests this fail-closed behavior. This is a workflow aid, not a substitute for legal review, an approval, or evidence that all notices are included. The CSV/JSON files are temporary CI artifacts and must be preserved securely by the maintainer when the review actually occurs.
+
+**ES:** Se ha creado una plantilla de revisión para **cada componente exacto del SBOM**: CSV editable con nombre, versión, PURL y metadatos automáticos; y JSON vinculado al SHA-256 del inventario. Todos los registros se crean en estado **PENDING** incluso cuando Trivy detecta alguna licencia. El proceso de publicación comprueba que esa plantilla sin revisar **no puede autorizar una versión estable**. Para completar cada registro habrá que contrastar texto legal original, avisos y posibles obligaciones de entrega de código fuente, dejando evidencia y responsable. No hay aprobaciones automáticas ni se ha publicado versión estable.
+
 ## English
 
 ### Binary provenance
