@@ -267,7 +267,7 @@ def independent_remote_library():
         return page('<h1>Biblioteca remota</h1><p>CLI LiveSync deshabilitada.</p>'), 409
     body = """<h1>Biblioteca remota / Remote library</h1>
 <p>Lectura independiente de notas cifradas desde CouchDB mediante Self-hosted LiveSync.
-No utiliza Obsidian MCP y no modifica las notas remotas ni tu bóveda local.</p>
+No utiliza Obsidian MCP. Las consultas son de solo lectura; la importación modifica exclusivamente la bóveda privada del cliente, tras confirmación explícita.</p>
 <p><button id="load" type="button">Consultar notas en CouchDB</button>
 <span id="status" role="status" aria-live="polite"></span></p>
 <ul id="notes"></ul><h2 id="selected-title"></h2><pre id="content"></pre>
