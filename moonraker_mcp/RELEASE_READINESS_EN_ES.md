@@ -1,6 +1,26 @@
 # Release readiness and supply-chain audit / Preparación y cadena de suministro
 
-**Date / Fecha: 2026-11-05 · DEV10.** Evidence collected against the pinned code and the development Docker build, not a formal third-party security certification.
+**Current status / Estado actual: 2026-11-06 · DEV11 · DEVELOPMENT ONLY.** Historical sections below document DEV10 and earlier investigations. Evidence comes from pinned-source builds, CI and the tested private installation; it is not a third-party security or legal certification.
+
+## Current release decision / Decisión actual de publicación — DEV11
+
+**ES — NO APTO todavía para publicación estable.** El MCP 0.1.0-dev11 está operativo en el Home Assistant existente y las cinco herramientas de solo lectura se han verificado mediante el túnel privado desde ChatGPT. El puerto MCP 8765 no está publicado. GitHub Actions superó las pruebas del código y la imagen construida tiene 0 hallazgos HIGH/CRITICAL según Trivy en las ejecuciones verificadas. **Esto no demuestra instalación independiente, cumplimiento de licencias ni seguridad absoluta.**
+
+| Requisito / Requirement | Estado / Status | Evidencia y condición / Evidence and condition |
+| --- | --- | --- |
+| Cinco herramientas read-only vía túnel / Five read-only tools | VERIFIED / VALIDADO | Prueba real DEV11 sobre Snapmaker U1 existente; no habilitar perfiles adicionales por defecto |
+| Escáner de imagen / Image vulnerability scan | VERIFIED WITH LIMITS / VALIDADO CON LÍMITES | CI DEV11, 0 HIGH y 0 CRITICAL; revisar hallazgos restantes y nueva imagen antes de publicación |
+| Inventario SBOM exacto / Built-image CycloneDX SBOM | INVENTORIED / INVENTARIADO | 129 componentes; 37 con metadatos de licencia automáticos y 92 sin ellos |
+| Evidencia de licencias / License text evidence | COLLECTED, NOT APPROVED / RECOPILADA, NO APROBADA | 96 archivos LICENSE/NOTICE/etc. para 86 módulos Go; atribuciones especiales y 37 paquetes Alpine catalogados |
+| Obligaciones de redistribución / Redistribution obligations | BLOCKED / BLOQUEADO | Revisión humana del SBOM exacto, atribuciones y aviso/código fuente, en especial GPL/LGPL/MPL; control fail-closed no sustituye dictamen legal |
+| Instalación en segundo HA / Second independent HA install | NOT TESTED / NO PROBADO | HAOS/Supervisor amd64 limpio, solo UI, túnel y credenciales nuevos; seguir CLEAN_INSTALL_ACCEPTANCE_EN_ES.md |
+| Rotación de credenciales y restauración / Credential rotation and restore | NOT TESTED / NO PROBADO | Realizar únicamente en instalación desechable; sin revelar secretos |
+| arm64 | NOT VALIDATED / NO VALIDADO | Documentar restricción amd64 si se libera una preview |
+| Publicación / Stable release | BLOCKED / BLOQUEADA | Requiere evidencias anteriores y aprobación expresa del mantenedor |
+
+**EN — NOT READY for stable release.** The existing DEV11 installation and private-tunnel read-only workflow are verified. However, independent clean HAOS installation, full human notice/source-license review and disposable-environment credential rotation/restore are untested or incomplete. The license gate is documentary and must not be treated as automatic legal approval. Keep PR #89 in DRAFT and do not merge to `main` or publish stable until these gates and explicit owner approval are satisfied.
+
+**No editar ni exportar credenciales; no abrir 8765; no habilitar escritura por defecto. / Do not disclose credentials, expose port 8765 or enable write capabilities by default.**
 
 ## 2026-11-05 — Embedded dependency inventory, CI and secret handling
 
