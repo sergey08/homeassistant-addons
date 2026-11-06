@@ -96,6 +96,12 @@ Además, ambas etapas Alpine del Dockerfile se han fijado al **digest SHA-256 ex
 
 **ES:** Se ha incorporado una herramienta para conservar en un ZIP los textos `LICENSE`/`NOTICE` originales de las dependencias Go, vinculados a las versiones y huellas previamente verificadas. Solo recopila archivos legales, no código fuente completo ni ejecutables, e incluye un manifiesto de procedencia. **No se instala automáticamente en Home Assistant ni significa autorización para distribuir**: una revisión humana debe decidir qué avisos incorporar y qué obligaciones adicionales cumplir. La CI debe validar el ZIP y sus cantidades finales.
 
+## 2026-11-06 — Legal text ZIP verified / ZIP de avisos legales verificado
+
+**EN:** Complete [GitHub Actions run 42243059456](https://github.com/sergey08/homeassistant-addons/actions/runs/42243059456) successfully produced the version-locked legal-text archive. The tool collected **96 original LICENSE/NOTICE-style files**, **507,537 bytes total**, covering **86 exact Go module component references**; no source files in the preceding verified evidence were missing or failed the rechecked digests. The archive contains `MANIFEST.json` recording `bom_ref`, exact module/version, module checksum, legal filename and SHA-256. This is provided as a short-retention Actions artifact and **has not been copied to the deployed DEV11 image**. Finding original legal texts is evidence for attribution review, not license classification or an authorization to distribute. The six exceptional SBOM components remain on a separate attribution track.
+
+**ES:** La ejecución completa de GitHub Actions ha generado y verificado un ZIP con **96 archivos legales originales**, **507.537 bytes**, correspondientes a **86 módulos Go de versión exacta**. Se han contrastado las huellas SHA-256 con la evidencia previa y se conserva un manifiesto dentro del ZIP. **No se ha instalado el ZIP en Home Assistant ni aprobado ninguna licencia.** Su finalidad es permitir revisar los textos reales y decidir qué avisos y obligaciones deben acompañar a la futura distribución. Los seis registros especiales del SBOM continúan documentados por separado.
+
 ## English
 
 ### Binary provenance
