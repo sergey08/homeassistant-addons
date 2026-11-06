@@ -265,8 +265,19 @@ def filter_reply(method, response, allowed, cursor=None):
     if not isinstance(response, dict) or not isinstance(response.get("result"), dict):
         raise PolicyError("Invalid tools/list response")
     result = response["result"]
-    if any(key not in ("tools", "nextCursor") for key in result):
+    if any(key not in ("tools", "nextCursor", "cacheScope", "ttlMs") for key in result):
         raise PolicyError("Unexpected tools/list result fields")
+    # Newer upstream SDK includes cache metadata. It is not trusted as a
+    # remote policy decision and must never be forwarded to ChatGPT.
+    if "cacheScope" in result and (
+            not isinstance(result["cacheScope"], str)
+            or not 0 < len(result["cacheScope"]) <= 64
+            or not result["cacheScope"].isascii()):
+        raise PolicyError("Invalid upstream tools/list cache scope")
+    if "ttlMs" in result and (
+            type(result["ttlMs"]) is not int
+            or not 0 <= result["ttlMs"] <= 2**31 - 1):
+        raise PolicyError("Invalid upstream tools/list cache TTL")
     if "nextCursor" in result and (not isinstance(result["nextCursor"], str) or
                                    not 0 < len(result["nextCursor"]) <= 512):
         raise PolicyError("Invalid upstream tools/list cursor")
@@ -276,8 +287,10 @@ def filter_reply(method, response, allowed, cursor=None):
     local_tools = (([LOCAL_STATUS_DEFINITION] if LOCAL_STATUS_TOOL in allowed else []) +
                    [tool for name, tool in LOCAL_FILE_TOOLS.items() if name in allowed]
                    if cursor is None else [])
-    response["result"] = dict(result, tools=[tool for tool in filter_tools(result.get("tools"), allowed)
-                                                   if tool["name"] not in LOCAL_FILE_TOOLS and tool["name"] != LOCAL_STATUS_TOOL] + local_tools)
+    safe_result = {key: value for key, value in result.items()
+                   if key in ("tools", "nextCursor")}
+    response["result"] = dict(safe_result, tools=[tool for tool in filter_tools(result.get("tools"), allowed)
+                                                        if tool["name"] not in LOCAL_FILE_TOOLS and tool["name"] != LOCAL_STATUS_TOOL] + local_tools)
     for tool in response["result"]["tools"]:
         if tool["name"] == PRIVACY_SAFE_PRINTER_INFO:
             tool["description"] = ("Read printer state and software version only. "
