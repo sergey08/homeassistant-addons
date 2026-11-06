@@ -98,7 +98,8 @@ jobs:
                            "clientInfo":{"name":"candidate-diagnostic","version":"1"}}}
           preq=urllib.request.Request("http://127.0.0.1:8766/",
                                      data=json.dumps(probe).encode(),
-                                     headers={"Content-Type":"application/json",
+                                     headers={"Authorization":"Bearer ci-candidate-private-token",
+                                              "Content-Type":"application/json",
                                               "Accept":"application/json, text/event-stream"})
           try:
               with urllib.request.urlopen(preq,timeout=12) as res:
