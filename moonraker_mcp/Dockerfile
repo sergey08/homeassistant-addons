@@ -1,7 +1,23 @@
-# Upstream is a FROM scratch image: it contains no shell or jq.
-# Copy its statically linked Go binary into a minimal Alpine runtime.
-ARG UPSTREAM_IMAGE=ghcr.io/lexfrei/mcp-raker@sha256:cdfbb9b4ead2b3f8a253eb55c1996a69cfdbc17088cc111b7d265d8b71f7090e
-FROM ${UPSTREAM_IMAGE} AS upstream
+# DEV11 patched upstream: source pinned by Git commit and Go builder by digest.
+# Never fetch the moving 'master' branch for a production add-on build.
+FROM docker.io/library/golang:1.27.3-alpine@sha256:d200d2dd76b03a99b52651fd1325aff7dcd35422c35c01bac56571b0507f3deb AS upstream_build
+RUN apk add --no-cache ca-certificates git
+ARG UPSTREAM_COMMIT=f01636bec21a21cfc5f9ee84dc68dad7d44d6dd9
+WORKDIR /src
+RUN set -eu; \
+    git init .; \
+    git remote add origin https://github.com/lexfrei/mcp-raker.git; \
+    git fetch --depth=1 origin "$UPSTREAM_COMMIT"; \
+    test "$(git rev-parse FETCH_HEAD)" = "$UPSTREAM_COMMIT"; \
+    git checkout --detach FETCH_HEAD; \
+    test "$(git rev-parse HEAD)" = "$UPSTREAM_COMMIT"
+RUN go mod download && go mod verify
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go test ./...
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
+    -trimpath -ldflags "-s -w -X main.version=0.2.0-patched-dev11 -X main.revision=f01636bec21a21cfc5f9ee84dc68dad7d44d6dd9" \
+    -o /tmp/mcp-raker ./cmd/mcp-raker
+FROM scratch AS upstream
+COPY --from=upstream_build /tmp/mcp-raker /mcp-raker
 # Pin vendor binary independently of any runtime GitHub availability.
 # For DEV5, automatic provisioning is limited to amd64 until the official
 # aarch64 artifact can be independently validated and pinned.
