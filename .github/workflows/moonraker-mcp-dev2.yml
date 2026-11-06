@@ -231,6 +231,20 @@ jobs:
           test -s moonraker-mcp-audit/go-license-evidence.csv
           test -s moonraker-mcp-audit/go-license-evidence-summary.json
 
+      - name: Confirm stable license-documentation gate is closed without manual reviews
+        run: |
+          set -eu
+          # Every future stable release must have an exact-SBOM review manifest.
+          # This development job expects the release gate to refuse missing
+          # approvals; it MUST NOT silently authorize distribution.
+          if python3 moonraker_mcp/license_release_gate.py \
+              moonraker-mcp-audit/sbom.cdx.json \
+              moonraker-mcp-audit/license-reviewed-approvals.json; then
+            echo "SECURITY FAILURE: stable license gate accepted missing approvals"
+            exit 1
+          fi
+          echo "Stable release remains blocked until exact-SBOM manual legal review"
+
       - name: Retain signed-off candidate SBOM evidence for maintainer review
         uses: actions/upload-artifact@v4
         with:
