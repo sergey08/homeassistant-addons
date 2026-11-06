@@ -271,8 +271,8 @@ No utiliza Obsidian MCP. Las consultas son de solo lectura; la importación modi
 <p><button id="load" type="button">Consultar notas en CouchDB</button>
 <span id="status" role="status" aria-live="polite"></span></p>
 <ul id="notes"></ul><h2 id="selected-title"></h2><pre id="content"></pre>
-<p id="edit-action" hidden><a id="edit-link" href="#">Abrir editor Markdown (copia local independiente)</a> <button id="compare-local" type="button">Comparar con copia local</button> <button id="import-private" type="button" hidden>Importar copia privada</button></p>
-<p id="comparison-result" role="status" aria-live="polite"></p>
+<p id="edit-action" hidden><a id="edit-link" href="#">Abrir editor Markdown (copia local independiente)</a> <button id="compare-local" type="button">Comparar con copia local</button> <button id="show-diff" type="button" hidden>Ver diferencias línea a línea</button> <button id="import-private" type="button" hidden>Importar copia privada</button></p>
+<p id="comparison-result" role="status" aria-live="polite"></p><pre id="diff-result" hidden style="white-space:pre-wrap;overflow-wrap:anywhere"></pre>
 <p>El editor guarda una copia local privada. No modifica CouchDB ni sincroniza las notas.</p>
 <p><a href="../">Volver / Back</a></p>
 <script>
@@ -285,6 +285,8 @@ const editAction=document.getElementById("edit-action");
 const editLink=document.getElementById("edit-link");
 const compareButton=document.getElementById("compare-local");
 const importButton=document.getElementById("import-private");
+const diffButton=document.getElementById("show-diff");
+const diffResult=document.getElementById("diff-result");
 const comparisonResult=document.getElementById("comparison-result");
 let selectionVersion=0;
 async function preview(path){
@@ -301,7 +303,7 @@ async function preview(path){
 button.addEventListener("click",async()=>{
   selectionVersion++;
   button.disabled=true;list.replaceChildren();title.textContent="";content.textContent="";
-  editAction.hidden=true;editLink.removeAttribute("href");importButton.hidden=true;comparisonResult.textContent="";
+  editAction.hidden=true;editLink.removeAttribute("href");importButton.hidden=true;diffButton.hidden=true;diffResult.hidden=true;diffResult.textContent="";comparisonResult.textContent="";
   status.textContent="Consultando CouchDB…";
   try{
     const data=await preview();
@@ -312,7 +314,7 @@ button.addEventListener("click",async()=>{
       control.addEventListener("click",async()=>{
         const currentSelection=++selectionVersion;
         title.textContent=path;content.textContent="Cargando…";
-        editAction.hidden=true;editLink.removeAttribute("href");importButton.hidden=true;comparisonResult.textContent="";
+        editAction.hidden=true;editLink.removeAttribute("href");importButton.hidden=true;diffButton.hidden=true;diffResult.hidden=true;diffResult.textContent="";comparisonResult.textContent="";
         try{
           const note=await preview(path);
           if(currentSelection!==selectionVersion)return;
@@ -326,6 +328,21 @@ button.addEventListener("click",async()=>{
               const data=await result.json();
               if(currentSelection!==selectionVersion)return;
               if(!result.ok)throw Error(data.error||"comparison_failed");
+              diffButton.hidden=!(data.local_exists===true&&data.remote_write_enabled===false);
+              if(!diffButton.hidden){
+                diffButton.onclick=async()=>{
+                  if(currentSelection!==selectionVersion)return;
+                  diffButton.disabled=true;diffResult.hidden=false;diffResult.textContent="Calculando diferencias (solo lectura)…";
+                  try{
+                    const response=await fetch("../api/remote/diff-local?path="+encodeURIComponent(path),{method:"GET",credentials:"same-origin",cache:"no-store"});
+                    const changes=await response.json();
+                    if(currentSelection!==selectionVersion)return;
+                    if(!response.ok)throw Error(changes.error||"diff_failed");
+                    diffResult.textContent=changes.different?(changes.diff+(changes.truncated?"\\n[Vista parcial: diferencias truncadas]":"")):"Sin diferencias línea a línea.";
+                  }catch(error){if(currentSelection===selectionVersion)diffResult.textContent="No se pudo comparar: "+error.message;}
+                  finally{diffButton.disabled=false;}
+                };
+              }
               importButton.hidden=!(data.state==="remote_only"&&data.baseline_available===false&&data.remote_write_enabled===false);
               if(!importButton.hidden){
                 importButton.onclick=async()=>{
@@ -1405,6 +1422,43 @@ def compare_local_and_remote():
     result = compare_note_contents(remote, local)
     response = jsonify(path=path, **result, **lineage, read_only=True,
                        remote_write_enabled=False)
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
+@app.get("/api/remote/diff-local")
+def readonly_remote_local_diff():
+    """Show bounded private-vs-remote differences, no writes or merge actions."""
+    from private_markdown_vault import LocalVaultError, read_note, _path
+    from client_note_diff import compare_lines, DiffUnavailable
+    from client_sync_baseline import BaselineError, load_baseline, classify
+    from storage_selection import select_storage, StorageSelectionError
+    path = request.args.get("path", "")
+    try:
+        selected = select_storage(options(), private_vault=_PRIVATE_VAULT,
+                                  shared_vault=_MCP_SHARED_VAULT)
+        if not selected["independent_of_mcp"] or selected["mode"] != "local":
+            return jsonify(error="independent_local_mode_required", read_only=True), 409
+        _path(editor_markdown_vault(), path)
+    except (LocalVaultError, StorageSelectionError):
+        return jsonify(error="invalid_storage_or_path", read_only=True), 409
+    remote, error = read_encrypted_note(path, verify_revision=True)
+    if error or not isinstance(remote, str):
+        return jsonify(error="remote_snapshot_not_verified", read_only=True), 409
+    try:
+        with _local_save_lock:
+            local = read_note(editor_markdown_vault(), path)["content"]
+        baseline = load_baseline(_PRIVATE_BASELINES, path)
+        result = compare_lines(remote, local)
+        lineage = classify(baseline, remote, local)
+    except LocalVaultError as exc:
+        return jsonify(error="local_copy_required" if exc.code == "note_not_found"
+                       else "local_read_failed", read_only=True), 409
+    except (BaselineError, DiffUnavailable) as exc:
+        return jsonify(error=str(exc), read_only=True), 409
+    response = jsonify(path=path, **result, **lineage,
+                       read_only=True, remote_write_enabled=False,
+                       merge_enabled=False)
     response.headers["Cache-Control"] = "no-store"
     return response
 
