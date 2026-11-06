@@ -110,10 +110,42 @@ jobs:
                       raw=data_lines[0] if data_lines else "{}"
                   obj=json.loads(raw)
                   result=obj.get("result",{})
+                  probe_session=res.headers.get("Mcp-Session-Id")
                   print("Raw upstream init:",res.status,ctype,
                         "agreed_protocol=",result.get("protocolVersion"),
                         "result_keys=",sorted(result),
-                        "has_session=",bool(res.headers.get("Mcp-Session-Id")))
+                        "has_session=",bool(probe_session))
+              if probe_session:
+                  for method,request_id,params in (
+                      ("notifications/initialized",None,{}),
+                      ("tools/list",2,{})
+                  ):
+                      request={"jsonrpc":"2.0","method":method,"params":params}
+                      if request_id is not None:
+                          request["id"]=request_id
+                      dreq=urllib.request.Request("http://127.0.0.1:8766/",
+                            data=json.dumps(request).encode(),
+                            headers={"Authorization":"Bearer ci-candidate-private-token",
+                                     "Mcp-Session-Id":probe_session,
+                                     "MCP-Protocol-Version":"2025-06-18",
+                                     "Content-Type":"application/json",
+                                     "Accept":"application/json, text/event-stream"})
+                      try:
+                          with urllib.request.urlopen(dreq,timeout=12) as response:
+                              data=response.read(200000).decode("utf-8","replace")
+                              kind=response.headers.get("Content-Type","").split(";")[0]
+                              if kind=="text/event-stream":
+                                  events=[ln[5:].lstrip() for ln in data.splitlines() if ln.startswith("data:")]
+                                  data=events[0] if events else "{}"
+                              parsed=json.loads(data) if data.strip() else {}
+                              result=parsed.get("result",{})
+                              print("Direct upstream",method,"HTTP",response.status,
+                                    "type",kind,"RPC top keys",sorted(parsed),
+                                    "result keys",sorted(result),
+                                    "tool count",len(result.get("tools",[])) if isinstance(result.get("tools"),list) else None)
+                      except urllib.error.HTTPError as err:
+                          print("Direct upstream",method,"failed",err.code,
+                                err.read(600).decode("utf-8","replace"))
           except urllib.error.HTTPError as exc:
               print("Raw upstream init failed",exc.code,
                     exc.read(1000).decode("utf-8","replace"))
