@@ -71,8 +71,12 @@ jobs:
             fi
             sleep 1
           done
-          docker exec -i moonraker-mcp-patched-smoke python3 - <<'PY'
-          import json,urllib.request
+          docker exec -i moonraker-mcp-patched-smoke python3 - <<'PY' || {
+          echo "Candidate compatibility failed; showing synthetic-only container diagnostics"
+          docker logs moonraker-mcp-patched-smoke
+          exit 1
+          }
+          import json,urllib.request,urllib.error
           endpoint="http://127.0.0.1:8765/mcp"
           metadata={"io.modelcontextprotocol/protocolVersion":"2026-07-28",
                     "io.modelcontextprotocol/clientInfo":{"name":"candidate-ci","version":"1"},
@@ -83,8 +87,13 @@ jobs:
                   "Authorization":"Bearer ci-candidate-private-token",
                   "Content-Type":"application/json",
                   "Accept":"application/json"})
-              with urllib.request.urlopen(req,timeout=25) as res:
-                  return json.load(res)
+              try:
+                  with urllib.request.urlopen(req,timeout=25) as res:
+                      return json.load(res)
+              except urllib.error.HTTPError as exc:
+                  print("Candidate RPC failure",method,exc.code,
+                        exc.read(4096).decode("utf-8","replace"))
+                  raise
           discovery=rpc("server/discover",{"_meta":metadata})
           assert discovery["result"]["supportedVersions"]==["2026-07-28"],discovery
           listing=rpc("tools/list",{"_meta":metadata})
