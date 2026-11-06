@@ -108,6 +108,11 @@ def collect(rows, output, timeout=45):
     (output / "go-license-evidence-summary.json").write_text(
         json.dumps(summary, indent=2, sort_keys=True) + "\n")
     print(json.dumps(summary, sort_keys=True))
+    for row in results:
+        if row["source_status"] == "MANUAL_REVIEW":
+            # Exact package references are public SBOM data, not credentials.
+            print("PENDING_SOURCE:", row["name"], row["version"],
+                  row["purl"] or "NO_PURL", row["note"])
     return summary
 
 
