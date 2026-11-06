@@ -2,6 +2,8 @@
 
 > **Development preview (DEV11, 2026-11-06).** Do not merge into `main` or publish a stable release until release gates below are complete. English first, Spanish second.
 
+**Second-system acceptance / Prueba independiente:** [Clean HA OS installation and recovery acceptance checklist](./CLEAN_INSTALL_ACCEPTANCE_EN_ES.md). This is a planned second-system test, not a claim that it has already passed.
+
 ## English — Install without terminal commands
 
 ### What this add-on does
