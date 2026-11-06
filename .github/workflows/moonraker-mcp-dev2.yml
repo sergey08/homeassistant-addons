@@ -21,7 +21,7 @@ permissions:
 jobs:
   validate:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
 
@@ -202,6 +202,16 @@ jobs:
           test -s moonraker-mcp-audit/license-review-queue.csv
           test -s moonraker-mcp-audit/license-review-summary.json
 
+      - name: Verify original source license file evidence for exact Go modules
+        run: |
+          set -eu
+          # Public module downloads only. This reads files; it never executes
+          # dependency code or assigns guessed license identifiers.
+          python3 moonraker_mcp/go_license_evidence.py \
+            moonraker-mcp-audit/license-review-queue.csv moonraker-mcp-audit
+          test -s moonraker-mcp-audit/go-license-evidence.csv
+          test -s moonraker-mcp-audit/go-license-evidence-summary.json
+
       - name: Retain signed-off candidate SBOM evidence for maintainer review
         uses: actions/upload-artifact@v4
         with:
@@ -211,6 +221,8 @@ jobs:
             moonraker-mcp-audit/sbom-summary.json
             moonraker-mcp-audit/license-review-queue.csv
             moonraker-mcp-audit/license-review-summary.json
+            moonraker-mcp-audit/go-license-evidence.csv
+            moonraker-mcp-audit/go-license-evidence-summary.json
             moonraker-mcp-audit/trivy-results.json
             moonraker-mcp-audit/scan-summary.md
           retention-days: 14
