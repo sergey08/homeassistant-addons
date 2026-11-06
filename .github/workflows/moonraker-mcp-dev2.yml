@@ -38,7 +38,7 @@ jobs:
           root = pathlib.Path("moonraker_mcp")
           cfg = yaml.safe_load((root / "config.yaml").read_text())
           assert cfg["slug"] == "moonraker_mcp"
-          assert cfg["version"] == "0.1.0-dev10"
+          assert cfg["version"] == "0.1.0-dev11"
           assert cfg["boot"] == "manual"
           assert cfg["ports"]["8765/tcp"] is None
           assert cfg["options"]["enable_tunnel"] is False
