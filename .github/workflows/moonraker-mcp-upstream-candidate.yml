@@ -7,6 +7,8 @@ on:
     paths:
       - 'moonraker_mcp/Dockerfile'
       - 'moonraker_mcp/Dockerfile.upstream-candidate'
+      - 'moonraker_mcp/gateway.py'
+      - 'moonraker_mcp/test_gateway_http.py'
       - '.github/workflows/moonraker-mcp-upstream-candidate.yml'
   workflow_dispatch:
 
