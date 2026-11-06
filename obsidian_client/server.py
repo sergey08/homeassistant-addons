@@ -1230,19 +1230,29 @@ _MCP_SHARED_VAULT = "/share/obsidian-shared-vault"
 
 
 def editor_markdown_vault():
-    """Resolve a fixed storage mode; never infer arbitrary vault paths."""
+    """Resolve the Client's own Markdown vault or explicit compatibility mode."""
     from private_markdown_vault import LocalVaultError
-    from pathlib import Path
-    mode = options().get("editor_storage_mode", "private")
-    if mode == "private":
-        return _PRIVATE_VAULT
-    if mode != "mcp_shared":
-        raise LocalVaultError("unsupported_editor_storage_mode")
-    root = Path(_MCP_SHARED_VAULT)
-    if (not root.is_dir() or root.is_symlink()
-            or root.resolve(strict=True) != root):
-        raise LocalVaultError("mcp_shared_vault_unavailable")
-    return str(root)
+    from storage_selection import select_storage, StorageSelectionError
+    try:
+        return select_storage(options(), private_vault=_PRIVATE_VAULT,
+                              shared_vault=_MCP_SHARED_VAULT)["vault"]
+    except StorageSelectionError as exc:
+        raise LocalVaultError(str(exc)) from exc
+
+
+@app.get("/api/editor/storage-status")
+def editor_storage_status():
+    """Read-only state; never claim CouchDB synchronization before it exists."""
+    from storage_selection import select_storage, StorageSelectionError
+    try:
+        selected = select_storage(options(), private_vault=_PRIVATE_VAULT,
+                                  shared_vault=_MCP_SHARED_VAULT)
+    except StorageSelectionError as exc:
+        return jsonify(error=str(exc), ready=False), 409
+    # Do not expose user files or credentials; this only reports configured mode.
+    return jsonify(**selected, ready=selected["sync_engine"] != "not_implemented")
+
+
 
 
 
@@ -1256,7 +1266,7 @@ def livesync_cli_local_note():
             note = read_note(editor_markdown_vault(), name)
         return jsonify(**note, remote_synced=False)
     except LocalVaultError as exc:
-        code = 404 if exc.code == "note_not_found" else 409 if exc.code == "mcp_shared_vault_unavailable" else 400
+        code = 404 if exc.code == "note_not_found" else 409 if exc.code in ("mcp_shared_vault_unavailable", "livesync_not_ready") else 400
         return jsonify(error=exc.code), code
 
 
@@ -1264,6 +1274,8 @@ def livesync_cli_local_note():
 def livesync_cli_local_save():
     """Save private Markdown atomically; remote synchronization is disabled."""
     from private_markdown_vault import LocalVaultError, read_note, save_note
+    if options().get("editor_storage_mode") == "livesync":
+        return jsonify(error="livesync_not_ready", remote_synced=False), 409
     if request.headers.get("X-Obsidian-Client-Action") != "local-save":
         return jsonify(error="missing_action_header"), 403
     if request.headers.get("Sec-Fetch-Site") not in (None, "same-origin"):
@@ -1292,7 +1304,7 @@ def livesync_cli_local_save():
     except LocalVaultError as exc:
         code = (409 if exc.code in ("note_exists", "revision_conflict",
                                    "expected_revision_required", "note_not_found")
-                else 413 if exc.code == "note_too_large" else 409 if exc.code == "mcp_shared_vault_unavailable" else 400)
+                else 413 if exc.code == "note_too_large" else 409 if exc.code in ("mcp_shared_vault_unavailable", "livesync_not_ready") else 400)
         return jsonify(error=exc.code), code
 
 
@@ -1309,7 +1321,7 @@ def private_drafts():
         '<li><a href="remote/new?path=' + quote(name, safe="") + '">' +
         html.escape(name) + "</a></li>" for name in notes)
     return page('<h1>Notas Markdown / Markdown notes</h1>'
-                '<p>Las notas compartidas se sincronizan mediante el MCP; los borradores privados no.</p>'
+                '<p>Las notas compartidas se sincronizan mediante el MCP; los borradores privados no. Modo LiveSync independiente: en desarrollo.</p>'
                 '<p><a href="remote/new?path=Nuevo.md">Crear nota / New note</a></p>'
                 '<ul>' + rows + '</ul>'
                 '<p><a href="./">Volver / Back</a></p>')
