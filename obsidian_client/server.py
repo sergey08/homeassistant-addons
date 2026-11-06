@@ -1336,6 +1336,7 @@ _local_save_lock = Lock()
 # No real /share files, configured remote, or LiveSync CLI database is modified.
 _PRIVATE_VAULT = "/data/obsidian-client-markdown"
 _PRIVATE_BACKUPS = "/data/obsidian-client-backups"
+_PRIVATE_BASELINES = "/data/obsidian-client-sync-baselines"
 
 # Opt-in only: the MCP's already-provisioned LiveSync Markdown vault.
 # No second synchronizer is started. The legacy shared MCP path must exist.
@@ -1395,7 +1396,7 @@ def compare_local_and_remote():
             return jsonify(error="local_read_failed", read_only=True), 409
     from client_sync_baseline import load_baseline, classify, BaselineError
     try:
-        baseline = load_baseline("/data/obsidian-client-sync-baselines", path)
+        baseline = load_baseline(_PRIVATE_BASELINES, path)
         lineage = classify(baseline, remote, local)
     except BaselineError:
         return jsonify(error="baseline_unavailable", read_only=True), 409
@@ -1445,7 +1446,7 @@ def establish_verified_baseline():
             local = read_note(editor_markdown_vault(), path)["content"]
             if digest(local) != expected:
                 return jsonify(error="local_content_changed"), 409
-            baseline = establish_baseline("/data/obsidian-client-sync-baselines",
+            baseline = establish_baseline(_PRIVATE_BASELINES,
                                           path, remote, local)
     except LocalVaultError:
         return jsonify(error="local_copy_unavailable"), 409
@@ -1488,7 +1489,7 @@ def import_verified_remote_note():
         if not selected["independent_of_mcp"] or selected["mode"] != "local":
             return jsonify(error="independent_local_mode_required"), 409
         _path(editor_markdown_vault(), path)
-        if load_baseline("/data/obsidian-client-sync-baselines", path) is not None:
+        if load_baseline(_PRIVATE_BASELINES, path) is not None:
             return jsonify(error="baseline_already_exists"), 409
     except (LocalVaultError, StorageSelectionError, BaselineError, OSError):
         return jsonify(error="invalid_storage_path_or_baseline"), 409
@@ -1499,7 +1500,7 @@ def import_verified_remote_note():
         return jsonify(error="remote_content_changed"), 409
     try:
         with _local_save_lock:
-            if load_baseline("/data/obsidian-client-sync-baselines", path) is not None:
+            if load_baseline(_PRIVATE_BASELINES, path) is not None:
                 return jsonify(error="baseline_already_exists"), 409
             try:
                 read_note(editor_markdown_vault(), path)
@@ -1512,7 +1513,7 @@ def import_verified_remote_note():
             saved = save_note(editor_markdown_vault(), _PRIVATE_BACKUPS,
                               path, remote, "create")
             try:
-                baseline = establish_baseline("/data/obsidian-client-sync-baselines",
+                baseline = establish_baseline(_PRIVATE_BASELINES,
                                               path, remote, remote)
             except (BaselineError, OSError):
                 # The newly created Markdown stays intact: never delete an
