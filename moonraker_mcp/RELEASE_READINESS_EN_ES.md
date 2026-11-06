@@ -90,6 +90,12 @@ Además, ambas etapas Alpine del Dockerfile se han fijado al **digest SHA-256 ex
 
 **ES:** Se ha creado una plantilla de revisión para **cada componente exacto del SBOM**: CSV editable con nombre, versión, PURL y metadatos automáticos; y JSON vinculado al SHA-256 del inventario. Todos los registros se crean en estado **PENDING** incluso cuando Trivy detecta alguna licencia. El proceso de publicación comprueba que esa plantilla sin revisar **no puede autorizar una versión estable**. Para completar cada registro habrá que contrastar texto legal original, avisos y posibles obligaciones de entrega de código fuente, dejando evidencia y responsable. No hay aprobaciones automáticas ni se ha publicado versión estable.
 
+## 2026-11-06 — Collected exact-version legal texts / Textos legales originales
+
+**EN:** The development audit can now create `third-party-legal-texts.zip` from the exact Go module versions recorded in `go-license-evidence.csv`. Each candidate legal text must match the earlier SHA-256 and byte count, and its enclosing module must match the pinned path/version/public checksum. Only bounded root-level `LICENSE`, `NOTICE` and related legal files are archived, not application source or binaries. The ZIP contains a manifest mapping each original file to its SBOM component, module checksum and digest. It is intended **for human review**, not automatically copied into the running image or treated as a license approval. A separate step must decide which notices and source offers are legally required for redistribution and package the approved set. The CI run and verified count must be recorded before claiming this archive is produced.
+
+**ES:** Se ha incorporado una herramienta para conservar en un ZIP los textos `LICENSE`/`NOTICE` originales de las dependencias Go, vinculados a las versiones y huellas previamente verificadas. Solo recopila archivos legales, no código fuente completo ni ejecutables, e incluye un manifiesto de procedencia. **No se instala automáticamente en Home Assistant ni significa autorización para distribuir**: una revisión humana debe decidir qué avisos incorporar y qué obligaciones adicionales cumplir. La CI debe validar el ZIP y sus cantidades finales.
+
 ## English
 
 ### Binary provenance
