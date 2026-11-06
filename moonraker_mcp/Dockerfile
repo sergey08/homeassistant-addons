@@ -21,7 +21,7 @@ COPY --from=upstream_build /tmp/mcp-raker /mcp-raker
 # Pin vendor binary independently of any runtime GitHub availability.
 # For DEV5, automatic provisioning is limited to amd64 until the official
 # aarch64 artifact can be independently validated and pinned.
-FROM alpine:3.22 AS tunnel_vendor
+FROM docker.io/library/alpine:3.22@sha256:bfe7ceb9f09ec0566c48fb93356e45a47a00be5a1dd14fa5b909e7709c66b034 AS tunnel_vendor
 RUN apk add --no-cache ca-certificates curl python3
 RUN set -eu; \
     curl --fail --location --silent --show-error --retry 3 --max-time 120 \
@@ -31,7 +31,7 @@ RUN set -eu; \
     python3 -c 'import zipfile,pathlib; z=zipfile.ZipFile("/tmp/tunnel-client.zip"); a=[x for x in z.infolist() if pathlib.PurePosixPath(x.filename).name=="tunnel-client" and not x.is_dir()]; assert len(a)==1 and a[0].file_size<90000000; pathlib.Path("/tmp/tunnel-client").write_bytes(z.read(a[0]))'; \
     chmod 755 /tmp/tunnel-client
 
-FROM alpine:3.22
+FROM docker.io/library/alpine:3.22@sha256:bfe7ceb9f09ec0566c48fb93356e45a47a00be5a1dd14fa5b909e7709c66b034
 RUN apk add --no-cache ca-certificates jq python3 su-exec
 COPY --from=upstream /mcp-raker /usr/local/bin/mcp-raker
 COPY --from=tunnel_vendor /tmp/tunnel-client /opt/moonraker-mcp/vendor/tunnel-client
