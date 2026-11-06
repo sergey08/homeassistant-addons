@@ -29,6 +29,12 @@ The operating guide [Secret rotation and backup safety / Rotación de claves y c
 
 **ES:** Se ha añadido la generación automática de una cola de componentes cuyo SBOM no identifica la licencia. Los informes `license-review-queue.csv` y `license-review-summary.json` recogen nombre, versión exacta, identificador PURL, ecosistema y estado **PENDIENTE**. No se asignan licencias por inferencia. Cada elemento deberá contrastarse con su proyecto original y sus avisos de redistribución. La CI verifica el formato y conserva los informes junto al SBOM.
 
+## 2026-11-06 — Verified license gap grouping / Clasificación real de licencias pendientes
+
+**EN:** The new conservative review queue passed the full GitHub Actions run [42220551342](https://github.com/sergey08/homeassistant-addons/actions/runs/42220551342). Of the **129** CycloneDX components, **92** lack license metadata: **89 components have `pkg:golang` PURLs** and **3 have no PURL**. No Alpine `pkg:apk` item was in this specific missing-license-metadata queue. The generated `license-review-queue.csv` and `license-review-summary.json` are included with the CycloneDX and Trivy reports in the 14-day workflow artifact. This narrows the next investigation to exact Go module versions and three unidentifiable component references. Verify licenses from each upstream project's authoritative LICENSE/NOTICE files, record provenance, and assess redistribution obligations. **Do not equate missing auto-detected license metadata with a legal defect.**
+
+**ES:** El workflow de GitHub Actions **42220551342** ha validado la cola de conciliación de licencias. De **129 componentes** detectados, **92** carecen de metadatos de licencia en el SBOM: **89 son módulos Go con identificador `pkg:golang` y 3 no incluyen PURL**. Ningún paquete `pkg:apk` figura en este grupo específico. Los CSV/JSON de revisión se adjuntan al SBOM y al informe Trivy como artefactos temporales (14 días). Debemos contrastar las 89 versiones concretas de Go y los 3 componentes no identificados con sus fuentes y avisos legales antes de distribuir la versión estable.
+
 ## English
 
 ### Binary provenance
