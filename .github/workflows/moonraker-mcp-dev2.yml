@@ -81,6 +81,11 @@ jobs:
           rm -f moonraker-mcp-audit/mcp-raker moonraker-mcp-audit/tunnel-client
           docker run --rm --network none --entrypoint sh moonraker-mcp:ci -c 'apk info -vv' > moonraker-mcp-audit/alpine-packages.txt
           test -s moonraker-mcp-audit/alpine-packages.txt
+          # Package-specific Alpine licensing: Alpine is not governed by a single
+          # license that replaces the licenses of its redistributed packages.
+          docker run --rm --network none --entrypoint sh moonraker-mcp:ci -c 'apk info -a' > moonraker-mcp-audit/alpine-package-metadata.txt
+          test -s moonraker-mcp-audit/alpine-package-metadata.txt
+          grep -qi license moonraker-mcp-audit/alpine-package-metadata.txt
           echo 'Inventory contains binary digests, Go embedded module metadata and Alpine package names (no secrets).'
 
       - name: Attach inventory to workflow
@@ -235,6 +240,8 @@ jobs:
             set -eu
             d=/usr/share/doc/moonraker-mcp/licenses
             test -s "$d/mcp-raker-BSD-3-Clause.txt"
+            test -s "$d/go-toolchain-BSD-3-Clause.txt"
+            grep -q "Copyright 2009 The Go Authors" "$d/go-toolchain-BSD-3-Clause.txt"
             test -s "$d/tunnel-client-Apache-2.0.txt"
             test -s "$d/tunnel-client-NOTICE.txt"
             grep -q "BSD 3-Clause License" "$d/mcp-raker-BSD-3-Clause.txt"
