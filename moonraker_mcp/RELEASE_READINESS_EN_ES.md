@@ -41,6 +41,12 @@ The operating guide [Secret rotation and backup safety / Rotación de claves y c
 
 **ES:** Una nueva comprobación de CI contrasta las versiones exactas de los módulos Go con sus fuentes públicas y registra las huellas SHA-256 de archivos legales encontrados, sin ejecutar el código de las dependencias ni inferir automáticamente sus licencias. La ejecución real de GitHub Actions **42222304256** terminó correctamente: **86 de 92 componentes pendientes** tienen ahora evidencia de archivos legales en origen; **6 siguen pendientes** (3 sin identificador PURL y 3 módulos Go). No supone aprobación de redistribución: todavía hay que revisar las condiciones y los avisos de cada licencia.
 
+## 2026-11-06 — Six unresolved references identified / Seis referencias identificadas
+
+**EN:** CI job logs from [run 42222910177](https://github.com/sergey08/homeassistant-addons/actions/runs/42222910177) identified the remaining six **component entries** (not necessarily six distinct libraries): `stdlib v1.27.3` appears twice; `github.com/openai/tunnel-client` appears once with no normalized version PURL; `alpine 3.22.8` appears once without a PURL; and two executable/image-file records without PURLs are `opt/moonraker-mcp/vendor/tunnel-client` and `usr/local/bin/mcp-raker`. These are **not** six conventional unresolved public Go module versions. Follow-up attribution should map the Go standard library to the official Go distribution license, the OpenAI executable to its exact pinned release and existing Apache-2.0/NOTICE files, Alpine to package/base-image license records, and the `mcp-raker` binary to its source commit and BSD-3-Clause license. Do not assert that these matches alone satisfy all notice requirements. The two stdlib entries may represent records associated with different embedded Go binaries; do not deduplicate without preserving provenance.
+
+**ES:** Los registros de CI identifican las seis referencias restantes: **dos registros de `stdlib` Go 1.27.3**, **un registro de `github.com/openai/tunnel-client` sin versión normalizada**, **Alpine 3.22.8** y **dos registros de archivos ejecutables** (el binario de túnel y `mcp-raker`). No son seis librerías Go desconocidas. Deben conciliarse con las licencias originales de la distribución Go, cliente OpenAI, imagen Alpine y código fuente `mcp-raker`. Mantener la distinción entre una atribución candidata y el cumplimiento legal completo.
+
 ## English
 
 ### Binary provenance
