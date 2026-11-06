@@ -1304,6 +1304,15 @@ def editor_markdown_vault():
         raise LocalVaultError(str(exc)) from exc
 
 
+@app.get("/api/livesync-cli/independent-preflight")
+def independent_livesync_preflight():
+    """Read-only diagnostics for a future independent Client sync engine."""
+    from client_sync_engine import preflight
+    result = jsonify(preflight(options()))
+    result.headers["Cache-Control"] = "no-store"
+    return result
+
+
 @app.get("/api/editor/storage-status")
 def editor_storage_status():
     """Read-only state; never claim CouchDB synchronization before it exists."""
