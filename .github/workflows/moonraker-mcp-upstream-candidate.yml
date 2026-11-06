@@ -22,13 +22,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Build pinned upstream source with patched Go
+      - name: Build DEV11 source-pinned production Dockerfile for isolated test
         run: |
           set -eu
-          docker build --pull -f moonraker_mcp/Dockerfile.upstream-candidate \
-            -t moonraker-upstream-candidate:ci ./moonraker_mcp
-          docker build -f moonraker_mcp/Dockerfile \
-            --build-arg UPSTREAM_IMAGE=moonraker-upstream-candidate:ci \
+          docker build --pull -f moonraker_mcp/Dockerfile \
             -t moonraker-mcp:patched-candidate ./moonraker_mcp
 
       - name: Validate actual embedded Go compiler and dependency versions
@@ -163,6 +160,12 @@ jobs:
                                   "arguments":{},"_meta":metadata})
           assert "error" not in call,call
           assert "offline_or_unreachable" in call["result"]["content"][0]["text"],call
+          version=rpc("tools/call",{"name":"moonraker_mcp_version",
+                                    "arguments":{},"_meta":metadata})
+          assert "error" not in version,version
+          assert isinstance(version["result"]["content"],list)
+          assert len(version["result"]["content"])>0
+          print("Upstream version tool completed without exposing write methods")
           print("Pinned-source upstream initialized, listed 5 safe tools, and answered modern MCP request")
           PY
 
