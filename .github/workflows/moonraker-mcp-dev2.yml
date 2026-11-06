@@ -231,6 +231,21 @@ jobs:
           test -s moonraker-mcp-audit/go-license-evidence.csv
           test -s moonraker-mcp-audit/go-license-evidence-summary.json
 
+      - name: Generate unapproved reviewer worksheet for exact image SBOM
+        run: |
+          set -eu
+          python3 moonraker_mcp/license_review_worksheet.py \
+            moonraker-mcp-audit/sbom.cdx.json moonraker-mcp-audit
+          test -s moonraker-mcp-audit/license-human-review-worksheet.csv
+          test -s moonraker-mcp-audit/license-review-pending.json
+          # The generated worksheet is deliberately NOT an approval.
+          if python3 moonraker_mcp/license_release_gate.py \
+              moonraker-mcp-audit/sbom.cdx.json \
+              moonraker-mcp-audit/license-review-pending.json; then
+            echo "SECURITY FAILURE: pending worksheet was accepted as an approval"
+            exit 1
+          fi
+
       - name: Confirm stable license-documentation gate is closed without manual reviews
         run: |
           set -eu
@@ -256,6 +271,8 @@ jobs:
             moonraker-mcp-audit/license-review-summary.json
             moonraker-mcp-audit/go-license-evidence.csv
             moonraker-mcp-audit/go-license-evidence-summary.json
+            moonraker-mcp-audit/license-human-review-worksheet.csv
+            moonraker-mcp-audit/license-review-pending.json
             moonraker-mcp-audit/trivy-results.json
             moonraker-mcp-audit/scan-summary.md
           retention-days: 14
