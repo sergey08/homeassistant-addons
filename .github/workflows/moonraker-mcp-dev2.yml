@@ -194,6 +194,14 @@ jobs:
           print(json.dumps(summary,indent=2,sort_keys=True))
           PY
 
+      - name: Classify components missing CycloneDX license metadata
+        run: |
+          set -eu
+          python3 moonraker_mcp/sbom_license_queue.py \
+            moonraker-mcp-audit/sbom.cdx.json moonraker-mcp-audit
+          test -s moonraker-mcp-audit/license-review-queue.csv
+          test -s moonraker-mcp-audit/license-review-summary.json
+
       - name: Retain signed-off candidate SBOM evidence for maintainer review
         uses: actions/upload-artifact@v4
         with:
@@ -201,6 +209,8 @@ jobs:
           path: |
             moonraker-mcp-audit/sbom.cdx.json
             moonraker-mcp-audit/sbom-summary.json
+            moonraker-mcp-audit/license-review-queue.csv
+            moonraker-mcp-audit/license-review-summary.json
             moonraker-mcp-audit/trivy-results.json
             moonraker-mcp-audit/scan-summary.md
           retention-days: 14
