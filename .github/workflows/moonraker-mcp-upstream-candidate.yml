@@ -1,0 +1,126 @@
+name: Moonraker MCP patched upstream candidate (no deployment)
+
+on:
+  push:
+    branches:
+      - dev/moonraker-mcp-dev2
+    paths:
+      - 'moonraker_mcp/Dockerfile'
+      - 'moonraker_mcp/Dockerfile.upstream-candidate'
+      - '.github/workflows/moonraker-mcp-upstream-candidate.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  evaluate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build pinned upstream source with patched Go
+        run: |
+          set -eu
+          docker build --pull -f moonraker_mcp/Dockerfile.upstream-candidate \
+            -t moonraker-upstream-candidate:ci ./moonraker_mcp
+          docker build -f moonraker_mcp/Dockerfile \
+            --build-arg UPSTREAM_IMAGE=moonraker-upstream-candidate:ci \
+            -t moonraker-mcp:patched-candidate ./moonraker_mcp
+
+      - name: Validate actual embedded Go compiler and dependency versions
+        run: |
+          set -eu
+          cid="$(docker create moonraker-mcp:patched-candidate)"
+          trap 'docker rm -f "$cid" >/dev/null 2>&1 || true; rm -f /tmp/candidate-mcp-raker' EXIT
+          docker cp "$cid:/usr/local/bin/mcp-raker" /tmp/candidate-mcp-raker
+          go version -m /tmp/candidate-mcp-raker > /tmp/upstream-modules.txt
+          cat /tmp/upstream-modules.txt
+          grep -q 'go1.27.3' /tmp/upstream-modules.txt
+          grep -Eq 'golang.org/x/text[[:space:]]+v0.41.0' /tmp/upstream-modules.txt
+
+      - name: Smoke test real candidate via private authenticated MCP gateway
+        run: |
+          set -eu
+          tmpdir="$(mktemp -d)"
+          cleanup() {
+            docker rm -f moonraker-mcp-patched-smoke >/dev/null 2>&1 || true
+            rm -rf "$tmpdir"
+          }
+          trap cleanup EXIT
+          chmod 700 "$tmpdir"
+          printf '%s\n' '{"moonraker_url":"http://127.0.0.1:7125","moonraker_api_key":"","mcp_http_token":"ci-candidate-private-token","enable_tunnel":false}' > "$tmpdir/options.json"
+          chmod 600 "$tmpdir/options.json"
+          docker run -d --name moonraker-mcp-patched-smoke --network none \
+            -v "$tmpdir:/data:ro" moonraker-mcp:patched-candidate >/dev/null
+          for i in $(seq 1 30); do
+            if docker exec moonraker-mcp-patched-smoke python3 -c '
+          import urllib.request,urllib.error
+          try:
+              urllib.request.urlopen("http://127.0.0.1:8765/health",timeout=1)
+          except urllib.error.HTTPError as e:
+              raise SystemExit(0 if e.code==401 else 1)
+          except Exception:
+              raise SystemExit(1)
+          raise SystemExit(1)
+          '; then break; fi
+            if [ "$i" -eq 30 ]; then
+              docker logs moonraker-mcp-patched-smoke
+              exit 1
+            fi
+            sleep 1
+          done
+          docker exec -i moonraker-mcp-patched-smoke python3 - <<'PY'
+          import json,urllib.request
+          endpoint="http://127.0.0.1:8765/mcp"
+          metadata={"io.modelcontextprotocol/protocolVersion":"2026-07-28",
+                    "io.modelcontextprotocol/clientInfo":{"name":"candidate-ci","version":"1"},
+                    "io.modelcontextprotocol/clientCapabilities":{}}
+          def rpc(method,params):
+              payload=json.dumps({"jsonrpc":"2.0","id":1,"method":method,"params":params}).encode()
+              req=urllib.request.Request(endpoint,data=payload,headers={
+                  "Authorization":"Bearer ci-candidate-private-token",
+                  "Content-Type":"application/json",
+                  "Accept":"application/json"})
+              with urllib.request.urlopen(req,timeout=25) as res:
+                  return json.load(res)
+          discovery=rpc("server/discover",{"_meta":metadata})
+          assert discovery["result"]["supportedVersions"]==["2026-07-28"],discovery
+          listing=rpc("tools/list",{"_meta":metadata})
+          assert "error" not in listing,listing
+          tools={x["name"] for x in listing["result"]["tools"]}
+          assert tools=={"moonraker_connection_status","moonraker_printer_info",
+                          "moonraker_server_info","moonraker_temperature_store",
+                          "moonraker_mcp_version"},tools
+          call=rpc("tools/call",{"name":"moonraker_connection_status",
+                                  "arguments":{},"_meta":metadata})
+          assert "error" not in call,call
+          assert "offline_or_unreachable" in call["result"]["content"][0]["text"],call
+          print("Pinned-source upstream initialized, listed 5 safe tools, and answered modern MCP request")
+          PY
+
+      - name: Scan patched candidate image
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # reviewed v0.36.0
+        with:
+          image-ref: moonraker-mcp:patched-candidate
+          format: json
+          output: patched-candidate-trivy.json
+          scanners: vuln,license
+          severity: UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL
+          exit-code: '0'
+
+      - name: Evaluate HIGH and CRITICAL findings, no release approval
+        run: |
+          set -eu
+          python3 moonraker_mcp/security_release_gate.py patched-candidate-trivy.json
+          echo "Candidate vulnerability gate passed; still requires licensing, reproducibility, clean HA install and approval"
+
+      - name: Attach patched candidate scan
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: moonraker-mcp-patched-upstream-scan
+          path: patched-candidate-trivy.json
+          retention-days: 14
+          if-no-files-found: ignore
