@@ -1,5 +1,6 @@
 """Read-only Client comparison safety tests."""
 import unittest
+import tempfile
 from unittest.mock import patch
 from client_note_comparison import compare_note_contents
 from server import app
@@ -33,6 +34,11 @@ class ComparisonUnitTests(unittest.TestCase):
 class ComparisonEndpointTests(unittest.TestCase):
     def setUp(self):
         self.client = app.test_client()
+        self.vault = tempfile.TemporaryDirectory()
+        self.addCleanup(self.vault.cleanup)
+        self.vault_patch = patch('server._PRIVATE_VAULT', self.vault.name)
+        self.vault_patch.start()
+        self.addCleanup(self.vault_patch.stop)
 
     def test_rejects_shared_mode_before_remote_fetch(self):
         with patch("server.options", return_value={"editor_storage_mode": "mcp_shared"}), \
