@@ -6,6 +6,8 @@
 
 **ES:** El complemento DEV **0.1.0-dev11** ya ejecuta una compilación de `mcp-raker` desde una revisión exacta de GitHub, con Go 1.27.3 fijado por digest. El gateway admite los metadatos de caché del SDK actualizado tras validarlos y eliminarlos, sin ampliar la lista de cinco herramientas de solo lectura. Trivy informa **0 vulnerabilidades críticas y 0 altas** en la nueva imagen y la CI impide aceptar futuras alertas HIGH/CRITICAL. **Las cinco herramientas se han probado realmente desde ChatGPT** con la Snapmaker U1, que responde online / Klippy ready. Se mantiene la privacidad de servidor, firmware y temperaturas; el túnel está activo y el puerto externo cerrado.
 
+**Independent installation acceptance / Validación de instalación independiente:** [Bilingual GUI-only, privacy and credential recovery checklist](./CLEAN_INSTALL_ACCEPTANCE_EN_ES.md). This checklist is not yet completed on a second HA instance. / [Prueba bilingüe de instalación sin terminal y recuperación de credenciales](./CLEAN_INSTALL_ACCEPTANCE_EN_ES.md), pendiente de comprobar en otro HA.
+
 **NOT A STABLE RELEASE / NO ES VERSIÓN ESTABLE:** still pending independent clean Home Assistant installation, full licensing/SBOM review, reproducibility/supply-chain audit and explicit maintainer approval. / Pendientes instalación limpia independiente, revisión completa de licencias/SBOM, seguridad de la cadena de suministro y autorización expresa para publicar.
 
 
