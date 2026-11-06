@@ -21,6 +21,7 @@ class FakeUpstream(BaseHTTPRequestHandler):
     paginate_tools = False
     spoof_local_files = False
     malformed_result = None
+    malformed_result_method = None
     malformed_reply = None
     negotiated_protocol_version = None
     initialize_instructions = None
@@ -106,7 +107,7 @@ class FakeUpstream(BaseHTTPRequestHandler):
                      "error": {"code": -32603, "message": "Simulated upstream error"}}
                     if self.jsonrpc_error else
                     {"jsonrpc": "2.0", "id": message.get("id"), "result": result})
-        if self.malformed_result is not None:
+        if self.malformed_result is not None and (self.malformed_result_method is None or self.malformed_result_method == method):
             response = {"jsonrpc": "2.0", "id": message.get("id"),
                         "result": self.malformed_result}
         if self.malformed_reply is not None:
@@ -1208,6 +1209,8 @@ class HTTPGatewayTests(unittest.TestCase):
 
     def test_new_upstream_cache_metadata_is_validated_and_stripped(self):
         previous = FakeUpstream.malformed_result
+        previous_method = FakeUpstream.malformed_result_method
+        FakeUpstream.malformed_result_method = "tools/list"
         meta = {"io.modelcontextprotocol/protocolVersion": "2026-07-28",
                 "io.modelcontextprotocol/clientInfo": {"name": "ChatGPT", "version": "1"},
                 "io.modelcontextprotocol/clientCapabilities": {}}
@@ -1239,6 +1242,7 @@ class HTTPGatewayTests(unittest.TestCase):
                     self.assertEqual(response, {"error": "Invalid upstream MCP response"})
         finally:
             FakeUpstream.malformed_result = previous
+            FakeUpstream.malformed_result_method = previous_method
 
     def test_modern_unsafe_tool_stays_denied_without_upstream_access(self):
         metadata = {"io.modelcontextprotocol/protocolVersion": "2026-07-28",
