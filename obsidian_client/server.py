@@ -1272,6 +1272,8 @@ def livesync_cli_local_note():
 def livesync_cli_local_save():
     """Save private Markdown atomically; remote synchronization is disabled."""
     from private_markdown_vault import LocalVaultError, read_note, save_note
+    if options().get("editor_storage_mode") == "livesync":
+        return jsonify(error="livesync_not_ready", remote_synced=False), 409
     if request.headers.get("X-Obsidian-Client-Action") != "local-save":
         return jsonify(error="missing_action_header"), 403
     if request.headers.get("Sec-Fetch-Site") not in (None, "same-origin"):
