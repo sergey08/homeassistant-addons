@@ -17,6 +17,12 @@ The operating guide [Secret rotation and backup safety / Rotación de claves y c
 
 **ES:** Añadida generación de SBOM CycloneDX a partir de la imagen DEV11 realmente compilada. Se comprueba el formato, las referencias únicas y la cantidad de componentes que incluyen metadatos de licencia. Se conserva un artefacto temporal con el SBOM y los resultados Trivy. **No equivale a declarar revisadas todas las licencias:** habrá que examinar las dependencias sin licencia identificada, las obligaciones de aviso/código fuente y los paquetes Alpine. La prueba de instalación limpia en otro Home Assistant continúa pendiente.
 
+## 2026-11-06 — Validated DEV11 CycloneDX SBOM / Resultado verificado
+
+**EN:** The CycloneDX 1.6 report generated from the full built DEV11 image passed CI in [GitHub Actions run 42219231227](https://github.com/sergey08/homeassistant-addons/actions/runs/42219231227). It recorded **129 components**: 126 libraries, 2 applications and 1 operating-system component. **37 of the 129** have license metadata in this automatically generated inventory; 92 do not. Lack of detected license metadata **does not mean unlicensed software** and must not be interpreted as a legal breach. The CI archived `moonraker-mcp-dev11-cyclonedx-sbom` and the binary inventory for 14 days, with no runtime credentials or executable contents added to the SBOM artifact. Next: reconcile missing license metadata against upstream module/package license notices, verify any copyleft obligations and check that actual binary dependencies are covered. This SBOM is a useful baseline, not a complete provenance or licensing clearance.
+
+**ES:** El SBOM **CycloneDX 1.6** de DEV11 se ha generado y validado mediante GitHub Actions: **129 componentes detectados** (126 bibliotecas, 2 aplicaciones, 1 componente de sistema operativo). **37** incluyen metadatos de licencia y **92** no los incluyen en este informe automatizado. **No significa que 92 componentes no tengan licencia**: falta identificar la licencia correspondiente y verificar las obligaciones de redistribución. Se conservó el informe durante 14 días; quedan pendientes la conciliación de dependencias y avisos, instalación realmente limpia en otra instancia HA y autorización expresa antes de publicar.
+
 ## English
 
 ### Binary provenance
