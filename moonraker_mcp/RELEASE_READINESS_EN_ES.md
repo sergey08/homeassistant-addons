@@ -68,6 +68,16 @@ These checks address primary attribution for the **six exceptional SBOM entries*
 
 **ES:** La CI genera dos informes nuevos de los **paquetes Alpine realmente instalados**: CSV de nombre, versión, expresión de licencia y prioridad de revisión; JSON resumen por grupos. Se destacan GPL/LGPL/MPL y otras licencias recíprocas, pero **ninguna queda aprobada automáticamente**. Las expresiones desconocidas o compuestas siguen pendientes de revisión. También se comprueba con tests que las entradas incompletas o duplicadas se rechazan. Falta contrastar el reporte final con los avisos y obligaciones de redistribución y fijar el digest de la imagen base Alpine antes de publicar.
 
+## 2026-11-06 — Alpine license triage and immutable base digest / Licencias y digest Alpine
+
+**EN:** An offline parser now reads exact installed APKv2 `P`/`V`/`L` fields and produces human-review CSV/JSON. In successful [GitHub Actions run 42238883610](https://github.com/sergey08/homeassistant-addons/actions/runs/42238883610), **37 Alpine packages** were detected: **16** flagged `COPYLEFT_OR_RECIPROCAL_REVIEW` (including GPL/LGPL/MPL), **9** `OTHER_OR_COMPOUND_REVIEW`, and **12** `STANDARD_PERMISSIVE_CANDIDATE`. Every entry remains **PENDING**, and regex triage does not assess actual SPDX semantics, linked-code exceptions or compliance. Concrete attention packages include BusyBox, apk-tools, gdbm, libgcc/libstdc++, and CA certificates. This report supports a release review, not a legal certificate.
+
+The same successful image-build logs resolved `docker.io/library/alpine:3.22` to **sha256:bfe7ceb9f09ec0566c48fb93356e45a47a00be5a1dd14fa5b909e7709c66b034**. Both the runtime and the tunnel-client download stages now reference that fixed `alpine:3.22@sha256:...` image digest. This removes mutable-tag drift for those stages; it does **not** freeze Alpine repository package indexes used by `apk add`, nor does it establish source reproducibility. Re-run full image CI and vulnerability scanning after this change, and revise the pin intentionally when security fixes become available.
+
+**ES:** La CI clasifica los **37 paquetes instalados en Alpine**: **16** con expresiones GPL/LGPL/MPL u otras licencias recíprocas pendientes de revisión, **9** con expresiones compuestas u otras, y **12** candidatos permisivos. Todos continúan en estado **PENDING**: esta clasificación no aprueba automáticamente su distribución. La ejecución real de GitHub Actions está en verde y adjunta el CSV de paquetes.
+
+Además, ambas etapas Alpine del Dockerfile se han fijado al **digest SHA-256 exacto identificado en el build verificado** (`bfe7ceb9...`), eliminando la dependencia de una etiqueta Docker mutable. Las dependencias que descarga `apk add` pueden seguir cambiando y deberán auditarse en futuras actualizaciones. La CI de esta modificación debe confirmarse antes de considerarla validada.
+
 ## English
 
 ### Binary provenance
