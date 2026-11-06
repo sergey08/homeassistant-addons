@@ -23,6 +23,12 @@ The operating guide [Secret rotation and backup safety / Rotación de claves y c
 
 **ES:** El SBOM **CycloneDX 1.6** de DEV11 se ha generado y validado mediante GitHub Actions: **129 componentes detectados** (126 bibliotecas, 2 aplicaciones, 1 componente de sistema operativo). **37** incluyen metadatos de licencia y **92** no los incluyen en este informe automatizado. **No significa que 92 componentes no tengan licencia**: falta identificar la licencia correspondiente y verificar las obligaciones de redistribución. Se conservó el informe durante 14 días; quedan pendientes la conciliación de dependencias y avisos, instalación realmente limpia en otra instancia HA y autorización expresa antes de publicar.
 
+## 2026-11-06 — Missing-license metadata reconciliation queue / Cola de revisión
+
+**EN:** A new deterministic helper, `sbom_license_queue.py`, reads the generated CycloneDX SBOM and writes `license-review-queue.csv` and `license-review-summary.json`. Each row records the component name, exact version, PURL, SBOM reference, ecosystem and review status **PENDING**. The helper categorizes `pkg:golang`, `pkg:apk` and other PURL types without inventing a license. Malformed and duplicate component references fail tests instead of silently disappearing. The CI attaches both documents alongside the SBOM. A count of missing fields is **not** a license infringement finding; each entry must be checked against authoritative upstream license files and required notices. No automated redistribution clearance is granted by the helper.
+
+**ES:** Se ha añadido la generación automática de una cola de componentes cuyo SBOM no identifica la licencia. Los informes `license-review-queue.csv` y `license-review-summary.json` recogen nombre, versión exacta, identificador PURL, ecosistema y estado **PENDIENTE**. No se asignan licencias por inferencia. Cada elemento deberá contrastarse con su proyecto original y sus avisos de redistribución. La CI verifica el formato y conserva los informes junto al SBOM.
+
 ## English
 
 ### Binary provenance
