@@ -117,12 +117,18 @@ jobs:
           severity=collections.Counter()
           license_total=0
           license_types=collections.Counter()
+          affected=[]
+          license_findings=[]
           for record in results:
               for vuln in record.get("Vulnerabilities") or []:
                   severity[str(vuln.get("Severity","UNKNOWN")).upper()] += 1
+                  if str(vuln.get("Severity", "")).upper() in ("CRITICAL","HIGH"):
+                      affected.append((str(vuln.get("VulnerabilityID","")),str(vuln.get("PkgName","")),str(vuln.get("InstalledVersion","")),str(vuln.get("FixedVersion",""))))
               for lic in record.get("Licenses") or []:
                   license_total += 1
                   license_types[str(lic.get("Category","Unknown"))] += 1
+                  if str(lic.get("Category","Unknown")).lower() in ("restricted","unknown","reciprocal"):
+                      license_findings.append((str(lic.get("Name","")),str(lic.get("Category","")),str(lic.get("PkgName",record.get("Target","")))))
           summary=[
               "# Moonraker MCP container security scan",
               "",
@@ -134,7 +140,13 @@ jobs:
               summary.append("- "+level+": "+str(severity[level]))
           summary += ["", "Detected license entries: "+str(license_total),
                       "License classifications: "+str(dict(sorted(license_types.items()))),
-                      "", "Review full JSON artifact for affected packages, fixed versions and attribution."]
+                      "", "Review full JSON artifact for affected packages, fixed versions and attribution.",
+                      "", "High / critical package findings (CVE | package | installed | fixed):"]
+          for item in sorted(set(affected))[:75]:
+              summary.append("- "+" | ".join(item))
+          summary += ["", "Restricted, reciprocal or unknown license findings (license | category | package):"]
+          for item in sorted(set(license_findings))[:75]:
+              summary.append("- "+" | ".join(item))
           Path("moonraker-mcp-audit/scan-summary.md").write_text("\n".join(summary)+"\n")
           print("\n".join(summary))
           with Path(__import__("os").environ["GITHUB_STEP_SUMMARY"]).open("a") as output:
