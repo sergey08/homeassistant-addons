@@ -258,15 +258,15 @@ def livesync_cli_remote_preview():
 
 @app.get("/remote/library")
 def independent_remote_library():
-    """Browse CouchDB through the Client's own official CLI, never through MCP.
+    """Browse CouchDB with the Client's existing read-only LiveSync E2EE decoder.
 
-    The browser triggers an explicit disposable fetch; no background task,
-    persistent database replacement or remote mutation occurs.
+    This path does not use MCP or the official CLI fetch/rebuilder, which
+    fails against the currently observed remote dataset. No remote writes.
     """
     if options().get("livesync_cli_enabled") is not True:
         return page('<h1>Biblioteca remota</h1><p>CLI LiveSync deshabilitada.</p>'), 409
     body = """<h1>Biblioteca remota / Remote library</h1>
-<p>Lectura independiente desde CouchDB mediante LiveSync oficial.
+<p>Lectura independiente de notas cifradas desde CouchDB mediante Self-hosted LiveSync.
 No utiliza Obsidian MCP y no modifica las notas remotas ni tu bóveda local.</p>
 <p><button id="load" type="button">Consultar notas en CouchDB</button>
 <span id="status" role="status" aria-live="polite"></span></p>
@@ -279,14 +279,14 @@ const list=document.getElementById("notes");
 const title=document.getElementById("selected-title");
 const content=document.getElementById("content");
 async function preview(path){
-  const body=path===undefined?{}:{path};
-  const response=await fetch("../api/livesync-cli/remote-preview",{
-    method:"POST",credentials:"same-origin",cache:"no-store",
-    headers:{"Content-Type":"application/json","X-Obsidian-Client-Action":"remote-preview"},
-    body:JSON.stringify(body)
+  const endpoint=path===undefined
+    ?"../api/remote/encrypted-notes"
+    :"../api/remote/note-content?path="+encodeURIComponent(path);
+  const response=await fetch(endpoint,{
+    method:"GET",credentials:"same-origin",cache:"no-store"
   });
   const data=await response.json();
-  if(!response.ok)throw Error(data.error||"remote_preview_failed");
+  if(!response.ok)throw Error(data.error||data.status||"remote_read_failed");
   return data;
 }
 button.addEventListener("click",async()=>{
@@ -294,7 +294,7 @@ button.addEventListener("click",async()=>{
   status.textContent="Consultando CouchDB…";
   try{
     const data=await preview();
-    for(const path of data.paths||[]){
+    for(const path of data.notes||[]){
       const item=document.createElement("li");
       const control=document.createElement("button");
       control.type="button";control.textContent=path;
@@ -305,7 +305,7 @@ button.addEventListener("click",async()=>{
       });
       item.appendChild(control);list.appendChild(item);
     }
-    status.textContent=String(data.note_count||0)+" notas encontradas";
+    status.textContent=String(data.count||0)+" notas encontradas";
   }catch(error){status.textContent="Error: "+error.message;}
   finally{button.disabled=false;}
 });
