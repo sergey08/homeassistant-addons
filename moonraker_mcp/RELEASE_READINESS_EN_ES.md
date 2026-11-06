@@ -78,6 +78,12 @@ The same successful image-build logs resolved `docker.io/library/alpine:3.22` to
 
 Además, ambas etapas Alpine del Dockerfile se han fijado al **digest SHA-256 exacto identificado en el build verificado** (`bfe7ceb9...`), eliminando la dependencia de una etiqueta Docker mutable. Las dependencias que descarga `apk add` pueden seguir cambiando y deberán auditarse en futuras actualizaciones. La CI de esta modificación debe confirmarse antes de considerarla validada.
 
+## 2026-11-06 — Exact-SBOM license review release gate / Bloqueo documental para la versión estable
+
+**EN:** A separate `license_release_gate.py` verifies that any future stable release has an explicit human-reviewed attribution manifest matching the **canonical SHA-256 of the exact CycloneDX SBOM**. For every `bom-ref`, the manifest must include a `REVIEWED` status, a nonempty pointer to original license evidence, a nonempty record of notice/source-distribution obligations and the reviewer identity. Any stale manifest, missing/duplicate component, or incomplete review rejects the release. Unit tests cover fail-closed behavior and the development CI explicitly verifies that a missing approval manifest cannot pass. **This is a documentation completeness check, NOT legal clearance or proof that a reviewer made the correct legal decision.** It requires separate explicit release authorization, and the current PR remains draft.
+
+**ES:** Incorporado un control de publicación que solo acepta una **revisión humana documentada para cada componente de la versión exacta del SBOM**, vinculada mediante SHA-256 canónico. Si hay un componente sin revisar, faltan avisos/obligaciones, se duplica una referencia o cambia el SBOM, la versión estable queda bloqueada. Las pruebas y la CI comprueban que, sin aprobaciones, no es posible pasar este control. **No es una certificación legal automática** ni sustituye la autorización expresa de publicación. Hasta completar los avisos y obligaciones reales (incluidas GPL/LGPL), se mantiene la PR en borrador.
+
 ## English
 
 ### Binary provenance
