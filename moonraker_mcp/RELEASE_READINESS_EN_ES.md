@@ -11,6 +11,12 @@
 The operating guide [Secret rotation and backup safety / Rotación de claves y copias](./SECRET_ROTATION_BACKUPS_EN_ES.md) covers provider-side revocation, Home Assistant encrypted backups and the fact that clearing the tunnel key option does not delete an already provisioned legacy key. **Actual rotation and backup restore on a disposable second HA installation remain untested.**
 
 
+## 2026-11-06 — CycloneDX inventory gate for DEV11 / Inventario CycloneDX
+
+**EN:** The DEV11 CI workflow has been extended to generate a machine-readable CycloneDX SBOM from the **actual built Docker image**, not only from declared upstream `go.mod` entries. It checks the format and unique component references, counts component types and available license metadata, and retains the JSON plus Trivy vulnerability/license evidence as a short-lived CI artifact. The final CI execution and exact inventory totals must be checked before treating this gate as validated. CycloneDX is an inventory standard, **not a guarantee of complete dependency discovery, license compliance, or no vulnerabilities**. A maintainer must review entries with missing or ambiguous license information, including compiled Go modules and Alpine packages, before distribution.
+
+**ES:** Añadida generación de SBOM CycloneDX a partir de la imagen DEV11 realmente compilada. Se comprueba el formato, las referencias únicas y la cantidad de componentes que incluyen metadatos de licencia. Se conserva un artefacto temporal con el SBOM y los resultados Trivy. **No equivale a declarar revisadas todas las licencias:** habrá que examinar las dependencias sin licencia identificada, las obligaciones de aviso/código fuente y los paquetes Alpine. La prueba de instalación limpia en otro Home Assistant continúa pendiente.
+
 ## English
 
 ### Binary provenance
