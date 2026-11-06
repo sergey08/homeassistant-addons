@@ -1234,7 +1234,8 @@ def editor_markdown_vault():
     from private_markdown_vault import LocalVaultError
     from storage_selection import select_storage, StorageSelectionError
     try:
-        return select_storage(options())["vault"]
+        return select_storage(options(), private_vault=_PRIVATE_VAULT,
+                              shared_vault=_MCP_SHARED_VAULT)["vault"]
     except StorageSelectionError as exc:
         raise LocalVaultError(str(exc)) from exc
 
@@ -1244,7 +1245,8 @@ def editor_storage_status():
     """Read-only state; never claim CouchDB synchronization before it exists."""
     from storage_selection import select_storage, StorageSelectionError
     try:
-        selected = select_storage(options())
+        selected = select_storage(options(), private_vault=_PRIVATE_VAULT,
+                                  shared_vault=_MCP_SHARED_VAULT)
     except StorageSelectionError as exc:
         return jsonify(error=str(exc), ready=False), 409
     # Do not expose user files or credentials; this only reports configured mode.
