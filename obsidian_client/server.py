@@ -338,7 +338,7 @@ button.addEventListener("click",async()=>{
                     const changes=await response.json();
                     if(currentSelection!==selectionVersion)return;
                     if(!response.ok)throw Error(changes.error||"diff_failed");
-                    diffResult.textContent=changes.different?(changes.diff+(changes.truncated?"\n[Vista parcial: diferencias truncadas]":"")):"Sin diferencias línea a línea.";
+                    diffResult.textContent=changes.different?(changes.diff+(changes.truncated?"\\n[Vista parcial: diferencias truncadas]":"")):"Sin diferencias línea a línea.";
                   }catch(error){if(currentSelection===selectionVersion)diffResult.textContent="No se pudo comparar: "+error.message;}
                   finally{diffButton.disabled=false;}
                 };
