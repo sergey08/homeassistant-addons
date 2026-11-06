@@ -1328,6 +1328,44 @@ def independent_livesync_preflight():
     return result
 
 
+@app.get("/api/remote/compare-local")
+def compare_local_and_remote():
+    """Read-only compare; never infer a direction without a sync baseline."""
+    from private_markdown_vault import LocalVaultError, read_note
+    from client_note_comparison import compare_note_contents
+    from storage_selection import select_storage, StorageSelectionError
+    path = request.args.get("path", "")
+    try:
+        selected = select_storage(options(), private_vault=_PRIVATE_VAULT,
+                                  shared_vault=_MCP_SHARED_VAULT)
+    except StorageSelectionError:
+        return jsonify(error="storage_not_ready", read_only=True), 409
+    if not selected["independent_of_mcp"] or selected["mode"] != "local":
+        return jsonify(error="independent_local_mode_required", read_only=True), 409
+    # Use the strict local vault path validator before any remote request.
+    try:
+        from private_markdown_vault import _path
+        _path(editor_markdown_vault(), path)
+    except LocalVaultError:
+        return jsonify(error="invalid_note_path", read_only=True), 400
+    remote, error = read_encrypted_note(path, verify_revision=True)
+    if error:
+        return jsonify(error="remote_snapshot_not_verified", read_only=True), 409
+    try:
+        with _local_save_lock:
+            local = read_note(editor_markdown_vault(), path)["content"]
+    except LocalVaultError as exc:
+        if exc.code == "note_not_found":
+            local = None
+        else:
+            return jsonify(error="local_read_failed", read_only=True), 409
+    result = compare_note_contents(remote, local)
+    response = jsonify(path=path, **result, read_only=True,
+                       remote_write_enabled=False, baseline_available=False)
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
 @app.get("/api/editor/storage-status")
 def editor_storage_status():
     """Read-only state; never claim CouchDB synchronization before it exists."""
