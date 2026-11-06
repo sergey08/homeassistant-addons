@@ -94,6 +94,14 @@ jobs:
           grep -q '^L:' moonraker-mcp-audit/alpine-package-metadata.txt
           echo 'Inventory contains binary digests, Go embedded module metadata and Alpine package names (no secrets).'
 
+      - name: Triage exact installed Alpine licenses for manual redistribution review
+        run: |
+          set -eu
+          python3 moonraker_mcp/alpine_license_review.py \
+            moonraker-mcp-audit/alpine-package-metadata.txt moonraker-mcp-audit
+          test -s moonraker-mcp-audit/alpine-license-review.csv
+          test -s moonraker-mcp-audit/alpine-license-review-summary.json
+
       - name: Attach inventory to workflow
         uses: actions/upload-artifact@v4
         with:
