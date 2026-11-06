@@ -1206,6 +1206,40 @@ class HTTPGatewayTests(unittest.TestCase):
         self.assertEqual(FakeUpstream.calls[-1]["method"], "tools/list")
         self.assertNotIn("_meta", FakeUpstream.calls[-1]["params"])
 
+    def test_new_upstream_cache_metadata_is_validated_and_stripped(self):
+        previous = FakeUpstream.malformed_result
+        meta = {"io.modelcontextprotocol/protocolVersion": "2026-07-28",
+                "io.modelcontextprotocol/clientInfo": {"name": "ChatGPT", "version": "1"},
+                "io.modelcontextprotocol/clientCapabilities": {}}
+        try:
+            valid_tools = [
+                {"name": "moonraker_printer_info", "inputSchema": {"type": "object"}},
+                {"name": "moonraker_gcode_script", "inputSchema": {"type": "object"}},
+            ]
+            FakeUpstream.malformed_result = {
+                "tools": valid_tools, "cacheScope": "private", "ttlMs": 0
+            }
+            for params in ({}, {"_meta": meta}):
+                with self.subTest(modern="_meta" in params):
+                    status, response = self.request("tools/list", params)
+                    self.assertEqual(status, 200)
+                    result = response["result"]
+                    self.assertNotIn("cacheScope", result)
+                    self.assertNotIn("ttlMs", result)
+                    self.assertNotIn("moonraker_gcode_script",
+                                     {tool["name"] for tool in result["tools"]})
+                    self.assertIn("moonraker_connection_status",
+                                  {tool["name"] for tool in result["tools"]})
+            for bad in ({"cacheScope": []}, {"cacheScope": ""}, {"ttlMs": -1},
+                        {"ttlMs": True}, {"ttlMs": "300"}, {"other": "unexpected"}):
+                with self.subTest(bad=bad):
+                    FakeUpstream.malformed_result = dict(tools=valid_tools, **bad)
+                    status, response = self.request("tools/list")
+                    self.assertEqual(status, 502)
+                    self.assertEqual(response, {"error": "Invalid upstream MCP response"})
+        finally:
+            FakeUpstream.malformed_result = previous
+
     def test_modern_unsafe_tool_stays_denied_without_upstream_access(self):
         metadata = {"io.modelcontextprotocol/protocolVersion": "2026-07-28",
                     "io.modelcontextprotocol/clientInfo": {"name": "ChatGPT", "version": "1"},
