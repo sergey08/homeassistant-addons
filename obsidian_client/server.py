@@ -256,6 +256,70 @@ def livesync_cli_remote_preview():
         return jsonify(error=safe_code), 502
 
 
+@app.get("/remote/library")
+def independent_remote_library():
+    """Browse CouchDB through the Client's own official CLI, never through MCP.
+
+    The browser triggers an explicit disposable fetch; no background task,
+    persistent database replacement or remote mutation occurs.
+    """
+    if options().get("livesync_cli_enabled") is not True:
+        return page('<h1>Biblioteca remota</h1><p>CLI LiveSync deshabilitada.</p>'), 409
+    body = """<h1>Biblioteca remota / Remote library</h1>
+<p>Lectura independiente desde CouchDB mediante LiveSync oficial.
+No utiliza Obsidian MCP y no modifica las notas remotas ni tu bóveda local.</p>
+<p><button id="load" type="button">Consultar notas en CouchDB</button>
+<span id="status" role="status" aria-live="polite"></span></p>
+<ul id="notes"></ul><h2 id="selected-title"></h2><pre id="content"></pre>
+<p><a href="../">Volver / Back</a></p>
+<script>
+const button=document.getElementById("load");
+const status=document.getElementById("status");
+const list=document.getElementById("notes");
+const title=document.getElementById("selected-title");
+const content=document.getElementById("content");
+async function preview(path){
+  const body=path===undefined?{}:{path};
+  const response=await fetch("../api/livesync-cli/remote-preview",{
+    method:"POST",credentials:"same-origin",cache:"no-store",
+    headers:{"Content-Type":"application/json","X-Obsidian-Client-Action":"remote-preview"},
+    body:JSON.stringify(body)
+  });
+  const data=await response.json();
+  if(!response.ok)throw Error(data.error||"remote_preview_failed");
+  return data;
+}
+button.addEventListener("click",async()=>{
+  button.disabled=true;list.replaceChildren();title.textContent="";content.textContent="";
+  status.textContent="Consultando CouchDB…";
+  try{
+    const data=await preview();
+    for(const path of data.paths||[]){
+      const item=document.createElement("li");
+      const control=document.createElement("button");
+      control.type="button";control.textContent=path;
+      control.addEventListener("click",async()=>{
+        title.textContent=path;content.textContent="Cargando…";
+        try{const note=await preview(path);content.textContent=note.content||"";}
+        catch(error){content.textContent="Error: "+error.message;}
+      });
+      item.appendChild(control);list.appendChild(item);
+    }
+    status.textContent=String(data.note_count||0)+" notas encontradas";
+  }catch(error){status.textContent="Error: "+error.message;}
+  finally{button.disabled=false;}
+});
+</script>"""
+    response = page(body)
+    from flask import make_response
+    result = make_response(response)
+    result.headers["Cache-Control"] = "no-store"
+    result.headers["Content-Security-Policy"] = (
+        "default-src 'none'; script-src 'unsafe-inline'; "
+        "connect-src 'self'; style-src 'unsafe-inline'; base-uri 'none'")
+    return result
+
+
 @app.get("/api/livesync-cli/connection-check")
 def livesync_cli_connection_check():
     """Read-only CouchDB database HEAD. No replication, documents or secrets."""
@@ -1651,6 +1715,7 @@ def home():
     status = ('<p><a href="api/demo">Offline example / Ejemplo aislado (JSON)</a> · '
               '<a href="api/connection">CouchDB diagnostics / Diagnóstico CouchDB (JSON)</a> · '
               '<a href="livesync/setup">Configuración LiveSync</a> · '
+              '<a href="remote/library">Biblioteca CouchDB / Remote library</a> · '
               '<a href="private-drafts">Borradores locales / Private drafts</a></p>')
     if not root.is_dir():
         cfg = options()
