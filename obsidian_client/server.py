@@ -1321,7 +1321,7 @@ def private_drafts():
         '<li><a href="remote/new?path=' + quote(name, safe="") + '">' +
         html.escape(name) + "</a></li>" for name in notes)
     return page('<h1>Notas Markdown / Markdown notes</h1>'
-                '<p>Modo Local: sin sincronización. Modo LiveSync independiente: en desarrollo. mcp_shared: compatibilidad temporal con MCP.</p>'
+                '<p>Las notas compartidas se sincronizan mediante el MCP; los borradores privados no. Modo LiveSync independiente: en desarrollo.</p>'
                 '<p><a href="remote/new?path=Nuevo.md">Crear nota / New note</a></p>'
                 '<ul>' + rows + '</ul>'
                 '<p><a href="./">Volver / Back</a></p>')
