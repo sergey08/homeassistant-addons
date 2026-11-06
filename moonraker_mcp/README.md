@@ -1,5 +1,14 @@
 # Moonraker MCP for Home Assistant — DEV
 
+## DEV11 — Patched upstream, end-to-end verified / Servidor actualizado y verificado
+
+**EN:** The Home Assistant DEV add-on **0.1.0-dev11** is now running the SHA-pinned upstream `mcp-raker` source revision `f01636bec21a21cfc5f9ee84dc68dad7d44d6dd9`, compiled with the pinned Go 1.27.3 toolchain instead of the old prebuilt binary. The gateway validates and strips the newer upstream `tools/list` cache metadata (`cacheScope` / `ttlMs`) and retains its strict five-tool read-only allowlist. Trivy on the built DEV11 image reports **0 CRITICAL and 0 HIGH** vulnerabilities (1 LOW, 2 UNKNOWN in the isolated candidate scan), and the production Docker CI now enforces a failure on HIGH/CRITICAL. **All five tools were called successfully from ChatGPT through the private tunnel against the actual Snapmaker U1**: Klippy `ready`, Moonraker `2.0.0`, firmware `2.0.0-paxx12-23`, six temperature sensors with up to 120 samples and anonymous `sensor_1`. The tunnel remains private, the external MCP port unpublished, and optional write capabilities disabled.
+
+**ES:** El complemento DEV **0.1.0-dev11** ya ejecuta una compilación de `mcp-raker` desde una revisión exacta de GitHub, con Go 1.27.3 fijado por digest. El gateway admite los metadatos de caché del SDK actualizado tras validarlos y eliminarlos, sin ampliar la lista de cinco herramientas de solo lectura. Trivy informa **0 vulnerabilidades críticas y 0 altas** en la nueva imagen y la CI impide aceptar futuras alertas HIGH/CRITICAL. **Las cinco herramientas se han probado realmente desde ChatGPT** con la Snapmaker U1, que responde online / Klippy ready. Se mantiene la privacidad de servidor, firmware y temperaturas; el túnel está activo y el puerto externo cerrado.
+
+**NOT A STABLE RELEASE / NO ES VERSIÓN ESTABLE:** still pending independent clean Home Assistant installation, full licensing/SBOM review, reproducibility/supply-chain audit and explicit maintainer approval. / Pendientes instalación limpia independiente, revisión completa de licencias/SBOM, seguridad de la cadena de suministro y autorización expresa para publicar.
+
+
 ## DEV10 — Bounded, anonymized temperature histories
 
 **EN:** DEV10 adds a privacy-filtered local adapter for `moonraker_temperature_store`. The tool retains its existing name, but its response is limited to the **120 latest finite readings** in each `temperatures`, `targets`, and `powers` series. Standard `extruder`, `extruderN`, and `heater_bed` sensor names remain readable; custom names become generic `sensor_N` identifiers. The helper limits response size and rejects malformed data. Both legacy MCP and ChatGPT's modern MCP protocol use the same authenticated gateway path. This is a compatibility change: clients that previously used longer histories or original custom sensor names must adjust. The exact time span represented by 120 samples depends on Moonraker's sampling cadence. No timestamp data is fabricated.
