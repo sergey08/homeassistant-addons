@@ -79,6 +79,6 @@ RUN mkdir -p /data/livesync-client \
     && node --version \
     && node /opt/livesync-cli/dist/index.cjs --help >/dev/null
 RUN pip install --no-cache-dir flask==3.1.1 Markdown==3.8.2 gunicorn==23.0.0 cryptography==46.0.3
-COPY server.py storage_selection.py private_markdown_vault.py livesync_plain.py livesync_crypto.py livesync_metadata.py livesync_write_preflight.py couchdb_cas.py livesync_cli_bridge.py /app/
+COPY server.py client_sync_engine.py storage_selection.py private_markdown_vault.py livesync_plain.py livesync_crypto.py livesync_metadata.py livesync_write_preflight.py couchdb_cas.py livesync_cli_bridge.py /app/
 EXPOSE 8099
 CMD ["sh", "-c", "mkdir -p /data/livesync-client && chmod 700 /data/livesync-client && exec gunicorn --bind 0.0.0.0:8099 --workers 1 --threads 4 --access-logfile - server:app"]
