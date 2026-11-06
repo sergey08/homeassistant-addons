@@ -271,7 +271,8 @@ No utiliza Obsidian MCP y no modifica las notas remotas ni tu bóveda local.</p>
 <p><button id="load" type="button">Consultar notas en CouchDB</button>
 <span id="status" role="status" aria-live="polite"></span></p>
 <ul id="notes"></ul><h2 id="selected-title"></h2><pre id="content"></pre>
-<p id="edit-action" hidden><a id="edit-link" href="#">Abrir editor Markdown (copia local independiente)</a></p>
+<p id="edit-action" hidden><a id="edit-link" href="#">Abrir editor Markdown (copia local independiente)</a> <button id="compare-local" type="button">Comparar con copia local</button></p>
+<p id="comparison-result" role="status" aria-live="polite"></p>
 <p>El editor guarda una copia local privada. No modifica CouchDB ni sincroniza las notas.</p>
 <p><a href="../">Volver / Back</a></p>
 <script>
@@ -282,6 +283,8 @@ const title=document.getElementById("selected-title");
 const content=document.getElementById("content");
 const editAction=document.getElementById("edit-action");
 const editLink=document.getElementById("edit-link");
+const compareButton=document.getElementById("compare-local");
+const comparisonResult=document.getElementById("comparison-result");
 let selectionVersion=0;
 async function preview(path){
   const endpoint=path===undefined
@@ -297,7 +300,7 @@ async function preview(path){
 button.addEventListener("click",async()=>{
   selectionVersion++;
   button.disabled=true;list.replaceChildren();title.textContent="";content.textContent="";
-  editAction.hidden=true;editLink.removeAttribute("href");
+  editAction.hidden=true;editLink.removeAttribute("href");comparisonResult.textContent="";
   status.textContent="Consultando CouchDB…";
   try{
     const data=await preview();
@@ -308,13 +311,24 @@ button.addEventListener("click",async()=>{
       control.addEventListener("click",async()=>{
         const currentSelection=++selectionVersion;
         title.textContent=path;content.textContent="Cargando…";
-        editAction.hidden=true;editLink.removeAttribute("href");
+        editAction.hidden=true;editLink.removeAttribute("href");comparisonResult.textContent="";
         try{
           const note=await preview(path);
           if(currentSelection!==selectionVersion)return;
           if(typeof note.content!=="string")throw Error("remote_content_missing");
           content.textContent=note.content;
           editLink.href="../remote/edit?path="+encodeURIComponent(path);
+          compareButton.onclick=async()=>{
+            comparisonResult.textContent="Comparando versiones (solo lectura)…";
+            try{
+              const result=await fetch("../api/remote/compare-local?path="+encodeURIComponent(path),{cache:"no-store"});
+              const data=await result.json();
+              if(currentSelection!==selectionVersion)return;
+              if(!result.ok)throw Error(data.error||"comparison_failed");
+              const labels={remote_only:"No hay copia local",identical:"Copia local idéntica",diverged_unknown_origin:"Las versiones difieren; requiere revisión manual"};
+              comparisonResult.textContent=labels[data.state]||"Estado desconocido";
+            }catch(error){if(currentSelection===selectionVersion)comparisonResult.textContent="Error: "+error.message;}
+          };
           editAction.hidden=false;
         }catch(error){if(currentSelection===selectionVersion)content.textContent="Error: "+error.message;}
       });
@@ -1326,6 +1340,44 @@ def independent_livesync_preflight():
     result = jsonify(preflight(options()))
     result.headers["Cache-Control"] = "no-store"
     return result
+
+
+@app.get("/api/remote/compare-local")
+def compare_local_and_remote():
+    """Read-only compare; never infer a direction without a sync baseline."""
+    from private_markdown_vault import LocalVaultError, read_note
+    from client_note_comparison import compare_note_contents
+    from storage_selection import select_storage, StorageSelectionError
+    path = request.args.get("path", "")
+    try:
+        selected = select_storage(options(), private_vault=_PRIVATE_VAULT,
+                                  shared_vault=_MCP_SHARED_VAULT)
+    except StorageSelectionError:
+        return jsonify(error="storage_not_ready", read_only=True), 409
+    if not selected["independent_of_mcp"] or selected["mode"] != "local":
+        return jsonify(error="independent_local_mode_required", read_only=True), 409
+    # Use the strict local vault path validator before any remote request.
+    try:
+        from private_markdown_vault import _path
+        _path(editor_markdown_vault(), path)
+    except LocalVaultError:
+        return jsonify(error="invalid_note_path", read_only=True), 400
+    remote, error = read_encrypted_note(path, verify_revision=True)
+    if error:
+        return jsonify(error="remote_snapshot_not_verified", read_only=True), 409
+    try:
+        with _local_save_lock:
+            local = read_note(editor_markdown_vault(), path)["content"]
+    except LocalVaultError as exc:
+        if exc.code == "note_not_found":
+            local = None
+        else:
+            return jsonify(error="local_read_failed", read_only=True), 409
+    result = compare_note_contents(remote, local)
+    response = jsonify(path=path, **result, read_only=True,
+                       remote_write_enabled=False, baseline_available=False)
+    response.headers["Cache-Control"] = "no-store"
+    return response
 
 
 @app.get("/api/editor/storage-status")
