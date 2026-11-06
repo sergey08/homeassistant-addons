@@ -1,0 +1,20 @@
+# Evaluation only. This image is not deployed by the standard add-on.
+# SHA-pinned Go compiler image copied from upstream's verified Containerfile.
+FROM docker.io/library/golang:1.27.3-alpine@sha256:d200d2dd76b03a99b52651fd1325aff7dcd35422c35c01bac56571b0507f3deb AS builder
+RUN apk add --no-cache ca-certificates git
+ARG UPSTREAM_COMMIT=f01636bec21a21cfc5f9ee84dc68dad7d44d6dd9
+WORKDIR /src
+RUN set -eu; \
+    git init .; \
+    git remote add origin https://github.com/lexfrei/mcp-raker.git; \
+    git fetch --depth=1 origin "$UPSTREAM_COMMIT"; \
+    test "$(git rev-parse FETCH_HEAD)" = "$UPSTREAM_COMMIT"; \
+    git checkout --detach FETCH_HEAD; \
+    test "$(git rev-parse HEAD)" = "$UPSTREAM_COMMIT"
+RUN go mod download && go mod verify
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go test ./...
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
+    -trimpath -ldflags "-s -w -X main.version=0.2.0-patched-candidate -X main.revision=f01636bec21a21cfc5f9ee84dc68dad7d44d6dd9" \
+    -o /tmp/mcp-raker ./cmd/mcp-raker
+FROM scratch
+COPY --from=builder /tmp/mcp-raker /mcp-raker
