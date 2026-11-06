@@ -62,6 +62,12 @@ These checks address primary attribution for the **six exceptional SBOM entries*
 
 **ES:** Se han verificado las fuentes oficiales exactas de **Go 1.27.3 (licencia BSD de la distribución Go)**, **mcp-raker (BSD-3-Clause en el commit fijado)** y **tunnel-client OpenAI v0.0.19 (Apache-2.0 + NOTICE)**. La licencia de Go ya está incluida en la imagen y validada por CI. Alpine no tiene una sola licencia para todos sus componentes: se guardará la información de licencias de los paquetes efectivamente instalados mediante los campos `P`, `V` y `L` de la base local APKv2. Los seis registros especiales cuentan así con un origen de atribución definido, pero **no se declara cerrada la auditoría legal** de toda la distribución. Pendientes: obligaciones GPL/LGPL y otras licencias transitivas, atribuciones y revisión del inventario completo; fijación digest de Alpine; instalación limpia en otro Home Assistant y aprobación final.
 
+## 2026-11-06 — Alpine package-specific redistribution review / Clasificación por paquete
+
+**EN:** The development CI now reads installed APKv2 package records directly from the built image and produces `alpine-license-review.csv` and `alpine-license-review-summary.json`. The CSV records exact package name/version/license expression, a conservative review category and **PENDING** review status. Categories flag GPL/LGPL/MPL/EPL/CDDL and similar reciprocal/copy-left expressions for human review, while unknown or compound expressions are left unresolved. Standard permissive expressions are marked **candidates** only; no automated legal clearance is granted. Offline unit tests reject malformed/duplicated APKv2 records. The outputs are part of the short-retention GitHub Actions audit artifact. Validate its execution and exact counts before treating the new report as complete.
+
+**ES:** La CI genera dos informes nuevos de los **paquetes Alpine realmente instalados**: CSV de nombre, versión, expresión de licencia y prioridad de revisión; JSON resumen por grupos. Se destacan GPL/LGPL/MPL y otras licencias recíprocas, pero **ninguna queda aprobada automáticamente**. Las expresiones desconocidas o compuestas siguen pendientes de revisión. También se comprueba con tests que las entradas incompletas o duplicadas se rechazan. Falta contrastar el reporte final con los avisos y obligaciones de redistribución y fijar el digest de la imagen base Alpine antes de publicar.
+
 ## English
 
 ### Binary provenance
