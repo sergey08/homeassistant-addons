@@ -1436,6 +1436,79 @@ def establish_verified_baseline():
                    sync_enabled=False), 201 if baseline["created"] else 200
 
 
+@app.post("/api/remote/import-private")
+def import_verified_remote_note():
+    """Explicit one-way import to the Client's private Markdown vault only.
+
+    A new note is created exclusively when absent locally and when the
+    authenticated remote snapshot matches the exact hash confirmed by the
+    caller. A failed baseline registration never triggers a remote write.
+    """
+    from private_markdown_vault import LocalVaultError, read_note, save_note, _path
+    from client_sync_baseline import BaselineError, digest, load_baseline, establish_baseline, SHA
+    from storage_selection import select_storage, StorageSelectionError
+    if request.headers.get("X-Obsidian-Client-Action") != "import-private":
+        return jsonify(error="missing_action_header"), 403
+    if request.headers.get("Sec-Fetch-Site") not in (None, "same-origin"):
+        return jsonify(error="cross_origin_blocked"), 403
+    if request.headers.get("Origin") and request.headers.get("Sec-Fetch-Site") != "same-origin":
+        return jsonify(error="cross_origin_blocked"), 403
+    if (request.mimetype != "application/json" or request.content_length is None
+            or request.content_length > 2048):
+        return jsonify(error="invalid_request"), 400
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict) or set(payload) != {"path", "expected_sha256"}:
+        return jsonify(error="invalid_request"), 400
+    path, expected = payload["path"], payload["expected_sha256"]
+    if not isinstance(expected, str) or not SHA.fullmatch(expected):
+        return jsonify(error="invalid_expected_hash"), 400
+    try:
+        selected = select_storage(options(), private_vault=_PRIVATE_VAULT,
+                                  shared_vault=_MCP_SHARED_VAULT)
+        if not selected["independent_of_mcp"] or selected["mode"] != "local":
+            return jsonify(error="independent_local_mode_required"), 409
+        _path(editor_markdown_vault(), path)
+        if load_baseline("/data/obsidian-client-sync-baselines", path) is not None:
+            return jsonify(error="baseline_already_exists"), 409
+    except (LocalVaultError, StorageSelectionError, BaselineError, OSError):
+        return jsonify(error="invalid_storage_path_or_baseline"), 409
+    remote, error = read_encrypted_note(path, verify_revision=True)
+    if error or not isinstance(remote, str):
+        return jsonify(error="remote_snapshot_not_verified"), 409
+    if digest(remote) != expected:
+        return jsonify(error="remote_content_changed"), 409
+    try:
+        with _local_save_lock:
+            if load_baseline("/data/obsidian-client-sync-baselines", path) is not None:
+                return jsonify(error="baseline_already_exists"), 409
+            try:
+                read_note(editor_markdown_vault(), path)
+            except LocalVaultError as exc:
+                if exc.code != "note_not_found":
+                    return jsonify(error="local_read_failed"), 409
+            else:
+                return jsonify(error="local_note_exists"), 409
+            # Reuses the vault's write lock and atomic create-only semantics.
+            saved = save_note(editor_markdown_vault(), _PRIVATE_BACKUPS,
+                              path, remote, "create")
+            try:
+                baseline = establish_baseline("/data/obsidian-client-sync-baselines",
+                                              path, remote, remote)
+            except (BaselineError, OSError):
+                # The newly created Markdown stays intact: never delete an
+                # imported note to compensate for a metadata error.
+                return jsonify(error="baseline_registration_failed",
+                               local_created=True, remote_write_enabled=False,
+                               recovery="establish_baseline_after_verification"), 409
+    except (LocalVaultError, BaselineError, OSError):
+        return jsonify(error="private_import_failed", remote_write_enabled=False), 409
+    response = jsonify(status="imported_private", path=path,
+                       sha256=saved["sha256"], baseline_created=baseline["created"],
+                       remote_write_enabled=False, remote_synced=False)
+    response.headers["Cache-Control"] = "no-store"
+    return response, 201
+
+
 @app.get("/api/editor/storage-status")
 def editor_storage_status():
     """Read-only state; never claim CouchDB synchronization before it exists."""
