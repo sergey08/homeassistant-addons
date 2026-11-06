@@ -91,6 +91,56 @@ jobs:
           retention-days: 14
           if-no-files-found: error
 
+      - name: Scan built image for vulnerabilities and third-party licenses
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0, pinned after 2026 supply-chain incident
+        with:
+          image-ref: moonraker-mcp:ci
+          format: json
+          output: moonraker-mcp-audit/trivy-results.json
+          scanners: vuln,license
+          severity: UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL
+          exit-code: '0'
+          ignore-unfixed: 'false'
+
+      - name: Summarize scanner findings without masking risk
+        run: |
+          python3 - <<'PY'
+          import collections, json
+          from pathlib import Path
+          report=Path("moonraker-mcp-audit/trivy-results.json")
+          if not report.is_file():
+              raise SystemExit("SECURITY SCAN ERROR: Trivy report missing")
+          data=json.loads(report.read_text())
+          results=data.get("Results")
+          if not isinstance(results, list):
+              raise SystemExit("SECURITY SCAN ERROR: unsupported Trivy report")
+          severity=collections.Counter()
+          license_total=0
+          license_types=collections.Counter()
+          for record in results:
+              for vuln in record.get("Vulnerabilities") or []:
+                  severity[str(vuln.get("Severity","UNKNOWN")).upper()] += 1
+              for lic in record.get("Licenses") or []:
+                  license_total += 1
+                  license_types[str(lic.get("Category","Unknown"))] += 1
+          summary=[
+              "# Moonraker MCP container security scan",
+              "",
+              "Assessment only: no automatic vulnerability waivers or stable release approval.",
+              "",
+              "Vulnerabilities by severity:",
+          ]
+          for level in ("CRITICAL","HIGH","MEDIUM","LOW","UNKNOWN"):
+              summary.append("- "+level+": "+str(severity[level]))
+          summary += ["", "Detected license entries: "+str(license_total),
+                      "License classifications: "+str(dict(sorted(license_types.items()))),
+                      "", "Review full JSON artifact for affected packages, fixed versions and attribution."]
+          Path("moonraker-mcp-audit/scan-summary.md").write_text("\n".join(summary)+"\n")
+          print("\n".join(summary))
+          with Path(__import__("os").environ["GITHUB_STEP_SUMMARY"]).open("a") as output:
+              output.write("\n".join(summary)+"\n")
+          PY
+
       - name: Verify redistribution notices are present inside image
         run: |
           set -eu
