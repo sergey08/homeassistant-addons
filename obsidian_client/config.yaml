@@ -34,4 +34,4 @@ schema:
   livesync_encryption_enabled: bool
   livesync_e2ee_passphrase: password?
   livesync_cli_enabled: bool
-  editor_storage_mode: list(private|mcp_shared)
+  editor_storage_mode: list(private|local|livesync|mcp_shared)
