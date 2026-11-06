@@ -29,6 +29,8 @@ class IndependentLibraryTests(unittest.TestCase):
         self.assertIn('id="edit-action" hidden', body)
         self.assertIn('editLink.href="../remote/edit?path="+encodeURIComponent(path)', body)
         self.assertIn('typeof note.content!=="string"', body)
+        self.assertIn("let selectionVersion=0;", body)
+        self.assertIn("if(currentSelection!==selectionVersion)return;", body)
         self.assertIn("No modifica CouchDB ni sincroniza las notas.", body)
         self.assertNotIn("mcp_shared", body)
         self.assertNotIn("/share/obsidian-shared-vault", body)
