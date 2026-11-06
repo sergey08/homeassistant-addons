@@ -36,6 +36,7 @@ class ComparisonEndpointTests(unittest.TestCase):
 
     def test_rejects_shared_mode_before_remote_fetch(self):
         with patch("server.options", return_value={"editor_storage_mode": "mcp_shared"}), \
+             patch("storage_selection.select_storage", return_value={"independent_of_mcp": False, "mode": "mcp_shared"}), \
              patch("server.read_encrypted_note") as fetch:
             response = self.client.get("/api/remote/compare-local?path=Test.md")
         self.assertEqual(response.status_code, 409)
