@@ -83,9 +83,15 @@ jobs:
           test -s moonraker-mcp-audit/alpine-packages.txt
           # Package-specific Alpine licensing: Alpine is not governed by a single
           # license that replaces the licenses of its redistributed packages.
-          docker run --rm --network none --entrypoint sh moonraker-mcp:ci -c 'apk info -a' > moonraker-mcp-audit/alpine-package-metadata.txt
+          # APKv2's installed database supplies exact package (P), version (V)
+          # and SPDX license (L) fields without a remote index/cache.
+          docker run --rm --network none --entrypoint sh moonraker-mcp:ci \
+            -c 'test -s /lib/apk/db/installed && awk "/^(P|V|L):/" /lib/apk/db/installed' \
+            > moonraker-mcp-audit/alpine-package-metadata.txt
           test -s moonraker-mcp-audit/alpine-package-metadata.txt
-          grep -qi license moonraker-mcp-audit/alpine-package-metadata.txt
+          grep -q '^P:' moonraker-mcp-audit/alpine-package-metadata.txt
+          grep -q '^V:' moonraker-mcp-audit/alpine-package-metadata.txt
+          grep -q '^L:' moonraker-mcp-audit/alpine-package-metadata.txt
           echo 'Inventory contains binary digests, Go embedded module metadata and Alpine package names (no secrets).'
 
       - name: Attach inventory to workflow
