@@ -1409,6 +1409,43 @@ def compare_local_and_remote():
     return response
 
 
+@app.get("/api/remote/diff-local")
+def readonly_remote_local_diff():
+    """Show bounded private-vs-remote differences, no writes or merge actions."""
+    from private_markdown_vault import LocalVaultError, read_note, _path
+    from client_note_diff import compare_lines, DiffUnavailable
+    from client_sync_baseline import BaselineError, load_baseline, classify
+    from storage_selection import select_storage, StorageSelectionError
+    path = request.args.get("path", "")
+    try:
+        selected = select_storage(options(), private_vault=_PRIVATE_VAULT,
+                                  shared_vault=_MCP_SHARED_VAULT)
+        if not selected["independent_of_mcp"] or selected["mode"] != "local":
+            return jsonify(error="independent_local_mode_required", read_only=True), 409
+        _path(editor_markdown_vault(), path)
+    except (LocalVaultError, StorageSelectionError):
+        return jsonify(error="invalid_storage_or_path", read_only=True), 409
+    remote, error = read_encrypted_note(path, verify_revision=True)
+    if error or not isinstance(remote, str):
+        return jsonify(error="remote_snapshot_not_verified", read_only=True), 409
+    try:
+        with _local_save_lock:
+            local = read_note(editor_markdown_vault(), path)["content"]
+        baseline = load_baseline(_PRIVATE_BASELINES, path)
+        result = compare_lines(remote, local)
+        lineage = classify(baseline, remote, local)
+    except LocalVaultError as exc:
+        return jsonify(error="local_copy_required" if exc.code == "note_not_found"
+                       else "local_read_failed", read_only=True), 409
+    except (BaselineError, DiffUnavailable) as exc:
+        return jsonify(error=str(exc), read_only=True), 409
+    response = jsonify(path=path, **result, **lineage,
+                       read_only=True, remote_write_enabled=False,
+                       merge_enabled=False)
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
 @app.post("/api/remote/establish-baseline")
 def establish_verified_baseline():
     """Explicit enrollment only when private/local and verified remote copies match."""
