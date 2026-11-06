@@ -143,7 +143,28 @@ jobs:
           severity: UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL
           exit-code: '0'
 
+      - name: Summarize candidate vulnerability findings even on compatibility failure
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import collections,json,pathlib
+          p=pathlib.Path("patched-candidate-trivy.json")
+          if not p.is_file():
+              raise SystemExit("Candidate security report missing")
+          result=json.loads(p.read_text())
+          totals=collections.Counter()
+          names=collections.Counter()
+          for r in result.get("Results",[]):
+              for v in r.get("Vulnerabilities") or []:
+                  totals[v.get("Severity","UNKNOWN")] += 1
+                  if v.get("Severity") in ("CRITICAL","HIGH"):
+                      names[v.get("PkgName","Unknown")]+=1
+          print("Candidate vulnerability totals",dict(totals))
+          print("High/critical package groups",dict(names))
+          PY
+
       - name: Evaluate HIGH and CRITICAL findings, no release approval
+        if: always()
         run: |
           set -eu
           python3 moonraker_mcp/security_release_gate.py patched-candidate-trivy.json
