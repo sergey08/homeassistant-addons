@@ -28,6 +28,29 @@ Se ha identificado el commit completo de la rama upstream `alpinelinux/aports:3.
 - Esta comprobación da un punto de referencia **inmutable** para las recetas de los 16 paquetes auditados, pero **no** certifica que el paquete binario instalado fuera construido precisamente con este árbol, ni que ya se hayan inspeccionado sus ficheros auxiliares y fuentes completas.
 - La fuente correspondiente, parches, excepciones y obligaciones de licencia siguen pendientes de validación individual por el revisor.
 
+## Cotejo del árbol de fuentes auxiliares (2026-11-07)
+
+Se ha usado **el mismo commit fijado** de `alpinelinux/aports` (`2235ae248c31ea48a9df764becdfecc2a85b4f31`) para leer tanto los `APKBUILD` como los listados del directorio `main/<familia>/`. Se han extraído los **nombres**, no los contenidos, de las entradas `sha512sums` y se han cruzado con los archivos publicados. **No se han descargado aún los tarballs ni recalculado sus SHA-512.**
+
+| Familia | Entradas SHA-512 de la receta | Archivos coincidentes en la carpeta de aports | Entradas externas/restantes | Observación |
+|---|---:|---:|---:|---|
+| alpine-baselayout | 12 | 10 | 2 | `protocols-6.4` y `services-6.4`: recurso externo de netbase |
+| apk-tools | 2 | 1 | 1 | tarball fuente externo |
+| busybox | 72 | **71** | 1 | tarball upstream; todos los parches, `ssl_client.c` y otros auxiliares enumerados presentes |
+| ca-certificates | 1 | 0 | 1 | tarball externo |
+| gdbm | 1 | 0 | 1 | tarball GNU |
+| gcc | 41 | **40** | 1 | tarball GCC; todos los auxiliares/parches enumerados presentes |
+| musl | 18 | **17** | 1 | tarball musl; todos los parches enumerados presentes |
+| readline | 17 | 3 | 14 | 1 tarball GNU y **13 parches GNU numerados** añadidos dinámicamente por la receta |
+| pax-utils | 1 | 0 | 1 | tarball externo |
+| xz | 1 | 0 | 1 | tarball upstream |
+
+**Resultado limitado pero verificable:** 142 entradas de fuentes auxiliares con nombre coincidente en el directorio aports fijado (10+1+71+40+17+3). Las otras 23 entradas corresponden a recursos externos declarados o generados dinámicamente por recetas; su ausencia en el directorio local **no es un error de empaquetado**. La lectura confirma rutas/nombres, no los checksums SHA-512 de los bytes. Un enlace a archivos GitHub tampoco equivale a evidencia completa de código fuente correspondiente.
+
+**Precaución sobre Readline:** `readline82-001.patch` a `readline82-013.patch` figuran en la lista de checksums, y la receta los añade desde la URL GNU de parches mediante un bucle. No marcarlos como archivos locales desaparecidos.
+
+**Próximo cierre verificable:** obtener y cotejar cada descarga con el SHA-512 de la receta y registrar el tratamiento de parches, scripts de compilación, excepciones de licencia y fuentes accesibles para terceros. Las aprobaciones de los 129 `bom-ref` se mantienen `PENDING`.
+
 ## Trabajo para cerrar el gate humano
 
 1. Descargar el SBOM CycloneDX del **SHA final de la imagen**, el inventario APK y las diferencias de `go.mod/go.sum`. El inventario DEV12 verificado hasta ahora corresponde a [CI 42408893008](https://github.com/sergey08/homeassistant-addons/actions/runs/42408893008), SHA `06696618cf00da5ee31ec1efd0f5ba2f40dfb4fa`.
