@@ -271,7 +271,7 @@ No utiliza Obsidian MCP. Las consultas son de solo lectura; la importación modi
 <p><button id="load" type="button">Consultar notas en CouchDB</button>
 <span id="status" role="status" aria-live="polite"></span></p>
 <ul id="notes"></ul><h2 id="selected-title"></h2><pre id="content"></pre>
-<p id="edit-action" hidden><a id="edit-link" href="#">Abrir editor Markdown (copia local independiente)</a> <button id="compare-local" type="button">Comparar con copia local</button> <button id="show-diff" type="button" hidden>Ver diferencias línea a línea</button> <button id="import-private" type="button" hidden>Importar copia privada</button></p>
+<p id="edit-action" hidden><a id="edit-link" href="#">Abrir editor Markdown (copia local independiente)</a> <button id="compare-local" type="button">Comparar con copia local</button> <button id="show-diff" type="button" hidden>Ver diferencias línea a línea</button> <button id="advance-baseline" type="button" hidden>Confirmar versión común</button> <button id="import-private" type="button" hidden>Importar copia privada</button></p>
 <p id="comparison-result" role="status" aria-live="polite"></p><pre id="diff-result" hidden style="white-space:pre-wrap;overflow-wrap:anywhere"></pre>
 <p>El editor guarda una copia local privada. No modifica CouchDB ni sincroniza las notas.</p>
 <p><a href="../">Volver / Back</a></p>
@@ -286,6 +286,7 @@ const editLink=document.getElementById("edit-link");
 const compareButton=document.getElementById("compare-local");
 const importButton=document.getElementById("import-private");
 const diffButton=document.getElementById("show-diff");
+const advanceButton=document.getElementById("advance-baseline");
 const diffResult=document.getElementById("diff-result");
 const comparisonResult=document.getElementById("comparison-result");
 let selectionVersion=0;
@@ -303,7 +304,7 @@ async function preview(path){
 button.addEventListener("click",async()=>{
   selectionVersion++;
   button.disabled=true;list.replaceChildren();title.textContent="";content.textContent="";
-  editAction.hidden=true;editLink.removeAttribute("href");importButton.hidden=true;diffButton.hidden=true;diffResult.hidden=true;diffResult.textContent="";comparisonResult.textContent="";
+  editAction.hidden=true;editLink.removeAttribute("href");importButton.hidden=true;diffButton.hidden=true;advanceButton.hidden=true;diffResult.hidden=true;diffResult.textContent="";comparisonResult.textContent="";
   status.textContent="Consultando CouchDB…";
   try{
     const data=await preview();
@@ -314,7 +315,7 @@ button.addEventListener("click",async()=>{
       control.addEventListener("click",async()=>{
         const currentSelection=++selectionVersion;
         title.textContent=path;content.textContent="Cargando…";
-        editAction.hidden=true;editLink.removeAttribute("href");importButton.hidden=true;diffButton.hidden=true;diffResult.hidden=true;diffResult.textContent="";comparisonResult.textContent="";
+        editAction.hidden=true;editLink.removeAttribute("href");importButton.hidden=true;diffButton.hidden=true;advanceButton.hidden=true;diffResult.hidden=true;diffResult.textContent="";comparisonResult.textContent="";
         try{
           const note=await preview(path);
           if(currentSelection!==selectionVersion)return;
@@ -341,6 +342,25 @@ button.addEventListener("click",async()=>{
                     diffResult.textContent=changes.different?(changes.diff+(changes.truncated?"\\n[Vista parcial: diferencias truncadas]":"")):"Sin diferencias línea a línea.";
                   }catch(error){if(currentSelection===selectionVersion)diffResult.textContent="No se pudo comparar: "+error.message;}
                   finally{diffButton.disabled=false;}
+                };
+              }
+              advanceButton.hidden=!(data.sync_state==="same_result_both_changed"&&data.baseline_available===true&&data.remote_write_enabled===false);
+              if(!advanceButton.hidden){
+                advanceButton.onclick=async()=>{
+                  if(currentSelection!==selectionVersion)return;
+                  if(!confirm("Ambas copias son idénticas. ¿Registrar esta nueva versión común sin cambiar ninguna nota?"))return;
+                  advanceButton.disabled=true;
+                  try{
+                    const response=await fetch("../api/remote/advance-baseline",{method:"POST",credentials:"same-origin",
+                      headers:{"Content-Type":"application/json","X-Obsidian-Client-Action":"advance-baseline"},
+                      body:JSON.stringify({path:path,expected_baseline_sha256:data.baseline_sha256,expected_content_sha256:data.remote_sha256})});
+                    const advance=await response.json();
+                    if(currentSelection!==selectionVersion)return;
+                    if(!response.ok)throw Error(advance.error||"baseline_advance_failed");
+                    advanceButton.hidden=true;
+                    comparisonResult.textContent="Nueva línea base registrada y versión anterior respaldada. Notas sin cambios.";
+                  }catch(error){if(currentSelection===selectionVersion)comparisonResult.textContent="No se pudo registrar: "+error.message;}
+                  finally{advanceButton.disabled=false;}
                 };
               }
               importButton.hidden=!(data.state==="remote_only"&&data.baseline_available===false&&data.remote_write_enabled===false);
@@ -1420,8 +1440,8 @@ def compare_local_and_remote():
     except BaselineError:
         return jsonify(error="baseline_unavailable", read_only=True), 409
     result = compare_note_contents(remote, local)
-    response = jsonify(path=path, **result, **lineage, read_only=True,
-                       remote_write_enabled=False)
+    response = jsonify(path=path, **result, **lineage, baseline_sha256=baseline,
+                       read_only=True, remote_write_enabled=False)
     response.headers["Cache-Control"] = "no-store"
     return response
 
@@ -1511,6 +1531,62 @@ def establish_verified_baseline():
     return jsonify(status="baseline_established", created=baseline["created"],
                    sha256=baseline["sha256"], remote_write_enabled=False,
                    sync_enabled=False), 201 if baseline["created"] else 200
+
+
+@app.post("/api/remote/advance-baseline")
+def advance_verified_baseline():
+    """Acknowledges matching remote/local content, but never changes either note."""
+    from client_sync_baseline import BaselineError, SHA, digest, advance_baseline
+    from private_markdown_vault import LocalVaultError, read_note, _path
+    from storage_selection import select_storage, StorageSelectionError
+    if request.headers.get("X-Obsidian-Client-Action") != "advance-baseline":
+        return jsonify(error="missing_action_header"), 403
+    if request.headers.get("Sec-Fetch-Site") not in (None, "same-origin"):
+        return jsonify(error="cross_origin_blocked"), 403
+    if request.headers.get("Origin") and request.headers.get("Sec-Fetch-Site") != "same-origin":
+        return jsonify(error="cross_origin_blocked"), 403
+    if (request.mimetype != "application/json" or request.content_length is None
+            or request.content_length > 2048):
+        return jsonify(error="invalid_request"), 400
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict) or set(payload) != {
+            "path", "expected_baseline_sha256", "expected_content_sha256"}:
+        return jsonify(error="invalid_request"), 400
+    path = payload["path"]
+    old_hash = payload["expected_baseline_sha256"]
+    content_hash = payload["expected_content_sha256"]
+    if (not isinstance(old_hash, str) or not SHA.fullmatch(old_hash)
+            or not isinstance(content_hash, str) or not SHA.fullmatch(content_hash)):
+        return jsonify(error="invalid_hash"), 400
+    try:
+        selected = select_storage(options(), private_vault=_PRIVATE_VAULT,
+                                  shared_vault=_MCP_SHARED_VAULT)
+        if not selected["independent_of_mcp"] or selected["mode"] != "local":
+            return jsonify(error="independent_local_mode_required"), 409
+        _path(editor_markdown_vault(), path)
+    except (StorageSelectionError, LocalVaultError):
+        return jsonify(error="invalid_storage_or_path"), 409
+    remote, error = read_encrypted_note(path, verify_revision=True)
+    if error or not isinstance(remote, str):
+        return jsonify(error="remote_snapshot_not_verified"), 409
+    if digest(remote) != content_hash:
+        return jsonify(error="remote_content_changed"), 409
+    try:
+        with _local_save_lock:
+            local = read_note(editor_markdown_vault(), path)["content"]
+            if digest(local) != content_hash:
+                return jsonify(error="local_content_changed"), 409
+            result = advance_baseline(_PRIVATE_BASELINES,
+                                      "/data/obsidian-client-baseline-backups",
+                                      path, old_hash, remote, local)
+    except LocalVaultError:
+        return jsonify(error="local_copy_unavailable"), 409
+    except BaselineError as exc:
+        return jsonify(error=str(exc)), 409
+    response = jsonify(status="baseline_advanced", **result,
+                       remote_write_enabled=False, sync_enabled=False)
+    response.headers["Cache-Control"] = "no-store"
+    return response
 
 
 @app.post("/api/remote/import-private")

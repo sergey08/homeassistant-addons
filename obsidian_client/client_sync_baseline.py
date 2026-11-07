@@ -119,3 +119,92 @@ def establish_baseline(root, note_path, remote_content, local_content):
         if os.path.exists(temporary):
             os.unlink(temporary)
     return {"created": True, "sha256": digest(remote_content)}
+
+
+def advance_baseline(root, backup_root, note_path, expected_old_sha256,
+                     remote_content, local_content):
+    """Explicit acknowledgement of converged copies; backups + CAS metadata.
+
+    No note content is written. The caller must verify the encrypted remote
+    revision and hold the local save lock while providing current content.
+    """
+    import fcntl
+    if (not isinstance(expected_old_sha256, str)
+            or not SHA.fullmatch(expected_old_sha256)):
+        raise BaselineError("invalid_expected_baseline")
+    if local_content is None or digest(remote_content) != digest(local_content):
+        raise BaselineError("copies_not_identical")
+    new_hash = digest(remote_content)
+    target = _filename(root, note_path)
+    backup_base = Path(backup_root)
+    if not backup_base.is_absolute() or backup_base.is_symlink():
+        raise BaselineError("invalid_backup_root")
+    parent = target.parent
+    if not parent.is_dir() or parent.is_symlink():
+        raise BaselineError("baseline_unavailable")
+    lock = parent / ".baseline-advance.lock"
+    if lock.is_symlink():
+        raise BaselineError("unsafe_baseline_lock")
+    flags = os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW
+    try:
+        fd = os.open(lock, flags, 0o600)
+    except OSError as exc:
+        raise BaselineError("baseline_lock_failed") from exc
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX)
+        old_hash = load_baseline(root, note_path)
+        if old_hash is None or old_hash != expected_old_sha256:
+            raise BaselineError("baseline_revision_conflict")
+        if new_hash == old_hash:
+            return {"updated": False, "sha256": old_hash, "previous_sha256": old_hash}
+        if target.is_symlink() or not target.is_file():
+            raise BaselineError("unsafe_baseline")
+        old_data = target.read_bytes()
+        if len(old_data) > 4096:
+            raise BaselineError("baseline_too_large")
+        # Store the previous metadata in a private append-only history directory.
+        # Each source path has its own hashed namespace; never replace a backup.
+        namespace = backup_base / sha256(note_path.encode("utf-8")).hexdigest()
+        if backup_base.exists() and not backup_base.is_dir():
+            raise BaselineError("invalid_backup_root")
+        if namespace.is_symlink():
+            raise BaselineError("unsafe_backup_path")
+        namespace.mkdir(parents=True, exist_ok=True, mode=0o700)
+        archive = namespace / (old_hash + ".json")
+        try:
+            with archive.open("xb") as output:
+                output.write(old_data)
+                output.flush()
+                os.fsync(output.fileno())
+        except FileExistsError:
+            # Repeated updates from the same baseline are not silently allowed.
+            raise BaselineError("baseline_backup_collision")
+        except OSError as exc:
+            raise BaselineError("baseline_backup_failed") from exc
+        payload = json.dumps(
+            {"version": 1, "path": note_path, "sha256": new_hash},
+            ensure_ascii=False).encode("utf-8")
+        temp_name = None
+        try:
+            temp_fd, temp_name = tempfile.mkstemp(prefix=".baseline-next-", dir=parent)
+            with os.fdopen(temp_fd, "wb") as output:
+                output.write(payload)
+                output.flush()
+                os.fsync(output.fileno())
+            os.replace(temp_name, target)
+            temp_name = None
+            dir_fd = os.open(parent, os.O_RDONLY | os.O_DIRECTORY)
+            try:
+                os.fsync(dir_fd)
+            finally:
+                os.close(dir_fd)
+        finally:
+            if temp_name is not None and os.path.exists(temp_name):
+                os.unlink(temp_name)
+        return {"updated": True, "sha256": new_hash,
+                "previous_sha256": old_hash}
+    except OSError as exc:
+        raise BaselineError("baseline_update_failed") from exc
+    finally:
+        fcntl.flock(fd, fcntl.LOCK_UN)
+        os.close(fd)
