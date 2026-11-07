@@ -87,7 +87,7 @@ jobs:
           set -eu
           mkdir -p "$RUNNER_TEMP/obsidian-smoke/data" "$RUNNER_TEMP/obsidian-smoke/share/new-vault"
           printf '# Existing note\n' > "$RUNNER_TEMP/obsidian-smoke/share/new-vault/Existing.md"
-          printf '%s\n' '{"storage_mode":"local","vault_path":"/share/new-vault","enable_livesync":false,"enable_tunnel":false,"livesync_interval":60,"tunnel_id":""}' > "$RUNNER_TEMP/obsidian-smoke/data/options.json"
+          printf '%s\n' '{"storage_mode":"Local - Personal folder path","vault_path":"/share/new-vault","enable_livesync":false,"enable_tunnel":false,"livesync_interval":60,"tunnel_id":""}' > "$RUNNER_TEMP/obsidian-smoke/data/options.json"
           docker run -d --name obsidian-smoke -p 127.0.0.1:18765:8765 -v "$RUNNER_TEMP/obsidian-smoke/data:/data" -v "$RUNNER_TEMP/obsidian-smoke/share:/share" obsidian-mcp-smoke
           ready=0
           for i in $(seq 1 60); do

@@ -59,6 +59,8 @@ def select_storage(options: dict, default_vault: Path, shared_root: Path = Path(
     option remains authoritative for installations that already use it.
     """
     mode = str(options.get("storage_mode", "livesync")).strip()
+    if mode == "Local - Personal folder path":
+        mode = "local"
     if mode not in ("livesync", "local", "Local - default"):
         raise ValueError("Invalid storage_mode")
     if mode == "Local - default":
