@@ -60,6 +60,15 @@ Se ha usado **el mismo commit fijado** de `alpinelinux/aports` (`2235ae248c31ea4
 - El artefacto `moonraker-mcp-alpine-source-integrity` conserva `alpine-source-integrity.json` con diez resultados por familia y bandera `license_approved: false`.
 - **Alcance estricto:** se ha confirmado la integridad del árbol de fuentes auxiliares coincidentes con las recetas fijadas, no la correspondencia final de cada binario, las licencias por archivo, las descargas remotas ni la suficiencia de los avisos GPL/LGPL/MPL. No cambiar el estado `PENDING` de ningún componente SBOM.
 
+## Verificación de parches remotos GNU Readline (07/11/2026)
+
+- La CI añade `readline-remote-integrity`, que obtiene el `APKBUILD` Readline del commit `2235ae248c31ea48a9df764becdfecc2a85b4f31` y reproduce las **13 URLs de parches numerados** de GNU Readline 8.2: `https://ftp.gnu.org/gnu/readline/readline-8.2-patches/readline82-001` … `readline82-013`.
+- El script `moonraker_mcp/readline_patch_integrity.py` exige la versión `readline 8.2.13-r1`, un orden 001–013 y coteja el SHA-512 real de cada descarga contra el checksum de su alias `readline82-NNN.patch` en la receta.
+- **Job SUCCESS** en [CI 42417365817](https://github.com/sergey08/homeassistant-addons/actions/runs/42417365817): se han verificado **13 fuentes remotas adicionales**, sin ejecución ni instalación.
+- Estado de cobertura: **142 auxiliares locales + 13 parches GNU remotos = 155 entradas verificadas de 166**. **11 externas pendientes**: nueve tarballs upstream y dos recursos netbase (protocols/services 6.4).
+- El artefacto `moonraker-mcp-readline-remote-integrity` almacena URLs, tamaños y digests SHA-512, sin guardar secretos ni aprobar licencias. Todos los componentes del SBOM permanecen `PENDING`.
+- El job es evidencia de integridad, no certificación de fuentes correspondientes a binarios ni conclusión legal.
+
 ## Trabajo para cerrar el gate humano
 
 1. Descargar el SBOM CycloneDX del **SHA final de la imagen**, el inventario APK y las diferencias de `go.mod/go.sum`. El inventario DEV12 verificado hasta ahora corresponde a [CI 42408893008](https://github.com/sergey08/homeassistant-addons/actions/runs/42408893008), SHA `06696618cf00da5ee31ec1efd0f5ba2f40dfb4fa`.
