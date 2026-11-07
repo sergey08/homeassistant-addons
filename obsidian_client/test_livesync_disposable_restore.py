@@ -2,7 +2,7 @@
 import unittest
 from copy import deepcopy
 from test_livesync_isolated_backup import fixture, PASS, SALT, REV, PATH
-from livesync_isolated_backup import create_verified_snapshot
+from livesync_isolated_backup import create_verified_snapshot, BackupRejected
 from livesync_disposable_restore import (
     restore_to_empty_disposable_database, DisposableRestoreError)
 from livesync_write_preflight import UnsafeWrite
@@ -85,7 +85,7 @@ class RestoreTests(unittest.TestCase):
 
     def test_tampered_backup_rejected_without_puts(self):
         self.backup["snapshot"]["leaves"][0]["data"] = "%=tampered"
-        with self.assertRaises(UnsafeWrite):
+        with self.assertRaisesRegex(BackupRejected, "backup_checksum_mismatch"):
             self.restore()
         self.assertEqual(self.db.puts, [])
 
