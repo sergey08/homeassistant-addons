@@ -69,6 +69,15 @@ Se ha usado **el mismo commit fijado** de `alpinelinux/aports` (`2235ae248c31ea4
 - El artefacto `moonraker-mcp-readline-remote-integrity` almacena URLs, tamaños y digests SHA-512, sin guardar secretos ni aprobar licencias. Todos los componentes del SBOM permanecen `PENDING`.
 - El job es evidencia de integridad, no certificación de fuentes correspondientes a binarios ni conclusión legal.
 
+## Auditoría de las 11 fuentes externas restantes (07/11/2026)
+
+- Se ha creado el manifiesto **`alpine-external-sources-pending.json`** con las **11 URLs y SHA-512 exactos** obtenidos de las diez recetas Alpine inmutables: **9 archivos fuente upstream y 2 recursos `netbase`**. Todas sus entradas tienen `status: PENDING_DOWNLOAD_SHA512`: preparar evidencias **no** equivale a descargar y verificar los bytes.
+- Se ha añadido `alpine_remote_source_integrity.py` para descargar cada archivo por HTTPS en flujo de bloques (sin ejecutar el código), limitar el tamaño, calcular SHA-512 y comparar con la receta. Ante cualquier fallo de red, límite o checksum, devuelve **ERROR**, no `PASS`.
+- Trabajo de CI `alpine-remote-source-integrity`: **solo ejecución manual mediante `workflow_dispatch`**, porque las descargas grandes de GCC y las restricciones de acceso externo pueden producir fallos de red intermitentes ajenos al código. También se ha pasado el trabajo `readline-remote-integrity` a ejecución manual por ese motivo; las 13 descargas Readline ya pasaron previamente una verificación real en [run 42417365817](https://github.com/sergey08/homeassistant-addons/actions/runs/42417365817), pero [run 42417415603](https://github.com/sergey08/homeassistant-addons/actions/runs/42417415603) falló por `Network is unreachable`, **no** por SHA-512.
+- Los 11 recursos permanecen **SIN VERIFICAR** hasta disponer de un artefacto válido de ese trabajo manual. No rebajar el umbral de integridad para declarar cumplimiento.
+- Estado total de integridad conocido: **155/166 verificados**, **11/166 pendientes**. La revisión de obligaciones legales y el manifiesto humano de los 129 registros SBOM siguen sin completar.
+- Esta etapa no cambia las credenciales, el túnel ni la instalación Lenovo; no es aprobación legal ni autorización de publicación.
+
 ## Trabajo para cerrar el gate humano
 
 1. Descargar el SBOM CycloneDX del **SHA final de la imagen**, el inventario APK y las diferencias de `go.mod/go.sum`. El inventario DEV12 verificado hasta ahora corresponde a [CI 42408893008](https://github.com/sergey08/homeassistant-addons/actions/runs/42408893008), SHA `06696618cf00da5ee31ec1efd0f5ba2f40dfb4fa`.
