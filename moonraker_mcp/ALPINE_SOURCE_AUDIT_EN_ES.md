@@ -78,6 +78,17 @@ Se ha usado **el mismo commit fijado** de `alpinelinux/aports` (`2235ae248c31ea4
 - Estado total de integridad conocido: **155/166 verificados**, **11/166 pendientes**. La revisión de obligaciones legales y el manifiesto humano de los 129 registros SBOM siguen sin completar.
 - Esta etapa no cambia las credenciales, el túnel ni la instalación Lenovo; no es aprobación legal ni autorización de publicación.
 
+## Auditoría real de las 11 fuentes remotas: 9 PASS, 2 sin acceso (07/11/2026)
+
+Se ha ejecutado la comprobación bajo demanda mediante el commit de la rama DEV con marcador `[source-audit]`: [CI 42418546437](https://github.com/sergey08/homeassistant-addons/actions/runs/42418546437). Se ha usado el inventario `alpine-external-sources-pending.json` fijado al commit `2235ae248c31ea48a9df764becdfecc2a85b4f31`.
+
+- **9/11 sha512 verificados de forma efectiva** con descarga y cálculo SHA-512 de bytes: `protocols-6.4`, `services-6.4`, `busybox-1.37.0.tar.bz2`, `gdbm-1.24.tar.gz`, `gcc-14.2.0.tar.xz`, `musl-1.2.5.tar.gz`, `readline-8.2.tar.gz`, `pax-utils-1.3.8.tar.xz`, `xz-5.8.4.tar.gz`.
+- **2/11 UNVERIFIED** tras `HTTPError` durante la descarga (no error de hash): `apk-tools-v2.14.13.tar.gz` y `ca-certificates-20261020.tar.bz2`, ambos alojados en `gitlab.alpinelinux.org`. El servidor respondió con HTTP error; no se dispone de bytes verificados de esos dos archivos. No sustituirlos por ficheros reconstruidos o repositorios espejo sin verificar su SHA-512 idéntico.
+- La auditoría global termina con **FAIL** expresamente por faltar dos archivos. El trabajo de subida de artefacto se ejecuta incluso con fallo de red y conserva el JSON individual para auditoría.
+- **Cobertura global 164/166**: 142 auxiliares locales + 13 parches GNU Readline + 9 fuentes remotas; **2 pendientes**. Esto solo verifica integridad; los 129 `bom-ref` del SBOM siguen `PENDING` de revisión de licencias.
+- **Corrección de activación importante:** `workflow_dispatch` de GitHub exige que el archivo del flujo exista en la rama predeterminada. En este proyecto el flujo DEV `moonraker-mcp-dev2.yml` **no está todavía en `main`**; no prometer que aparece el botón Run workflow. La auditoría se ha ejecutado mediante un commit explícito `[source-audit]` en la rama DEV, sin fusionar a `main`. Una nueva ejecución requiere otro push autorizado con ese marcador, o publicar el workflow posteriormente en la rama predeterminada. Ver [documentación GitHub](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/manually-run-a-workflow).
+- El resultado no modifica el túnel, las claves, el Lenovo ni autoriza publicar la versión estable.
+
 ## Trabajo para cerrar el gate humano
 
 1. Descargar el SBOM CycloneDX del **SHA final de la imagen**, el inventario APK y las diferencias de `go.mod/go.sum`. El inventario DEV12 verificado hasta ahora corresponde a [CI 42408893008](https://github.com/sergey08/homeassistant-addons/actions/runs/42408893008), SHA `06696618cf00da5ee31ec1efd0f5ba2f40dfb4fa`.
