@@ -2,13 +2,13 @@
 
 **Moonraker MCP 0.1.0-dev12 · Development only · 2026-11-07**
 
-This procedure is for a **second, independent HA OS/Supervisor aarch64 (ARM64) installation; amd64 also remains supported**, not for the production/working DEV11. It is an acceptance checklist, **not** evidence that the test has already happened. Do not transfer credentials, private `/data/tunnel` folders or backups from an existing installation.
+This procedure is for a **second, independent HA OS/Supervisor aarch64 (ARM64) installation; amd64 also remains supported**, not for an existing working installation; the Lenovo AMD64 instance is now running DEV12. It is an acceptance checklist, **not** evidence that the test has already happened. Do not transfer credentials, private `/data/tunnel` folders or backups from an existing installation.
 
 ## Español — Comprobación sin terminal
 
 **Preparación:** utiliza otro Home Assistant con Supervisor, una impresora Moonraker accesible (puede estar apagada durante la primera prueba), y permisos propios para gestionar el túnel OpenAI. No repitas el ensayo con las credenciales de la instalación que ya funciona.
 
-1. **Instalación desde la tienda.** En Ajustes → Aplicaciones → Tienda → ⋮ → Repositorios, añade el catálogo DEV indicado en [INSTALLATION_EN_ES.md](./INSTALLATION_EN_ES.md), actualiza y comprueba que aparece **Moonraker MCP (DEV)** versión `0.1.0-dev11`. Instala desde la interfaz, sin SSH, Docker ni creación manual de ficheros.
+1. **Instalación desde la tienda.** En Ajustes → Aplicaciones → Tienda → ⋮ → Repositorios, añade el catálogo DEV indicado en [INSTALLATION_EN_ES.md](./INSTALLATION_EN_ES.md), actualiza y comprueba que aparece **Moonraker MCP (DEV)** versión `0.1.0-dev12`. Instala desde la interfaz, sin SSH, Docker ni creación manual de ficheros.
 2. **Configuración mínima.** Indica la URL HTTP real de Moonraker (normalmente puerto 7125), API key si la exige y un **nuevo token MCP único**. Mantén los siete perfiles opcionales desactivados y el puerto 8765/tcp sin publicar. Arranca con el túnel desactivado y comprueba que el complemento queda iniciado.
 3. **Credenciales exclusivas.** En OpenAI Platform crea otro túnel y otra clave restringida, distintos de los del sistema existente. Introduce sus valores únicamente en los campos protegidos de HA; activa el túnel y reinicia el complemento desde la interfaz.
 4. **Túnel y ChatGPT.** Comprueba que el registro muestra `tunnel-client started` y `mcp session initialized`, sin incluir secretos. Añade un servidor MCP personalizado de ChatGPT mediante ese túnel. En el extremo privado del túnel selecciona «Sin autenticación» si la interfaz así lo indica; la clave OpenAI y el token interno siguen siendo obligatorios.
@@ -24,7 +24,7 @@ This procedure is for a **second, independent HA OS/Supervisor aarch64 (ARM64) i
 
 ## English — Clean GUI-only acceptance
 
-Test on a **separate, disposable HA OS/Supervisor amd64 instance** using its own restricted OpenAI key, tunnel ID and unique MCP Bearer token. Install the dev add-on through the app store; configure only through the HA UI. Verify startup without manual files, outbound tunnel, five read-only names, sanitized results, 120-point temperature cap, forbidden write-tool rejection, printer offline/online transition, no exposed port, safe restart, independent key rotation, and encrypted backup/restore with fresh credentials.
+Test on a **separate, disposable HA OS/Supervisor aarch64 (ARM64) or amd64 instance** using its own restricted OpenAI key, tunnel ID and unique MCP Bearer token. Install the dev add-on through the app store; configure only through the HA UI. Verify startup without manual files, outbound tunnel, five read-only names, sanitized results, 120-point temperature cap, forbidden write-tool rejection, printer offline/online transition, no exposed port, safe restart, independent key rotation, and encrypted backup/restore with fresh credentials.
 
 Do not import the existing operator's secrets. Record only redacted evidence. Do **not** mark this checklist complete until each item has been observed on the independent host; GitHub Actions' simulated first-run test is useful but does not replace this end-to-end procedure.
 
