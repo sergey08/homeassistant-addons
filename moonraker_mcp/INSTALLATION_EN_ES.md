@@ -2,7 +2,7 @@
 
 > **Development preview (DEV12, 2026-11-07).** Do not merge into `main` or publish a stable release until release gates below are complete. English first, Spanish second.
 
-**Second-system acceptance / Prueba independiente:** [Clean HA OS installation and recovery acceptance checklist](./CLEAN_INSTALL_ACCEPTANCE_EN_ES.md). The independent ARM64 installation and internal server start have been observed, but remote tunnel and full end-to-end acceptance remain pending.
+**Second-system acceptance / Prueba independiente:** [Clean HA OS installation and recovery acceptance checklist](./CLEAN_INSTALL_ACCEPTANCE_EN_ES.md). Independent ARM64 installation and functional operation were accepted by the maintainer following external user testing on 2026-11-07; detailed tool-by-tool transcripts and separate credential-recovery evidence have not been archived.
 
 ## English — Install without terminal commands
 
@@ -12,10 +12,16 @@ Moonraker MCP hosts a restricted, read-only MCP server for a Moonraker-compatibl
 
 ### Requirements
 
-- Home Assistant OS / Supervisor on **amd64 (x86-64)** or **aarch64 (ARM64)**. DEV12 includes architecture-specific builds, with an ARM64 CI smoke test; a real independent ARM64 add-on installation has succeeded; complete end-to-end validation is still pending.
+- Home Assistant OS / Supervisor on **amd64 (x86-64)** or **aarch64 (ARM64)**. DEV12 includes architecture-specific builds, with an ARM64 CI smoke test; an independent ARM64 add-on installation and functionality have been accepted based on external user testing; independent credential rotation and backup/restore remain pending.
 - A reachable Moonraker instance (typically port 7125) and its API key if configured.
 - A ChatGPT account/workspace with access to custom MCP servers and OpenAI Secure MCP Tunnel, and permissions to create/manage your own tunnel in OpenAI Platform. Availability depends on account and workspace settings.
 - A **unique** strong MCP HTTP bearer token. Do not reuse your printer API key, OpenAI API key or other service tokens.
+
+### Development-to-stable migration: do not uninstall DEV before checking
+
+The branch-specific development repository and the future stable `main` repository may have **different Home Assistant Supervisor add-on identities**, despite sharing the same `slug`. Home Assistant may therefore offer a separate installation rather than a direct upgrade. The stable app is **not yet available**.
+
+Before any future migration, export a **protected and encrypted** Home Assistant backup and record the configuration privately (never in a GitHub issue or chat). Keep the existing working DEV app and its private tunnel assets intact until the stable app has been separately installed and verified with **new credentials and a separate tunnel** on a disposable HA or a planned migration. Avoid running both addons with the same tunnel ID or pointing both at the same printer when optional write profiles are enabled. Only decommission DEV after verifying the new stable installation, port isolation, access policy, and rollback path. Restoring protected options or tunnel files across distinct Supervisor identities is **not guaranteed** and may reintroduce old secrets. Refer to [recovery acceptance](./RECOVERY_ACCEPTANCE_RECORD_EN_ES.md).
 
 ### 1. Add the development repository and install
 
@@ -89,7 +95,7 @@ Moonraker MCP ofrece un servidor MCP de **solo lectura** para impresoras 3D comp
 
 ### Requisitos
 
-- Home Assistant OS / Supervisor en **amd64 (x86-64)** o **aarch64 (ARM64)**. DEV12 incluye binarios específicos de cada arquitectura; la instalación real desde la interfaz en otro Home Assistant ARM64 ya ha tenido éxito; queda pendiente validar extremo a extremo el túnel y la conexión con la impresora.
+- Home Assistant OS / Supervisor en **amd64 (x86-64)** o **aarch64 (ARM64)**. DEV12 incluye binarios específicos de cada arquitectura; la instalación y funcionamiento en otro Home Assistant ARM64 han sido aceptados por el mantenedor tras las pruebas del usuario externo; continúan pendientes las pruebas independientes de rotación y recuperación de credenciales.
 - Moonraker accesible desde la red local y su clave API cuando se requiera.
 - Acceso en ChatGPT a servidores MCP personalizados y a OpenAI Secure MCP Tunnel, sujeto a las opciones de la cuenta o espacio de trabajo.
 - Un token MCP nuevo, largo y aleatorio, distinto de cualquier otra clave.
