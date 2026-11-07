@@ -19,6 +19,21 @@ permissions:
   contents: read
 
 jobs:
+  arm64-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - name: Build and smoke-test ARM64 add-on (no deployment)
+        run: |
+          set -eu
+          docker buildx build --platform linux/arm64 --load -t moonraker-mcp:arm64 ./moonraker_mcp
+          test "$(docker image inspect moonraker-mcp:arm64 --format '{{.Architecture}}')" = arm64
+          docker run --rm --platform linux/arm64 --network none --entrypoint /usr/local/bin/mcp-raker moonraker-mcp:arm64 --version
+          docker run --rm --platform linux/arm64 --network none --entrypoint /opt/moonraker-mcp/vendor/tunnel-client moonraker-mcp:arm64 --version
+          docker run --rm --platform linux/arm64 --network none --entrypoint sh moonraker-mcp:arm64 -c 'test "$(uname -m)" = aarch64; test -s /usr/share/doc/moonraker-mcp/licenses/tunnel-client-Apache-2.0.txt'
   validate:
     runs-on: ubuntu-latest
     timeout-minutes: 35
@@ -38,7 +53,8 @@ jobs:
           root = pathlib.Path("moonraker_mcp")
           cfg = yaml.safe_load((root / "config.yaml").read_text())
           assert cfg["slug"] == "moonraker_mcp"
-          assert cfg["version"] == "0.1.0-dev11"
+          assert cfg["version"] == "0.1.0-dev12"
+          assert set(cfg["arch"]) == {"amd64", "aarch64"}
           assert cfg["boot"] == "manual"
           assert cfg["ports"]["8765/tcp"] is None
           assert cfg["options"]["enable_tunnel"] is False
