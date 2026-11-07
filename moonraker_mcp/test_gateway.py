@@ -9,11 +9,20 @@ class GatewayTests(unittest.TestCase):
         cls.allowed = load_allowed()
 
     def test_modern_discovery_reports_current_addon_version(self):
-        from gateway import modern_discovery
+        from gateway import modern_discovery, ADDON_VERSION
+        self.assertEqual(ADDON_VERSION, "0.1.0-dev12")
         request = {"jsonrpc": "2.0", "id": 123}
         response = modern_discovery(request)
         self.assertEqual(response["result"]["_meta"]["io.modelcontextprotocol/serverInfo"]["version"], "0.1.0-dev12")
         self.assertEqual(response["id"], 123)
+
+    def test_legacy_mcp_client_identity_matches_gateway(self):
+        from pathlib import Path
+        from gateway import ADDON_VERSION
+        source = (Path(__file__).parent / "gateway.py").read_text(encoding="utf-8")
+        self.assertIn('"version": ADDON_VERSION', source)
+        self.assertNotIn('"version": "0.1.0-dev7"', source)
+        self.assertEqual(ADDON_VERSION, "0.1.0-dev12")
 
     def test_upstream_redirect_does_not_forward_bearer_token(self):
         import urllib.error
