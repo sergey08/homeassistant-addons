@@ -22,7 +22,7 @@ Our existing `test_real_couchdb.py` writes *synthetic CouchDB documents*. It val
 
 ### Reproduce the isolated backup and restore test
 
-1. In GitHub Actions, open [Tests / Pruebas](../.github/workflows/obsidian-client-tests.yml), select **Run workflow** and choose the branch or tag to validate. The `Isolated CouchDB / CouchDB aislado` job starts CouchDB 3.4 on the runner and uses synthetic notes and test credentials.
+1. In GitHub Actions, open [Tests / Pruebas](https://github.com/sergey08/homeassistant-addons/actions/workflows/obsidian-client-tests.yml), select **Run workflow** and choose the branch or tag to validate. The `Isolated CouchDB / CouchDB aislado` job starts CouchDB 3.4 on the runner and uses synthetic notes and test credentials.
 2. Open **Encrypted CLI replication against disposable CouchDB**. The test stores an HMAC-authenticated backup of a note with an obfuscated path and three encrypted fragments. It restores those documents into a second, empty database. It then seeds the LiveSync version marker and encryption parameters from the test fixture so a fresh profile of the official CLI can run `sync` and `cat`.
 3. Look for `Official CLI decoded a three-fragment encrypted backup in second disposable database`. The test compares the CLI output byte for byte against the original UTF-8 text, including newlines and a multibyte character. The **Run isolated integration test / Ejecutar integración aislada** step also checks that a wrong HMAC key leaves the destination empty.
 
@@ -57,7 +57,7 @@ La prueba actual `test_real_couchdb.py` escribe *documentos CouchDB sintéticos*
 
 ### Reproducir la prueba aislada de copia y restauración
 
-1. En GitHub Actions, abre [Tests / Pruebas](../.github/workflows/obsidian-client-tests.yml), selecciona **Run workflow** y elige la rama o etiqueta que quieres validar. El trabajo `Isolated CouchDB / CouchDB aislado` inicia CouchDB 3.4 en el entorno de ejecución y utiliza notas sintéticas y credenciales de prueba.
+1. En GitHub Actions, abre [Tests / Pruebas](https://github.com/sergey08/homeassistant-addons/actions/workflows/obsidian-client-tests.yml), selecciona **Run workflow** y elige la rama o etiqueta que quieres validar. El trabajo `Isolated CouchDB / CouchDB aislado` inicia CouchDB 3.4 en el entorno de ejecución y utiliza notas sintéticas y credenciales de prueba.
 2. Abre **Encrypted CLI replication against disposable CouchDB**. La prueba guarda una copia autenticada con HMAC de una nota con ruta ofuscada y tres fragmentos cifrados. Restaura esos documentos en una segunda base vacía. Después añade el marcador de versión y los parámetros de cifrado de la base de prueba para que un perfil nuevo del CLI oficial pueda ejecutar `sync` y `cat`.
 3. Busca `Official CLI decoded a three-fragment encrypted backup in second disposable database`. La prueba compara byte por byte la salida del CLI con el texto original en UTF-8, incluidos los saltos de línea y un carácter multibyte. El paso **Run isolated integration test / Ejecutar integración aislada** comprueba también que una clave HMAC incorrecta deja vacío el destino.
 
