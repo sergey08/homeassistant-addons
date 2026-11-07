@@ -1393,6 +1393,46 @@ def editor_markdown_vault():
         raise LocalVaultError(str(exc)) from exc
 
 
+@app.get("/api/remote/manual-sync-plan")
+def readonly_manual_sync_plan():
+    """Read-only candidate actions based on fresh verified encrypted snapshot."""
+    from client_manual_sync_decision import decide_manual_sync, SyncBlocked
+    from client_sync_baseline import BaselineError, load_baseline
+    from private_markdown_vault import LocalVaultError, read_note, _path
+    from storage_selection import select_storage, StorageSelectionError
+    path = request.args.get("path", "")
+    try:
+        selected = select_storage(options(), private_vault=_PRIVATE_VAULT,
+                                  shared_vault=_MCP_SHARED_VAULT)
+        if not selected["independent_of_mcp"] or selected["mode"] != "local":
+            return jsonify(error="independent_local_mode_required", read_only=True), 409
+        _path(editor_markdown_vault(), path)
+    except (StorageSelectionError, LocalVaultError):
+        return jsonify(error="invalid_storage_or_path", read_only=True), 409
+    remote, error = read_encrypted_note(path, verify_revision=True)
+    if error or not isinstance(remote, str):
+        return jsonify(error="remote_snapshot_not_verified", read_only=True), 409
+    # Verified read only: a future commit must obtain and compare actual _rev.
+    try:
+        with _local_save_lock:
+            try:
+                local = read_note(editor_markdown_vault(), path)["content"]
+            except LocalVaultError as exc:
+                if exc.code == "note_not_found":
+                    local = None
+                else:
+                    raise
+            baseline = load_baseline(_PRIVATE_BASELINES, path)
+            plan = decide_manual_sync(baseline, remote, local,
+                                      remote_verified=True)
+    except (BaselineError, SyncBlocked, LocalVaultError):
+        return jsonify(error="manual_sync_preflight_unavailable", read_only=True), 409
+    response = jsonify(path=path, **plan, read_only=True,
+                       execute_supported=False, sync_enabled=False)
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
 @app.get("/api/remote/write-safety")
 def remote_write_safety():
     """Read-only capability report; never activates write transport."""
