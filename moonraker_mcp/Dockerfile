@@ -17,7 +17,16 @@ RUN set -eu; \
 # Security override for pinned upstream: Trivy reported CVE-2026-78661
 # in golang.org/x/net v0.60.0; require fixed v0.62.0 explicitly.
 # go mod verify and unit tests below fail the image build on incompatibility.
-RUN go get golang.org/x/net@v0.62.0 && go mod download && go mod verify
+RUN set -eu; \
+    go get golang.org/x/net@v0.62.0; \
+    go mod download; go mod verify; \
+    mkdir -p /tmp/dependency-provenance; \
+    git diff -- go.mod go.sum > /tmp/dependency-provenance/mcp-raker-dependencies.patch; \
+    { printf 'repository=https://github.com/lexfrei/mcp-raker\n'; \
+      printf 'upstream_commit=%s\n' "$UPSTREAM_COMMIT"; \
+      printf 'security_override=golang.org/x/net@v0.62.0\n'; \
+      printf 'resolved_x_net='; go list -m golang.org/x/net; } > /tmp/dependency-provenance/mcp-raker-upstream.txt; \
+    (cd /tmp/dependency-provenance && sha256sum mcp-raker-dependencies.patch mcp-raker-upstream.txt > mcp-raker-provenance.sha256)
 RUN CGO_ENABLED=0 go test ./...
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=$TARGETARCH go build \
     -trimpath -ldflags "-s -w -X main.version=0.2.0-patched-dev12 -X main.revision=f01636bec21a21cfc5f9ee84dc68dad7d44d6dd9" \
@@ -37,7 +46,16 @@ RUN set -eu; git init .; git remote add origin https://github.com/openai/tunnel-
     git checkout --detach FETCH_HEAD; \
     test "$(git rev-parse HEAD)" = "$OPENAI_SOURCE_COMMIT"
 # Override the independently reported CVE-2026-78661 vulnerability.
-RUN go get golang.org/x/net@v0.62.0 && go mod download && go mod verify
+RUN set -eu; \
+    go get golang.org/x/net@v0.62.0; \
+    go mod download; go mod verify; \
+    mkdir -p /tmp/dependency-provenance; \
+    git diff -- go.mod go.sum > /tmp/dependency-provenance/tunnel-client-dependencies.patch; \
+    { printf 'repository=https://github.com/openai/tunnel-client\n'; \
+      printf 'upstream_commit=%s\n' "$OPENAI_SOURCE_COMMIT"; \
+      printf 'security_override=golang.org/x/net@v0.62.0\n'; \
+      printf 'resolved_x_net='; go list -m golang.org/x/net; } > /tmp/dependency-provenance/tunnel-client-upstream.txt; \
+    (cd /tmp/dependency-provenance && sha256sum tunnel-client-dependencies.patch tunnel-client-upstream.txt > tunnel-client-provenance.sha256)
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=$TARGETARCH go build -trimpath -buildvcs=false \
     -ldflags "-s -w -X github.com/openai/tunnel-client/pkg/version.GitSHA=c2144b0904980bcbae2636cdca4f4167e9818e0b" \
     -o /tmp/tunnel-client ./cmd/client
@@ -46,6 +64,10 @@ FROM docker.io/library/alpine:3.22@sha256:bfe7ceb9f09ec0566c48fb93356e45a47a00be
 RUN apk add --no-cache ca-certificates jq python3 su-exec
 COPY --from=upstream /mcp-raker /usr/local/bin/mcp-raker
 COPY --from=tunnel_vendor /tmp/tunnel-client /opt/moonraker-mcp/vendor/tunnel-client
+# Ship reproducible dependency deltas and exact pinned upstream commit references.
+# These are public go.mod/go.sum diffs, never runtime credentials or settings.
+COPY --from=upstream_build /tmp/dependency-provenance/ /usr/share/doc/moonraker-mcp/provenance/
+COPY --from=tunnel_vendor /tmp/dependency-provenance/ /usr/share/doc/moonraker-mcp/provenance/
 COPY run.sh /run.sh
 COPY tunnel_runtime.py /opt/moonraker-mcp/tunnel_runtime.py
 COPY tunnel_provision.py /opt/moonraker-mcp/tunnel_provision.py
