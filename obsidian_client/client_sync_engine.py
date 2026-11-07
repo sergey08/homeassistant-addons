@@ -81,6 +81,7 @@ def write_safety_status(config):
         "isolated_multichunk_cas": "leaf_readback_before_parent_cas_test_only",
         "interrupted_multichunk_recovery": "isolated_read_only_inspection",
         "encrypted_backup_preflight": "isolated_only_no_restore",
+        "signed_backup_storage": "isolated_only_external_key",
         "orphan_cleanup_enabled": False,
         "production_blockers": [
             "live_wire_format_variants_not_exhaustively_validated",
