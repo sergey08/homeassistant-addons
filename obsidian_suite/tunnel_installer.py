@@ -4,8 +4,10 @@ Never downloads executable code or overwrites an existing tunnel client.
 Requires a SHA256SUMS file from the same trusted OpenAI release.
 For higher assurance, verify upstream Sigstore release provenance separately.
 """
+import argparse
 import hashlib
 import os
+import platform
 import shutil
 import stat
 import struct
@@ -17,12 +19,22 @@ class TunnelInstallError(Exception):
     pass
 
 def install_official_archive(archive_path, checksums_path, base):
+    machine = platform.machine().lower()
+    targets = {
+        "x86_64": ("amd64", 62),
+        "amd64": ("amd64", 62),
+        "aarch64": ("arm64", 183),
+        "arm64": ("arm64", 183),
+    }
+    if machine not in targets:
+        raise TunnelInstallError(f"Unsupported tunnel client architecture: {machine}")
+    release_arch, elf_machine = targets[machine]
     archive = Path(archive_path)
     checksums = Path(checksums_path)
     if not archive.is_file() or not checksums.is_file():
         raise TunnelInstallError("Release ZIP and matching SHA256SUMS.txt are required")
-    if not archive.name.startswith("tunnel-client-") or "linux-amd64" not in archive.name or archive.suffix != ".zip":
-        raise TunnelInstallError("Expected an official Linux amd64 tunnel-client ZIP")
+    if not archive.name.startswith("tunnel-client-") or not archive.name.endswith(f"-linux-{release_arch}.zip"):
+        raise TunnelInstallError(f"Expected an official Linux {release_arch} tunnel-client ZIP")
     if archive.stat().st_size > 150 * 1024 * 1024 or checksums.stat().st_size > 1024 * 1024:
         raise TunnelInstallError("Release package or manifest is too large")
     candidates = {}
@@ -69,15 +81,15 @@ def install_official_archive(archive_path, checksums_path, base):
                 except BaseException:
                     staging.unlink(missing_ok=True)
                     raise
-            # ELF64 little-endian, executable/shared object, x86-64 machine.
+            # ELF64 little-endian executable or PIE for the running architecture.
             with staging.open("rb") as exe:
                 header = exe.read(64)
             if (len(header) < 64 or header[:4] != b"\x7fELF"
                     or header[4] != 2 or header[5] != 1
                     or struct.unpack_from("<H", header, 16)[0] not in (2, 3)
-                    or struct.unpack_from("<H", header, 18)[0] != 62):
+                    or struct.unpack_from("<H", header, 18)[0] != elf_machine):
                 staging.unlink(missing_ok=True)
-                raise TunnelInstallError("Archive does not contain a Linux amd64 ELF executable")
+                raise TunnelInstallError(f"Archive does not contain a Linux {release_arch} ELF executable")
             staging.chmod(0o700)
             try:
                 os.link(staging, dest)
@@ -88,3 +100,15 @@ def install_official_archive(archive_path, checksums_path, base):
     except zipfile.BadZipFile:
         raise TunnelInstallError("Invalid release ZIP") from None
     return "Official release checksum matched; client staged. Verify upstream provenance before enabling the tunnel."
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("archive", type=Path)
+    parser.add_argument("checksums", type=Path)
+    parser.add_argument("base", type=Path, help="Persistent add-on directory containing the vault")
+    args = parser.parse_args()
+    try:
+        print(install_official_archive(args.archive, args.checksums, args.base))
+    except (TunnelInstallError, OSError, UnicodeError) as exc:
+        parser.exit(1, f"{exc}\n")

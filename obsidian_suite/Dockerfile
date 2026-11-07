@@ -1,6 +1,7 @@
 FROM ghcr.io/vrtmrz/livesync-cli:1.0.39-cli
-ARG BUILD_VERSION=0.1.0
-LABEL io.hass.version="${BUILD_VERSION}" io.hass.type="app" io.hass.arch="amd64"
+ARG BUILD_VERSION=0.2.6
+ARG BUILD_ARCH
+LABEL io.hass.version="${BUILD_VERSION}" io.hass.type="app" io.hass.arch="${BUILD_ARCH}"
 USER root
 RUN apt-get update && apt-get install -y --no-install-recommends python3 python3-venv ca-certificates \
   && rm -rf /var/lib/apt/lists/*

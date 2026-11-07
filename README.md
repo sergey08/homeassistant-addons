@@ -19,11 +19,12 @@ https://github.com/sergey08/homeassistant-addons
 
 ### Available apps
 
-**Obsidian MCP for Home Assistant — 0.2.2 (stable)**
+**Obsidian MCP for Home Assistant — 0.2.6**
 
-- Markdown MCP tools for ChatGPT, private secure tunnel and bidirectional Self-hosted LiveSync.
-- Uses the same persistent vault directory as the original app when configured.
-- For existing installations from the separate repository: do not run both apps simultaneously; the new repository uses a different Supervisor identity, so migrate settings carefully before uninstalling the original.
+- Install from the Home Assistant app store on AMD64 (`amd64`) or ARM64 (`aarch64`).
+- Work with local Markdown files or use optional Self-hosted LiveSync with your existing CouchDB server. Use the optional OpenAI Secure MCP Tunnel for private access from ChatGPT.
+- Update an existing installation from its own app page to retain its persistent vault and configuration. A separate catalog entry is a separate installation.
+- For a new tunnel setup, choose the official Linux ZIP that matches your architecture and use the SHA256 manifest from the same release. Home Assistant `aarch64` uses the `linux-arm64.zip` package.
 
 [App source](./obsidian_suite/) · [Documentation](./obsidian_suite/DOCS.md)
 
@@ -60,11 +61,12 @@ https://github.com/sergey08/homeassistant-addons
 
 ### Aplicaciones disponibles
 
-**Obsidian MCP for Home Assistant — 0.2.2 (estable)**
+**Obsidian MCP for Home Assistant — 0.2.6**
 
-- Herramientas MCP para ChatGPT, túnel privado y LiveSync bidireccional.
-- Reutiliza la bóveda persistente del complemento original si está configurada.
-- Si ya está instalado desde otro repositorio, no ejecutes las dos aplicaciones a la vez: Home Assistant les asigna identificadores distintos y hay que migrar la configuración antes de desinstalar la original.
+- Instala el complemento desde la tienda de Home Assistant en AMD64 (`amd64`) o ARM64 (`aarch64`).
+- Trabaja con archivos Markdown locales o activa Self-hosted LiveSync con tu servidor CouchDB existente. El túnel seguro de OpenAI es opcional y permite el acceso privado desde ChatGPT.
+- Actualiza una instalación existente desde su propia ficha para conservar la bóveda y la configuración persistentes. Una entrada de otro catálogo corresponde a una instalación independiente.
+- Para configurar un túnel nuevo, elige el ZIP oficial de Linux que corresponda a tu arquitectura y usa el manifiesto SHA256 de la misma versión. Home Assistant `aarch64` usa el paquete `linux-arm64.zip`.
 
 [Código](./obsidian_suite/) · [Documentación](./obsidian_suite/DOCS.md)
 

@@ -34,23 +34,69 @@ jobs:
           PY
 
   clean-install-container:
-    runs-on: ubuntu-latest
+    name: Add-on integration (${{ matrix.hass_arch }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            hass_arch: amd64
+            docker_arch: amd64
+          - runner: ubuntu-24.04-arm
+            hass_arch: aarch64
+            docker_arch: arm64
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 20
+    env:
+      HASS_ARCH: ${{ matrix.hass_arch }}
+      DOCKER_ARCH: ${{ matrix.docker_arch }}
     steps:
       - uses: actions/checkout@v4
       - name: Build real Home Assistant add-on image
-        run: docker build --build-arg BUILD_VERSION=ci -t obsidian-mcp-smoke ./obsidian_suite
+        run: |
+          version=$(sed -n 's/^version: "\(.*\)"/\1/p' obsidian_suite/config.yaml)
+          test -n "$version"
+          grep -Fx "  - $HASS_ARCH" obsidian_suite/config.yaml
+          docker build --platform "linux/$DOCKER_ARCH" --build-arg "BUILD_VERSION=$version" \
+            --build-arg "BUILD_ARCH=$HASS_ARCH" -t obsidian-mcp-smoke ./obsidian_suite
+          test "$(docker image inspect -f '{{.Architecture}}' obsidian-mcp-smoke)" = "$DOCKER_ARCH"
+          test "$(docker image inspect -f '{{ index .Config.Labels "io.hass.arch" }}' obsidian-mcp-smoke)" = "$HASS_ARCH"
+          test "$(docker image inspect -f '{{ index .Config.Labels "io.hass.version" }}' obsidian-mcp-smoke)" = "$version"
+      - name: Verify and run the official OpenAI tunnel client offline
+        run: |
+          release=v0.0.20
+          asset="tunnel-client-$release-linux-$DOCKER_ARCH.zip"
+          url="https://github.com/openai/tunnel-client/releases/download/$release"
+          test_dir="$RUNNER_TEMP/obsidian-tunnel"
+          mkdir -p "$test_dir"
+          curl -fsSL --retry 3 "$url/$asset" -o "$test_dir/$asset"
+          curl -fsSL --retry 3 "$url/SHA256SUMS.txt" -o "$test_dir/SHA256SUMS.txt"
+          (cd "$test_dir" && echo '897c4823a24336e2cacd53b69abad8842130bef4eb029c703c7bd0d3c5f4a05d  SHA256SUMS.txt' | sha256sum -c)
+          docker run --rm --network none -v "$test_dir:/fixtures" \
+            --entrypoint /opt/venv/bin/python obsidian-mcp-smoke \
+            /opt/obsidian/tunnel_installer.py "/fixtures/$asset" /fixtures/SHA256SUMS.txt /fixtures
+          docker run --rm --network none -v "$test_dir:/fixtures:ro" \
+            --entrypoint /fixtures/tunnel/bin/tunnel-client obsidian-mcp-smoke --version
+          docker run --rm --network none -v "$test_dir:/fixtures:ro" \
+            --entrypoint /fixtures/tunnel/bin/tunnel-client obsidian-mcp-smoke run --help > "$test_dir/help"
+          for flag in control-plane.tunnel-id control-plane.api-key mcp.server-url health.listen-addr health.url-file; do
+            grep -Fq -- "--$flag" "$test_dir/help"
+          done
       - name: Start clean Local mode without CouchDB or tunnel
         run: |
           set -eu
           mkdir -p "$RUNNER_TEMP/obsidian-smoke/data" "$RUNNER_TEMP/obsidian-smoke/share/new-vault"
+          printf '# Existing note\n' > "$RUNNER_TEMP/obsidian-smoke/share/new-vault/Existing.md"
           printf '%s\n' '{"storage_mode":"local","vault_path":"/share/new-vault","enable_livesync":false,"enable_tunnel":false,"livesync_interval":60,"tunnel_id":""}' > "$RUNNER_TEMP/obsidian-smoke/data/options.json"
           docker run -d --name obsidian-smoke -p 127.0.0.1:18765:8765 -v "$RUNNER_TEMP/obsidian-smoke/data:/data" -v "$RUNNER_TEMP/obsidian-smoke/share:/share" obsidian-mcp-smoke
+          ready=0
           for i in $(seq 1 60); do
-            if curl -fsS --max-time 3 http://127.0.0.1:18765/mcp -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' --data '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"ci-smoke","version":"1.0"}}}' | grep -q 'serverInfo'; then break; fi
+            if curl -fsS --max-time 3 http://127.0.0.1:18765/mcp -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' --data '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"ci-smoke","version":"1.0"}}}' | grep -q 'serverInfo'; then ready=1; break; fi
             if ! docker ps --format '{{.Names}}' | grep -qx obsidian-smoke; then docker logs obsidian-smoke; exit 1; fi
             sleep 2
           done
+          test "$ready" -eq 1
+          printf '# Existing note\n' | cmp - "$RUNNER_TEMP/obsidian-smoke/share/new-vault/Existing.md"
           docker inspect -f '{{.State.Running}}' obsidian-smoke | grep -qx true
           docker logs obsidian-smoke 2>&1 | grep -q 'Using persistent vault at /share/new-vault'
           docker logs obsidian-smoke 2>&1 | grep -q 'Started mcp'
@@ -86,8 +132,41 @@ jobs:
           test ! -e "$RUNNER_TEMP/obsidian-smoke/missing-sync-data/settings/livesync-operativo.json"
           docker rm obsidian-missing-sync
           echo 'Missing LiveSync settings rejected safely'
+      - name: Replicate a Markdown note to disposable CouchDB
+        run: |
+          set -eu
+          data="$RUNNER_TEMP/obsidian-smoke/replication-data"
+          mkdir -p "$data/settings" "$data/vault"
+          printf '%s\n' '{"storage_mode":"livesync","vault_path":"","enable_livesync":true,"enable_tunnel":false,"livesync_interval":30}' > "$data/options.json"
+          printf '%s\n' '{"couchDB_URI":"http://obsidian-couchdb:5984","couchDB_USER":"testadmin","couchDB_PASSWORD":"ci-password","couchDB_DBNAME":"obsidian-ci","encrypt":false,"isConfigured":true}' > "$data/settings/livesync-operativo.json"
+          printf '# Architecture smoke test\n' > "$data/vault/architecture-smoke.md"
+          docker network create obsidian-ci
+          docker run -d --name obsidian-couchdb --network obsidian-ci -p 127.0.0.1:15984:5984 \
+            -e COUCHDB_USER=testadmin -e COUCHDB_PASSWORD=ci-password couchdb:3.4
+          couch=http://127.0.0.1:15984
+          for i in $(seq 1 30); do
+            if curl -fsS --max-time 3 "$couch/_up"; then break; fi
+            sleep 2
+          done
+          curl -fsS -u testadmin:ci-password -X POST -H 'Content-Type: application/json' \
+            --data '{"action":"enable_single_node","bind_address":"0.0.0.0","username":"testadmin","password":"ci-password","port":5984}' "$couch/_cluster_setup"
+          curl -fsS -u testadmin:ci-password -X PUT "$couch/obsidian-ci"
+          docker run -d --name obsidian-replication --network obsidian-ci \
+            -v "$data:/data" obsidian-mcp-smoke
+          for i in $(seq 1 45); do
+            if curl -fsS --max-time 3 -u testadmin:ci-password "$couch/obsidian-ci/_all_docs" | grep -Fq 'architecture-smoke.md'; then
+              docker inspect -f '{{.State.Running}}' obsidian-replication | grep -qx true
+              exit 0
+            fi
+            docker inspect -f '{{.State.Running}}' obsidian-replication | grep -qx true
+            sleep 2
+          done
+          exit 1
       - name: Logs and cleanup
         if: always()
         run: |
-          docker logs obsidian-smoke 2>&1 | tail -100 || true
-          docker rm -f obsidian-smoke || true
+          for container in obsidian-smoke obsidian-livesync-smoke obsidian-missing-sync obsidian-replication obsidian-couchdb; do
+            docker logs "$container" 2>&1 | tail -100 || true
+            docker rm -f "$container" || true
+          done
+          docker network rm obsidian-ci || true
