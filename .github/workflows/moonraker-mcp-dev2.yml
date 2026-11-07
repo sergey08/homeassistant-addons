@@ -285,7 +285,7 @@ jobs:
           fi
           echo "Stable release remains blocked until exact-SBOM manual legal review"
 
-      - name: Retain signed-off candidate SBOM evidence for maintainer review
+      - name: Retain unapproved candidate SBOM and license evidence for human review
         uses: actions/upload-artifact@v4
         with:
           name: moonraker-mcp-dev12-cyclonedx-sbom
