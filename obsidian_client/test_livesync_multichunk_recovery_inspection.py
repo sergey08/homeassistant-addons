@@ -44,6 +44,29 @@ class RecoveryInspectionTests(unittest.TestCase):
         self.assertEqual(result["missing_leaves"], 1)
         self.assertFalse(result["automatic_cleanup"])
 
+    def test_verified_old_parent_is_not_committed(self):
+        from livesync_encrypted_metadata_fixture import encode_parent_metadata_fixture
+        previous = encode_parent_metadata_fixture(
+            self.plan["path"], ["h:+previous"], PASSWORD, SALT,
+            ctime=100, mtime=100, size=5)
+        self.parent["_rev"] = OLD_REV
+        self.parent["path"] = previous["path"]
+        result = self.inspect()
+        self.assertEqual(result["state"], "not_committed")
+        self.assertEqual(result["reason"], "old_parent_revision_remains")
+        self.assertFalse(result["safe_to_delete"])
+
+    def test_other_valid_revision_and_metadata_is_conflict(self):
+        from livesync_encrypted_metadata_fixture import encode_parent_metadata_fixture
+        another = encode_parent_metadata_fixture(
+            self.plan["path"], ["h:+other"], PASSWORD, SALT,
+            ctime=100, mtime=300, size=5)
+        self.parent["_rev"] = "3-" + "d" * 32
+        self.parent["path"] = another["path"]
+        result = self.inspect()
+        self.assertEqual(result["state"], "conflict")
+        self.assertFalse(result["automatic_retry"])
+
     def test_missing_leaf_even_with_new_parent_is_unknown(self):
         del self.docs[self.plan["leaves"][1]["_id"]]
         result = self.inspect()
