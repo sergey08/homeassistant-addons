@@ -1393,6 +1393,15 @@ def editor_markdown_vault():
         raise LocalVaultError(str(exc)) from exc
 
 
+@app.get("/api/remote/write-safety")
+def remote_write_safety():
+    """Read-only capability report; never activates write transport."""
+    from client_sync_engine import write_safety_status
+    response = jsonify(write_safety_status(options()))
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
 @app.get("/api/livesync-cli/independent-preflight")
 def independent_livesync_preflight():
     """Read-only diagnostics for a future independent Client sync engine."""
