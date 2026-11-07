@@ -12,9 +12,9 @@ configuration:
     name: LiveSync interval (seconds)
     description: "Time between LiveSync polling cycles, from 30 to 3600 seconds. Default is 60 seconds."
 
-  vault_path:
-    name: Personal folder path
-    description: "Only used in Local - choose folder. Enter an existing folder under /share."
   storage_mode:
     name: Storage mode
-    description: "livesync uses LiveSync. local uses the folder you choose. Local - default uses the app folder, accessible via Samba and included in app backups."
+    description: "Local - default uses the app folder, accessible via Samba and included in app backups."
+  vault_path:
+    name: Personal folder path
+    description: "Only used when Storage mode is local. Enter an existing folder under /share."
