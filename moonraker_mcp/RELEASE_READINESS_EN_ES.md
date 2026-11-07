@@ -1,5 +1,15 @@
 # Release readiness and supply-chain audit / Preparación y cadena de suministro
 
+## 2026-11-07 — DEV → stable migration decision / Decisión de migración
+
+**No automatic in-place migration is assumed.** A repository with `#dev/moonraker-mcp-dev2` and the stable `main` add-on catalog can produce different Supervisor identifiers despite sharing `slug: moonraker_mcp`. Users must not uninstall their functioning DEV app or reuse an existing private tunnel by default. The intended stable rollout is a **separately verified install** with fresh restricted credentials, private encrypted backup, explicit rollback, no published port 8765 and the seven optional profiles disabled.
+
+Documentation updated in [INSTALLATION_EN_ES.md](./INSTALLATION_EN_ES.md), English and Spanish. The stable app is not published, and no actual DEV → stable migration has been performed.
+
+**Etiquetado / Tagging:** `moonraker-mcp-v0.1.0` is a **proposed future GitHub tag**, distinct from the `0.1.0` Home Assistant application version and existing Obsidian tags. Neither tag nor stable app may be published before license and recovery sign-off.
+
+---
+
 ## 2026-11-07 — Proposed v0.1.0 stable release gate / Puertas de liberación de v0.1.0
 
 **Publication mode: BLOCKED until explicit gate acceptance.** Development builds in `dev/moonraker-mcp-dev2` are available for controlled installation; this does not equal a stable release. PR #89 must remain DRAFT, without a `v0.1.0` tag, `main` merge, GHCR distribution or stable add-on listing.
