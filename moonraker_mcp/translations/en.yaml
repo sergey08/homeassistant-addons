@@ -1,0 +1,8 @@
+configuration:
+  mcp_http_token:
+    name: "MCP security token (required)"
+    description: >-
+      Create a random password of at least 32 characters, unique to this
+      MCP server. It protects access to the MCP server. Do not reuse your
+      Moonraker API key or OpenAI API key. Save the token before starting
+      the app and never share it.
