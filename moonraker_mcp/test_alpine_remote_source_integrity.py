@@ -60,6 +60,32 @@ class RemoteAlpineAuditTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 audit(manifest)
 
+    def test_official_distfiles_fallback_keeps_original_digest(self):
+        item = {"file": "apk-tools-v2.14.13.tar.gz",
+                "url": "https://gitlab.alpinelinux.org/alpine/apk-tools/-/archive/v2.14.13/apk-tools-v2.14.13.tar.gz",
+                "sha512": "a" * 128}
+        with patch("alpine_remote_source_integrity._hash_download",
+                   side_effect=[OSError("GitLab unavailable"),
+                                {"file": item["file"], "status": "VERIFIED_SHA512",
+                                 "sha512": item["sha512"],
+                                 "url": "https://distfiles.alpinelinux.org/distfiles/v3.22/" + item["file"],
+                                 "bytes": 300}]) as get:
+            record = verify_one(item)
+        self.assertEqual(get.call_count, 2)
+        self.assertEqual(get.call_args_list[0].args[1], item["sha512"])
+        self.assertEqual(get.call_args_list[1].args[1], item["sha512"])
+        self.assertEqual(record["status"], "VERIFIED_SHA512")
+
+    def test_fallback_failure_never_verifies_file(self):
+        item = {"file": "ca-certificates-20261020.tar.bz2",
+                "url": "https://gitlab.alpinelinux.org/alpine/ca-certificates/-/archive/20261020/ca-certificates-20261020.tar.bz2",
+                "sha512": "b" * 128}
+        with patch("alpine_remote_source_integrity._hash_download",
+                   side_effect=ValueError("SHA-512 mismatch")) as get:
+            with self.assertRaises(ValueError):
+                verify_one(item)
+            self.assertEqual(get.call_count, 2)
+
     def test_non_https_host_rejected_before_download(self):
         item = {"file": "x", "url": "http://ftp.gnu.org/gnu/a", "sha512": "0" * 128}
         with self.assertRaises(ValueError):
