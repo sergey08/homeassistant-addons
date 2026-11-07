@@ -77,6 +77,8 @@ def write_safety_status(config):
         "write_gate": "closed",
         "isolated_tests": "run_in_github_actions",
         "isolated_commit_recovery": "manual_inspection_required_on_ambiguous_results",
+        "multichunk_readonly_audit": "isolated_tests_only",
+        "orphan_cleanup_enabled": False,
         "production_blockers": [
             "live_wire_format_variants_not_exhaustively_validated",
             "multi_chunk_transaction_and_orphan_recovery",
