@@ -1513,6 +1513,62 @@ def establish_verified_baseline():
                    sync_enabled=False), 201 if baseline["created"] else 200
 
 
+@app.post("/api/remote/advance-baseline")
+def advance_verified_baseline():
+    """Acknowledges matching remote/local content, but never changes either note."""
+    from client_sync_baseline import BaselineError, SHA, digest, advance_baseline
+    from private_markdown_vault import LocalVaultError, read_note, _path
+    from storage_selection import select_storage, StorageSelectionError
+    if request.headers.get("X-Obsidian-Client-Action") != "advance-baseline":
+        return jsonify(error="missing_action_header"), 403
+    if request.headers.get("Sec-Fetch-Site") not in (None, "same-origin"):
+        return jsonify(error="cross_origin_blocked"), 403
+    if request.headers.get("Origin") and request.headers.get("Sec-Fetch-Site") != "same-origin":
+        return jsonify(error="cross_origin_blocked"), 403
+    if (request.mimetype != "application/json" or request.content_length is None
+            or request.content_length > 2048):
+        return jsonify(error="invalid_request"), 400
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict) or set(payload) != {
+            "path", "expected_baseline_sha256", "expected_content_sha256"}:
+        return jsonify(error="invalid_request"), 400
+    path = payload["path"]
+    old_hash = payload["expected_baseline_sha256"]
+    content_hash = payload["expected_content_sha256"]
+    if (not isinstance(old_hash, str) or not SHA.fullmatch(old_hash)
+            or not isinstance(content_hash, str) or not SHA.fullmatch(content_hash)):
+        return jsonify(error="invalid_hash"), 400
+    try:
+        selected = select_storage(options(), private_vault=_PRIVATE_VAULT,
+                                  shared_vault=_MCP_SHARED_VAULT)
+        if not selected["independent_of_mcp"] or selected["mode"] != "local":
+            return jsonify(error="independent_local_mode_required"), 409
+        _path(editor_markdown_vault(), path)
+    except (StorageSelectionError, LocalVaultError):
+        return jsonify(error="invalid_storage_or_path"), 409
+    remote, error = read_encrypted_note(path, verify_revision=True)
+    if error or not isinstance(remote, str):
+        return jsonify(error="remote_snapshot_not_verified"), 409
+    if digest(remote) != content_hash:
+        return jsonify(error="remote_content_changed"), 409
+    try:
+        with _local_save_lock:
+            local = read_note(editor_markdown_vault(), path)["content"]
+            if digest(local) != content_hash:
+                return jsonify(error="local_content_changed"), 409
+            result = advance_baseline(_PRIVATE_BASELINES,
+                                      "/data/obsidian-client-baseline-backups",
+                                      path, old_hash, remote, local)
+    except LocalVaultError:
+        return jsonify(error="local_copy_unavailable"), 409
+    except BaselineError as exc:
+        return jsonify(error=str(exc)), 409
+    response = jsonify(status="baseline_advanced", **result,
+                       remote_write_enabled=False, sync_enabled=False)
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
 @app.post("/api/remote/import-private")
 def import_verified_remote_note():
     """Explicit one-way import to the Client's private Markdown vault only.
