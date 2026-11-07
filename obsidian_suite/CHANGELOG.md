@@ -2,8 +2,25 @@
 
 ## 0.2.7
 
-- The personal folder mode now appears as **Local - Personal folder path**. If your saved mode is `local`, select the new name and save after updating.
-- Added a default local mode with no path to configure. The app creates `/config/local-vault` in its public app configuration folder with a bilingual welcome note. The vault is accessible through Samba and included in app backups. The existing personal-folder and LiveSync modes are still available.
+### English
+
+| Storage mode | How to set it up | Where the notes are stored |
+| --- | --- | --- |
+| `livesync` | Enable **Enable LiveSync** and use your existing Self-hosted LiveSync settings and CouchDB server. Fill in **LiveSync shared vault path** only if you already use a shared vault under `/share`. | The existing LiveSync vault, synchronized with CouchDB. |
+| **Local - default** | Leave both path fields empty. Save and restart. The app creates the vault with `Bienvenida.md` the first time. | `/config/local-vault` inside the app. It is included when Home Assistant backs up the app and is accessible through Samba at `app_configs/<app-id>/local-vault`. |
+| **Local - Personal folder path** | Enter the full path of an existing folder under `/share` in **Local - Personal folder path**. Save and restart. | Your chosen Markdown folder. Include `share` in your Home Assistant backup to back up these notes. |
+
+Both local modes work without CouchDB. Changing modes leaves notes in their original locations. If you previously saved `local`, select **Local - Personal folder path** when updating and keep the path you already use.
+
+### Español
+
+| Storage mode | Cómo se configura | Dónde quedan las notas |
+| --- | --- | --- |
+| `livesync` | Activa **Enable LiveSync** y utiliza tu configuración de Self-hosted LiveSync y tu servidor CouchDB. Rellena **LiveSync shared vault path** solo si ya usas una bóveda compartida bajo `/share`. | En la bóveda existente de LiveSync, sincronizada con CouchDB. |
+| **Local - default** | Deja vacíos los dos campos de ruta. Guarda y reinicia. La aplicación crea la bóveda con `Bienvenida.md` la primera vez. | En `/config/local-vault` dentro de la aplicación. Se incluye al respaldar la aplicación en Home Assistant y está accesible por Samba en `app_configs/<id-de-la-app>/local-vault`. |
+| **Local - Personal folder path** | Introduce en **Local - Personal folder path** la ruta completa a una carpeta existente bajo `/share`. Guarda y reinicia. | En la carpeta Markdown que elijas. Incluye `share` en la copia de Home Assistant para respaldar estas notas. |
+
+Ambos modos locales funcionan sin CouchDB. Al cambiar de modo, las notas permanecen en su ubicación original. Si tenías guardado `local`, al actualizar selecciona **Local - Personal folder path** y conserva tu ruta actual.
 
 ## 0.2.6
 

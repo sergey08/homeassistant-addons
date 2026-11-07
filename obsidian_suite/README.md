@@ -33,35 +33,13 @@ See [complete Documentation](DOCS.md), the [Changelog](CHANGELOG.md), and the [O
 
 In **Home Assistant → Settings → Apps → Obsidian MCP for Home Assistant → Configuration**, choose where the MCP tools work.
 
-| Storage mode | Folder | Configuration |
-|---|---|---|
-| `livesync` | Existing LiveSync vault | Enable LiveSync to synchronize with CouchDB |
-| **Local - Personal folder path** | Existing personal Markdown folder under `/share` | Enter its full path in `vault_path` |
-| `Local - default` | `/config/local-vault`, included in backups that contain this app | Select the mode and start or restart the app |
+| Storage mode | How to set it up | Where the notes are stored |
+| --- | --- | --- |
+| `livesync` | Enable **Enable LiveSync** and use your existing Self-hosted LiveSync settings and CouchDB server. Fill in **LiveSync shared vault path** only if you already use a shared vault under `/share`. | The existing LiveSync vault, synchronized with CouchDB. |
+| **Local - default** | Leave both path fields empty. Save and restart. The app creates the vault with `Bienvenida.md` the first time. | `/config/local-vault` inside the app. It is included when Home Assistant backs up the app and is accessible through Samba at `app_configs/<app-id>/local-vault`. |
+| **Local - Personal folder path** | Enter the full path of an existing folder under `/share` in **Local - Personal folder path**. Save and restart. | Your chosen Markdown folder. Include `share` in your Home Assistant backup to back up these notes. |
 
-Both local modes work without CouchDB and ignore the LiveSync switch. The ChatGPT tunnel is optional in all modes.
-
-### Option 1 — LiveSync (your existing Obsidian vault)
-
-This is the best option when you already use **Obsidian + Self-hosted LiveSync + CouchDB** and want ChatGPT to work with the *same* notes as your desktop or mobile Obsidian.
-
-1. Select **Storage mode → livesync**.
-2. **Leave Local Markdown folder (`vault_path`) empty.** It is not a path to your CouchDB server and you do not need to enter the existing LiveSync vault path.
-3. Enable **LiveSync** and retain your existing LiveSync configuration and CouchDB credentials.
-4. Enable the **ChatGPT tunnel** if you want to access your notes from ChatGPT.
-5. Save and restart the add-on if you changed these settings.
-
-The add-on uses its previously provisioned vault under `/app_configs/obsidian_bridge/vault`. LiveSync mirrors changes between that vault and CouchDB. **Changing to Local mode does not migrate or synchronize files between the two modes.**
-
-### Option 2 — Personal local folder
-
-Select **Storage mode → Local - Personal folder path**, enter the existing directory in **Local - Personal folder path**, then save and start or restart the app. Use a real subdirectory of `/share`. Home Assistant handles the shared folder separately from app backups.
-
-### Option 3 — Default local folder
-
-Select **Storage mode → Local - default**, then save and start or restart the app. It creates `/config/local-vault` with a bilingual `Bienvenida.md` on the first start. Future starts reuse your notes. Over Samba, open the `app_configs` share, then the folder ending in `_obsidian_suite` and its `local-vault` subfolder. Home Assistant includes this folder when the backup includes the app.
-
-If you had selected `local` before upgrading, select **Local - Personal folder path** and save. Keep your existing path.
+Both local modes work without CouchDB. Changing modes leaves notes in their original locations. If you previously saved `local`, select **Local - Personal folder path** when updating and keep the path you already use.
 
 ### Switching modes safely
 
@@ -72,6 +50,18 @@ If you had selected `local` before upgrading, select **Local - Personal folder p
 
 For setup details and backups, see [the full documentation](DOCS.md). The storage-mode option requires **version 0.2.3 or later**.
 
+
+## Modos de almacenamiento
+
+En **Ajustes → Aplicaciones → Obsidian MCP for Home Assistant → Configuración**, elige un modo en **Storage mode**.
+
+| Storage mode | Cómo se configura | Dónde quedan las notas |
+| --- | --- | --- |
+| `livesync` | Activa **Enable LiveSync** y utiliza tu configuración de Self-hosted LiveSync y tu servidor CouchDB. Rellena **LiveSync shared vault path** solo si ya usas una bóveda compartida bajo `/share`. | En la bóveda existente de LiveSync, sincronizada con CouchDB. |
+| **Local - default** | Deja vacíos los dos campos de ruta. Guarda y reinicia. La aplicación crea la bóveda con `Bienvenida.md` la primera vez. | En `/config/local-vault` dentro de la aplicación. Se incluye al respaldar la aplicación en Home Assistant y está accesible por Samba en `app_configs/<id-de-la-app>/local-vault`. |
+| **Local - Personal folder path** | Introduce en **Local - Personal folder path** la ruta completa a una carpeta existente bajo `/share`. Guarda y reinicia. | En la carpeta Markdown que elijas. Incluye `share` en la copia de Home Assistant para respaldar estas notas. |
+
+Ambos modos locales funcionan sin CouchDB. Al cambiar de modo, las notas permanecen en su ubicación original. Si tenías guardado `local`, al actualizar selecciona **Local - Personal folder path** y conserva tu ruta actual.
 
 ## Shared Markdown vault with Obsidian Client (experimental; opt-in only)
 
