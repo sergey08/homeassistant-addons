@@ -2,6 +2,7 @@
 
 ## 0.2.7
 
+- The personal folder mode now appears as **Local - Personal folder path**. If your saved mode is `local`, select the new name and save after updating.
 - Added a default local mode with no path to configure. The app creates `/config/local-vault` in its public app configuration folder with a bilingual welcome note. The vault is accessible through Samba and included in app backups. The existing personal-folder and LiveSync modes are still available.
 
 ## 0.2.6

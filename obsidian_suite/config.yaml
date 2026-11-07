@@ -33,5 +33,5 @@ schema:
   enable_livesync: bool
   livesync_interval: int(30,3600)
   livesync_shared_vault_path: str
-  storage_mode: list(livesync|Local - default|local)
+  storage_mode: list(livesync|Local - default|Local - Personal folder path)
   vault_path: str

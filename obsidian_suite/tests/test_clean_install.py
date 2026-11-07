@@ -17,7 +17,7 @@ class CleanInstallTests(unittest.TestCase):
             notes.mkdir(parents=True)
             default = base / "data" / "vault"  # not created: no legacy installation
             selected = select_storage({
-                "storage_mode": "local", "vault_path": str(notes),
+                "storage_mode": "Local - Personal folder path", "vault_path": str(notes),
                 "enable_livesync": True, "enable_tunnel": False,
             }, default, share)
             self.assertEqual(selected, ("local", notes.resolve(), False))
