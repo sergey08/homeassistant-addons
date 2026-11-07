@@ -51,6 +51,15 @@ Se ha usado **el mismo commit fijado** de `alpinelinux/aports` (`2235ae248c31ea4
 
 **Próximo cierre verificable:** obtener y cotejar cada descarga con el SHA-512 de la receta y registrar el tratamiento de parches, scripts de compilación, excepciones de licencia y fuentes accesibles para terceros. Las aprobaciones de los 129 `bom-ref` se mantienen `PENDING`.
 
+## Verificación de integridad real SHA-512 automatizada (07/11/2026)
+
+- La rama DEV añade `moonraker_mcp/alpine_source_integrity.py` y el job independiente `alpine-source-integrity` en GitHub Actions.
+- El job obtiene el **commit exacto** `2235ae248c31ea48a9df764becdfecc2a85b4f31` de aports mediante `git fetch --depth=1 --filter=blob:none` y checkout disperso de las diez carpetas.
+- Se leen las entradas `sha512sums` de cada `APKBUILD`, se calculan hashes de bytes reales de los 142 ficheros locales y se comprueban sus coincidencias. **Job SUCCESS** en [CI 42416854656](https://github.com/sergey08/homeassistant-addons/actions/runs/42416854656), commit `1296177f326579d85d0247cc8cff9d8e2f708e34`.
+- Los **24 archivos externos** quedan señalados `external_source_entries_unverified`: no se descargaron ni se verificaron mediante SHA-512. La ausencia no implica un fallo cuando la receta indica un recurso remoto.
+- El artefacto `moonraker-mcp-alpine-source-integrity` conserva `alpine-source-integrity.json` con diez resultados por familia y bandera `license_approved: false`.
+- **Alcance estricto:** se ha confirmado la integridad del árbol de fuentes auxiliares coincidentes con las recetas fijadas, no la correspondencia final de cada binario, las licencias por archivo, las descargas remotas ni la suficiencia de los avisos GPL/LGPL/MPL. No cambiar el estado `PENDING` de ningún componente SBOM.
+
 ## Trabajo para cerrar el gate humano
 
 1. Descargar el SBOM CycloneDX del **SHA final de la imagen**, el inventario APK y las diferencias de `go.mod/go.sum`. El inventario DEV12 verificado hasta ahora corresponde a [CI 42408893008](https://github.com/sergey08/homeassistant-addons/actions/runs/42408893008), SHA `06696618cf00da5ee31ec1efd0f5ba2f40dfb4fa`.
