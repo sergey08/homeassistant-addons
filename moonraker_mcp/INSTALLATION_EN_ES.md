@@ -1,6 +1,6 @@
 # Moonraker MCP — Installation and configuration / Instalación y configuración
 
-> **Development preview (DEV11, 2026-11-06).** Do not merge into `main` or publish a stable release until release gates below are complete. English first, Spanish second.
+> **Development preview (DEV12, 2026-11-07).** Do not merge into `main` or publish a stable release until release gates below are complete. English first, Spanish second.
 
 **Second-system acceptance / Prueba independiente:** [Clean HA OS installation and recovery acceptance checklist](./CLEAN_INSTALL_ACCEPTANCE_EN_ES.md). This is a planned second-system test, not a claim that it has already passed.
 
@@ -12,7 +12,7 @@ Moonraker MCP hosts a restricted, read-only MCP server for a Moonraker-compatibl
 
 ### Requirements
 
-- Home Assistant OS / Supervisor on **amd64 (x86-64)** for this development version. arm64 is not yet supported because the pinned official OpenAI tunnel client has only been validated for amd64.
+- Home Assistant OS / Supervisor on **amd64 (x86-64)** or **aarch64 (ARM64)**. DEV12 includes architecture-specific builds, with an ARM64 CI smoke test; actual GUI-only installation on the second ARM64 Home Assistant remains to be verified.
 - A reachable Moonraker instance (typically port 7125) and its API key if configured.
 - A ChatGPT account/workspace with access to custom MCP servers and OpenAI Secure MCP Tunnel, and permissions to create/manage your own tunnel in OpenAI Platform. Availability depends on account and workspace settings.
 - A **unique** strong MCP HTTP bearer token. Do not reuse your printer API key, OpenAI API key or other service tokens.
@@ -45,7 +45,7 @@ Open the official OpenAI Platform tunnel administration screen at `https://platf
 
 In `https://platform.openai.com/settings/organization/api-keys`, generate an **independent restricted API key** for the tunnel, with only the permissions required by the platform for the tunnel (currently **Tunnels: Read + Use** where offered). Enter that key in `openai_tunnel_api_key` in the **Home Assistant UI**. Do not paste it into terminal commands and do not reuse another MCP tunnel's key.
 
-DEV11 bundles the official pinned `tunnel-client` for amd64 in the add-on image. The add-on automatically provisions a private executable and token file when tunnel access is enabled. **New users do not need to install a ZIP or run Docker commands.**
+DEV12 bundles the official pinned `tunnel-client` for amd64 or arm64 in the add-on image. The add-on automatically provisions a private executable and token file when tunnel access is enabled. **New users do not need to install a ZIP or run Docker commands.**
 
 ### 4. Start the app and enable the tunnel
 
@@ -79,7 +79,7 @@ The DEV11 default tools deliberately suppress hostnames and filesystem paths, bu
 | `authentication_error` | Moonraker API key and permissions |
 | Tunnel disabled or exits on startup | Ensure tunnel ID and restricted OpenAI key are filled in; check private file permissions and logs |
 | ChatGPT cannot add the server | Verify tunnel selection, account/workspace access, and the app's running status; review logs without disclosing credentials |
-| Add-on needs terminal intervention | Report as a DEV usability bug; a clean DEV11 install should not require manual provisioning |
+| Add-on needs terminal intervention | Report as a DEV usability bug; a clean DEV12 install should not require manual provisioning |
 
 ## Español — Instalación sin utilizar el terminal
 
@@ -89,7 +89,7 @@ Moonraker MCP ofrece un servidor MCP de **solo lectura** para impresoras 3D comp
 
 ### Requisitos
 
-- Home Assistant OS / Supervisor en **amd64 (x86-64)** para esta versión DEV. arm64 sigue pendiente de verificar.
+- Home Assistant OS / Supervisor en **amd64 (x86-64)** o **aarch64 (ARM64)**. DEV12 incluye binarios específicos de cada arquitectura; la instalación real desde la interfaz en el segundo Home Assistant ARM64 sigue pendiente de comprobar.
 - Moonraker accesible desde la red local y su clave API cuando se requiera.
 - Acceso en ChatGPT a servidores MCP personalizados y a OpenAI Secure MCP Tunnel, sujeto a las opciones de la cuenta o espacio de trabajo.
 - Un token MCP nuevo, largo y aleatorio, distinto de cualquier otra clave.
@@ -122,7 +122,7 @@ En **Moonraker MCP (DEV) → Configuración**, introduce:
 
 En `https://platform.openai.com/settings/organization/tunnels`, crea un túnel exclusivo para esta impresora y copia su identificador en `tunnel_id`.
 
-En `https://platform.openai.com/settings/organization/api-keys`, crea una clave **Restricted** con los permisos mínimos necesarios para usar ese túnel (opciones **Tunnels Read + Use** cuando estén disponibles). Copia la clave **directamente en el campo protegido** `openai_tunnel_api_key` de Home Assistant. No es necesario abrir terminal, usar Docker ni descargar el cliente OpenAI: DEV11 ya lo incluye y aprovisiona automáticamente al activar el túnel.
+En `https://platform.openai.com/settings/organization/api-keys`, crea una clave **Restricted** con los permisos mínimos necesarios para usar ese túnel (opciones **Tunnels Read + Use** cuando estén disponibles). Copia la clave **directamente en el campo protegido** `openai_tunnel_api_key` de Home Assistant. No es necesario abrir terminal, usar Docker ni descargar el cliente OpenAI: DEV12 ya lo incluye y aprovisiona automáticamente al activar el túnel.
 
 ### 4. Arrancar y comprobar
 
@@ -160,6 +160,6 @@ Por defecto solo se consultan conectividad, versión del MCP, información de Mo
 - [ ] Instalar desde cero en Home Assistant limpio **sin terminal**, con credenciales nuevas
 - [x] Comprobar la versión anunciada y las cinco herramientas reales de DEV11 desde ChatGPT
 - [ ] Verificar mantenimiento, rotación de secretos, recuperación ante fallos y copias de seguridad
-- [ ] Validar compatibilidad arm64 o documentar la limitación final
+- [ ] Validar instalación ARM64 real en segundo Home Assistant (CI no sustituye la prueba de usuario)
 - [ ] Completar revisión humana de atribuciones y avisos de los componentes exactos del SBOM, obligaciones GPL/LGPL y distribución
 - [ ] Obtener autorización explícita para fusionar a `main` y publicar estable
