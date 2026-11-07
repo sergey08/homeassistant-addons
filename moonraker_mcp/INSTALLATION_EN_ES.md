@@ -31,7 +31,7 @@ In Home Assistant, navigate to **Settings → Apps → App Store → ⋮ → Rep
 | --- | --- | --- |
 | `moonraker_url` | e.g. `http://printer.local:7125` | Use the real local API endpoint, **not** the Fluidd page address if that page uses a different port |
 | `moonraker_api_key` | Your own Moonraker API key | Optional only when Moonraker does not require it |
-| `mcp_http_token` | A new long, randomly generated secret | Required; separate from every other credential |
+| `mcp_http_token` | A unique random token (recommend 32+ characters) | **Required before first start**. Create it yourself in the Configuration tab; do not reuse the Moonraker or OpenAI API keys. Home Assistant displays in-field guidance where translations are supported. |
 | `enable_tunnel` | **Off** initially | Leave disabled until your local settings are ready |
 | `tunnel_id` | Your own `tunnel_...` ID | Created in OpenAI Platform |
 | `openai_tunnel_api_key` | Your own **restricted** OpenAI Platform API key | Protected password field; new installs need this to enable the tunnel |
@@ -110,7 +110,7 @@ En **Moonraker MCP (DEV) → Configuración**, introduce:
 | --- | --- |
 | `moonraker_url` | Dirección de la API de Moonraker, por ejemplo `http://printer.local:7125`, no confundir con la web de Fluidd |
 | `moonraker_api_key` | Clave de Moonraker, si se necesita |
-| `mcp_http_token` | Contraseña nueva, aleatoria y exclusiva del gateway MCP |
+| `mcp_http_token` | **Obligatorio antes del primer arranque:** crea un token aleatorio exclusivo (recomendados al menos 32 caracteres). No reutilices la API Key de Moonraker ni la clave OpenAI. El campo muestra ayuda en español mediante las traducciones de Home Assistant. |
 | `enable_tunnel` | **Desactivado** inicialmente |
 | `tunnel_id` | ID `tunnel_...` creado en la plataforma OpenAI |
 | `openai_tunnel_api_key` | Clave restringida de OpenAI Platform para el túnel |
