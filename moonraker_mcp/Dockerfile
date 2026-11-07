@@ -12,7 +12,10 @@ RUN set -eu; \
     test "$(git rev-parse FETCH_HEAD)" = "$UPSTREAM_COMMIT"; \
     git checkout --detach FETCH_HEAD; \
     test "$(git rev-parse HEAD)" = "$UPSTREAM_COMMIT"
-RUN go mod download && go mod verify
+# Security override for pinned upstream: Trivy reported CVE-2026-78661
+# in golang.org/x/net v0.60.0; require fixed v0.62.0 explicitly.
+# go mod verify and unit tests below fail the image build on incompatibility.
+RUN go get golang.org/x/net@v0.62.0 && go mod download && go mod verify
 RUN CGO_ENABLED=0 go test ./...
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=$TARGETARCH go build \
     -trimpath -ldflags "-s -w -X main.version=0.2.0-patched-dev12 -X main.revision=f01636bec21a21cfc5f9ee84dc68dad7d44d6dd9" \
