@@ -1,4 +1,23 @@
-# Moonraker MCP for Home Assistant — DEV
+# Moonraker MCP for Home Assistant
+
+## v0.1.0 — Candidato estable / Stable release candidate
+
+**Estado / Status:** preparado en la rama `release/moonraker-mcp-0.1.0-rc1`; **NO publicado, NO fusionado a main**. La edición de la ficha `name: Moonraker MCP` y `version: 0.1.0` se aplica solamente al candidato; la instalación DEV del usuario y su repositorio quedan intactos.
+
+**ES — Funciones principales.** Complemento Home Assistant OS para AMD64 y ARM64 que conecta directamente con la API Moonraker de la impresora. Ofrece cinco herramientas de consulta MCP por defecto, con listado cerrado y tratamiento de privacidad de datos del equipo. Las siete categorías de funciones adicionales permanecen desactivadas inicialmente. Incluye un cliente de túnel seguro saliente de OpenAI, opcional y desactivado por defecto, compilado desde código fuente fijado; **no es un ZIP oficial de OpenAI**. El puerto 8765 no se publica por defecto.
+
+**EN — Main features.** Home Assistant OS add-on for AMD64 and ARM64, directly accessing the printer's Moonraker API. Five read-only MCP tools are enabled by default, using a strict allowlist and privacy filtering. Seven additional capability profiles remain disabled. An optional outbound OpenAI Secure MCP Tunnel client is bundled, built from pinned upstream source rather than an unmodified official binary; it is disabled by default. TCP port 8765 is not exposed by default.
+
+**Installation / Instalación:** consulta [INSTALLATION_EN_ES.md](./INSTALLATION_EN_ES.md). Cada usuario nuevo configura el endpoint Moonraker, un token MCP propio y, solo si quiere conectar ChatGPT, su propio túnel y clave restringida mediante la interfaz Home Assistant; no hace falta instalar binarios manualmente. **Los usuarios actuales DEV no deben desinstalar ni migrar automáticamente**: el catálogo estable podría tener otro identificador de Supervisor.
+
+**Release gate:** siguen pendientes la revisión concreta de obligaciones LICENSE/NOTICE/fuentes correspondientes, la CI del commit candidato final y la autorización expresa del mantenedor. Rotación/revocación de credenciales y restauración cifrada no se han probado de extremo a extremo: **NO VERIFICADAS**, no se exige crear credenciales nuevas al usuario actual.
+
+---
+
+## Historial de desarrollo / Development history (archived)
+
+Los apartados DEV12, DEV11 y anteriores son notas históricas de pruebas y **no describen el estado actual de la publicación**. / DEV12, DEV11 and earlier sections are historical test notes and **do not reflect a completed stable release**.
+
 
 ## DEV12 — AMD64 / ARM64 source-built preview (7 November 2026)
 
