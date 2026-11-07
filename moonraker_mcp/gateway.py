@@ -54,7 +54,7 @@ LOCAL_FILE_TOOLS = {
 }
 SAFE_HEADER_VALUE = re.compile(r"^[A-Za-z0-9._-]{1,128}$")
 SUPPORTED_PROTOCOL_VERSIONS = frozenset(("2025-03-26", "2025-06-18"))
-ADDON_VERSION = "0.1.0-dev12"
+ADDON_VERSION = "0.1.0"
 MODERN_PROTOCOL = "2026-07-28"
 # A newer client may propose 2025-11-25 during initialize. Negotiate back
 # to the upstream-compatible 2025-06-18; do not claim 2025-11-25 support.
