@@ -7,7 +7,7 @@
 | Gate | Required evidence | Owner / Evidence source |
 | --- | --- | --- |
 | AMD64 real upgrade | DEV11 → DEV12, credentials preserved, 5/5 real MCP tool calls, no host ports | Done: Lenovo HA/Moonraker MCP observations 07/11 |
-| ARM64 clean install | Independent HA GUI install, own Moonraker IP/API key, own MCP token, 5/5 MCP tool calls via own tunnel | External tester; startup/install observed, remote tests pending |
+| ARM64 clean install | Independent HA GUI installation and user acceptance of DEV12 on ARM64. Detailed logs of five remote tool calls were not supplied to the maintainer | **ACCEPTED BY EXTERNAL TESTER (user-reported)** on 2026-11-07; independent call-by-call evidence not archived |
 | Rotation and recovery | On disposable HA, revoke old tunnel key, test new key, encrypted backup+restore without leaking credentials | External tester + maintainer; pending |
 | Image security | Latest commit CI both architectures, Trivy 0 HIGH/CRITICAL, SBOM/inventory preserved | GitHub Actions; verify final commit |
 | License redistribution | Review exact final-image CycloneDX components, texts and obligations (GPL/LGPL/MPL, Apache NOTICE, BSD), record reviewed entries and maintainer signoff. No inferred clearance | Human reviewer; **not approved** |
@@ -27,7 +27,7 @@
 | Latest source and CI / Código y CI | DEV12 head `81bec6b4399532ae8fe32bfe66962cabad20e4d6`; two successful GitHub Actions runs [42394945651](https://github.com/sergey08/homeassistant-addons/actions/runs/42394945651) and [42394940825](https://github.com/sergey08/homeassistant-addons/actions/runs/42394940825) | PASS / SUPERADA |
 | Lenovo AMD64 in-place upgrade / Actualización Lenovo | Home Assistant Supervisor shows `0.1.0-dev12`, `started`, protected token present, private tunnel enabled, host port 8765 unpublished and all optional profiles off | PASS / SUPERADA |
 | Live ChatGPT MCP calls / Consultas reales | All five read-only tools called successfully through the existing private tunnel: version `0.2.0-patched-dev12`, printer online/ready, Moonraker `2.0.0`, Klipper `2.0.0-paxx12-23`, temperature series delivered | PASS / SUPERADA |
-| Independent ARM64 install / Instalación ARM64 externa | Third-party Home Assistant Supervised ARM64 installed DEV12 and started an internal `mcp-raker` server. Its real printer address, own token, remote tunnel and ChatGPT tool calls have not been verified | PARTIAL / PARCIAL |
+| Independent ARM64 install / Instalación ARM64 externa | Third-party Home Assistant Supervised ARM64 installed DEV12 and started an internal `mcp-raker` server; maintainer confirms external user has tested ARM64 successfully. No private credentials or call-by-call transcripts supplied | ACCEPTED BY TESTER / ACEPTADO POR PROBADOR |
 | Independent first-use documentation / Guía primer uso | `mcp_http_token` documented in the installation guide; ES/EN in-app translations added and CI passed. Rendering in a user's HA interface not yet confirmed | PARTIAL / PARCIAL |
 | Secret rotation and backup restore / Rotación y restauración | Test on disposable independent HA with private credentials, without copying Lenovo secrets. Existing Lenovo backup before upgrade was not verified | BLOCKED / BLOQUEADO |
 | Human license/NOTICE/source review / Revisión humana de licencias | CycloneDX, legal text evidence and license queue available; exact redistributed-image license obligations and notices need human sign-off | BLOCKED / BLOQUEADO |
