@@ -45,7 +45,7 @@ Se ha usado **el mismo commit fijado** de `alpinelinux/aports` (`2235ae248c31ea4
 | pax-utils | 1 | 0 | 1 | tarball externo |
 | xz | 1 | 0 | 1 | tarball upstream |
 
-**Resultado limitado pero verificable:** 142 entradas de fuentes auxiliares con nombre coincidente en el directorio aports fijado (10+1+71+40+17+3). Las otras 23 entradas corresponden a recursos externos declarados o generados dinámicamente por recetas; su ausencia en el directorio local **no es un error de empaquetado**. La lectura confirma rutas/nombres, no los checksums SHA-512 de los bytes. Un enlace a archivos GitHub tampoco equivale a evidencia completa de código fuente correspondiente.
+**Resultado limitado pero verificable:** 142 entradas de fuentes auxiliares con nombre coincidente en el directorio aports fijado (10+1+71+40+17+3). Las otras 24 entradas corresponden a recursos externos declarados o generados dinámicamente por recetas; su ausencia en el directorio local **no es un error de empaquetado**. La lectura confirma rutas/nombres, no los checksums SHA-512 de los bytes. Un enlace a archivos GitHub tampoco equivale a evidencia completa de código fuente correspondiente.
 
 **Precaución sobre Readline:** `readline82-001.patch` a `readline82-013.patch` figuran en la lista de checksums, y la receta los añade desde la URL GNU de parches mediante un bucle. No marcarlos como archivos locales desaparecidos.
 
