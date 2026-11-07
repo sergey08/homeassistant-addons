@@ -415,8 +415,8 @@ class RealCouchDBIntegrationTests(unittest.TestCase):
         from pathlib import Path
         from livesync_crypto import encrypt_hkdf_string
         from livesync_encrypted_metadata_fixture import encode_parent_metadata_fixture
-        from livesync_isolated_backup import create_verified_snapshot
-        from livesync_isolated_backup_store import store_signed_backup, read_signed_backup
+        from livesync_isolated_backup import BackupRejected, create_verified_snapshot
+        from livesync_isolated_backup_store import store_signed_backup
         from livesync_disposable_restore import restore_to_empty_disposable_database
         from livesync_multichunk_audit import assemble_encrypted_chunks
         root = os.environ["TEST_COUCHDB_URL"].rstrip("/")
@@ -467,13 +467,6 @@ class RealCouchDBIntegrationTests(unittest.TestCase):
             backup = create_verified_snapshot(
                 stored_parent, stored_leaves, note_path, stored_parent["_rev"],
                 phrase, salt, isolated_test=True)["backup"]
-            with tempfile.TemporaryDirectory() as workdir:
-                key = bytes(range(32))
-                record = store_signed_backup(
-                    str(Path(workdir) / "backups"), backup, key, isolated_test=True)
-                verified_backup = read_signed_backup(
-                    str(Path(workdir) / "backups"), record["backup_id"],
-                    key, isolated_test=True)["backup"]
             target = names[1]
 
             def list_ids():
@@ -493,9 +486,25 @@ class RealCouchDBIntegrationTests(unittest.TestCase):
                 except HTTPError as exc:
                     return exc.code, {"error": "conflict"}
 
-            result = restore_to_empty_disposable_database(
-                verified_backup, list_ids, read_doc, put_doc, phrase, salt,
-                isolated_test=True, disposable_database=True)
+            with tempfile.TemporaryDirectory() as workdir:
+                backup_root = Path(workdir) / "backups"
+                key = bytes(range(32))
+                backup_id = store_signed_backup(
+                    backup_root, backup, key, isolated_test=True)["backup_id"]
+                stored_record = (backup_root / (backup_id + ".json")).read_text(
+                    encoding="utf-8")
+                for text in chunks[:2]:
+                    self.assertNotIn(text, stored_record)
+                with self.assertRaisesRegex(BackupRejected, "backup_authentication_failed"):
+                    restore_to_empty_disposable_database(
+                        backup_root, backup_id, bytes(reversed(key)),
+                        list_ids, read_doc, put_doc, phrase, salt,
+                        isolated_test=True, disposable_database=True)
+                self.assertEqual(list_ids(), [])
+                result = restore_to_empty_disposable_database(
+                    backup_root, backup_id, key,
+                    list_ids, read_doc, put_doc, phrase, salt,
+                    isolated_test=True, disposable_database=True)
             self.assertEqual(result["confirmed_leaves"], 3)
             new_parent = read_doc(parent["_id"])
             new_leaves = {ident: read_doc(ident) for ident in leaf_ids}
