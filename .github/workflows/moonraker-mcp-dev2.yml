@@ -548,7 +548,10 @@ jobs:
           retention-days: 14
           if-no-files-found: error
 
+  # Remote GNU hosting can be unavailable from GitHub runners. Run explicitly
+  # on demand; preserve strict SHA-512 verification, never silently PASS.
   readline-remote-integrity:
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
