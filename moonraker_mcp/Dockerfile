@@ -1,6 +1,7 @@
-# DEV11 patched upstream: source pinned by Git commit and Go builder by digest.
+# DEV12 multi-architecture (amd64/arm64); upstream source and toolchain pinned.
 # Never fetch the moving 'master' branch for a production add-on build.
-FROM docker.io/library/golang:1.27.3-alpine@sha256:d200d2dd76b03a99b52651fd1325aff7dcd35422c35c01bac56571b0507f3deb AS upstream_build
+FROM --platform=$BUILDPLATFORM docker.io/library/golang:1.27.3-alpine@sha256:d200d2dd76b03a99b52651fd1325aff7dcd35422c35c01bac56571b0507f3deb AS upstream_build
+ARG TARGETARCH
 RUN apk add --no-cache ca-certificates git
 ARG UPSTREAM_COMMIT=f01636bec21a21cfc5f9ee84dc68dad7d44d6dd9
 WORKDIR /src
@@ -12,15 +13,30 @@ RUN set -eu; \
     git checkout --detach FETCH_HEAD; \
     test "$(git rev-parse HEAD)" = "$UPSTREAM_COMMIT"
 RUN go mod download && go mod verify
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go test ./...
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
-    -trimpath -ldflags "-s -w -X main.version=0.2.0-patched-dev11 -X main.revision=f01636bec21a21cfc5f9ee84dc68dad7d44d6dd9" \
+RUN CGO_ENABLED=0 go test ./...
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=$TARGETARCH go build \
+    -trimpath -ldflags "-s -w -X main.version=0.2.0-patched-dev12 -X main.revision=f01636bec21a21cfc5f9ee84dc68dad7d44d6dd9" \
     -o /tmp/mcp-raker ./cmd/mcp-raker
 FROM scratch AS upstream
 COPY --from=upstream_build /tmp/mcp-raker /mcp-raker
-# Pin vendor binary independently of any runtime GitHub availability.
-# For DEV5, automatic provisioning is limited to amd64 until the official
-# aarch64 artifact can be independently validated and pinned.
+# Both official tunnel-client releases are pinned to v0.0.19 by their GitHub
+# release SHA-256 digests. Docker BuildKit selects the target architecture.
+FROM docker.io/library/alpine:3.22@sha256:bfe7ceb9f09ec0566c48fb93356e45a47a00be5a1dd14fa5b909e7709c66b034 AS tunnel_vendor
+ARG TARGETARCH
+RUN apk add --no-cache ca-certificates curl python3
+RUN set -eu; \
+    case "$TARGETARCH" in \
+      amd64) checksum='9ee9448592345a9dd1517fb79791ab54d24f051142eb92bcbe8cd355effc9142' ;; \
+      arm64) checksum='5a19e556c4a8736ab7a6fde6f0568f6e7411fa2dff21186fc15bc30e9b98a603' ;; \
+      *) echo "Unsupported architecture" >&2; exit 1 ;; \
+    esac; \
+    curl --fail --location --silent --show-error --retry 3 --max-time 120 \
+      "https://github.com/openai/tunnel-client/releases/download/v0.0.19/tunnel-client-v0.0.19-linux-${TARGETARCH}.zip" \
+      -o /tmp/tunnel-client.zip; \
+    echo "$checksum  /tmp/tunnel-client.zip" | sha256sum -c -; \
+    python3 -c 'import zipfile,pathlib; z=zipfile.ZipFile("/tmp/tunnel-client.zip"); a=[x for x in z.infolist() if pathlib.PurePosixPath(x.filename).name=="tunnel-client" and not x.is_dir()]; assert len(a)==1 and a[0].file_size<90000000; pathlib.Path("/tmp/tunnel-client").write_bytes(z.read(a[0]))'; \
+    chmod 755 /tmp/tunnel-client
+
 FROM docker.io/library/alpine:3.22@sha256:bfe7ceb9f09ec0566c48fb93356e45a47a00be5a1dd14fa5b909e7709c66b034 AS tunnel_vendor
 RUN apk add --no-cache ca-certificates curl python3
 RUN set -eu; \
