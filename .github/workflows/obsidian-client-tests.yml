@@ -937,7 +937,7 @@ jobs:
                           assert read.returncode==0 and read.stdout==updated_text, (
                               "Official CLI failed reading CAS-updated encrypted obfuscated parent")
                       print("Official CLI decoded obfuscated CAS update; stale revision rejected")
-                      # Restore a verified, encrypted backup into a SECOND disposable DB.
+                      # Restore a verified, encrypted multichunk backup into a second disposable DB.
                       from livesync_isolated_backup import create_verified_snapshot
                       from livesync_isolated_backup_store import store_signed_backup
                       from livesync_disposable_restore import restore_to_empty_disposable_database
@@ -945,12 +945,30 @@ jobs:
                           req=urllib.request.Request(obfuscated_url+"/"+quote(doc_id,safe=""),headers={"Authorization":auth})
                           with urllib.request.urlopen(req,timeout=10) as response:
                               return json.load(response)
-                      verified_parent=get_original(python_parent["_id"])
-                      verified_leaf=get_original(updated_leaf["_id"])
+                      restore_path="Tests/python-obfuscated-multichunk.md"
+                      fragments=("# Copia cifrada\n", "Segundo fragmento 🌍\n", "Fin del respaldo.\n")
+                      restore_text="".join(fragments)
+                      restore_phrase=obfuscated_config["livesync_e2ee_passphrase"]
+                      fragment_ids=[]
+                      for fragment in fragments:
+                          fragment_id="h:"+legacy_chunk_id(fragment,restore_phrase)
+                          leaf={"_id":fragment_id,"type":"leaf","e_":True,
+                                "data":encrypt_hkdf_string(fragment,restore_phrase,obfuscated_salt)}
+                          assert put_test_document(leaf)[0]==201
+                          fragment_ids.append(fragment_id)
+                      metadata=encode_parent_metadata_fixture(
+                          restore_path,fragment_ids,restore_phrase,obfuscated_salt,
+                          ctime=1730000000000,mtime=1730000001000,
+                          size=len(restore_text.encode("utf-8")))
+                      restore_parent={**python_parent,
+                          "_id":legacy_obfuscated_parent_id(restore_path,restore_phrase),
+                          "path":metadata["path"]}
+                      assert put_test_document(restore_parent)[0]==201
+                      verified_parent=get_original(restore_parent["_id"])
+                      verified_leaves={ident:get_original(ident) for ident in fragment_ids}
                       backup=create_verified_snapshot(
-                          verified_parent,{updated_leaf["_id"]:verified_leaf},python_path,
-                          verified_parent["_rev"],config["livesync_e2ee_passphrase"],
-                          obfuscated_salt,isolated_test=True)["backup"]
+                          verified_parent,verified_leaves,restore_path,verified_parent["_rev"],
+                          restore_phrase,obfuscated_salt,isolated_test=True)["backup"]
                       restore_name=obfuscated_db_name+"_restored"
                       restore_url=root+"/"+restore_name
                       with urllib.request.urlopen(urllib.request.Request(
@@ -987,9 +1005,11 @@ jobs:
                               save=store_signed_backup(backup_root,backup,key,isolated_test=True)
                               restored=restore_to_empty_disposable_database(
                                   backup_root,save["backup_id"],key,target_ids,target_get,target_put,
-                                  config["livesync_e2ee_passphrase"],obfuscated_salt,
+                                  restore_phrase,obfuscated_salt,
                                   isolated_test=True,disposable_database=True)
-                          assert restored["confirmed_leaves"]==1
+                          assert restored["confirmed_leaves"]==len(fragments)
+                          assert restored["verified_bytes"]==len(restore_text.encode("utf-8"))
+                          assert set(target_ids())=={restore_parent["_id"],*fragment_ids}
                           # A populated database needs the LiveSync version marker.
                           # Seed it from the CLI fixture after testing the empty restore.
                           version=get_original("obsydian_livesync_version")
@@ -1035,11 +1055,11 @@ jobs:
                                       "remote":bool(re.search("remote|replication",diagnostics,re.I)),
                                       "network":bool(re.search("fetch failed|connection",diagnostics,re.I))})
                               assert result.returncode==0,"Official CLI failed syncing restored backup"
-                              result=subprocess.run(["node",cli,restored_cli,"cat",python_path],
-                                                    capture_output=True,text=True,timeout=45)
-                              assert result.returncode==0 and result.stdout==updated_text,(
-                                  "Official CLI did not decode independently restored encrypted backup")
-                          print("Official CLI decoded encrypted backup in second disposable database")
+                              result=subprocess.run(["node",cli,restored_cli,"cat",restore_path],
+                                                    capture_output=True,timeout=45)
+                              assert result.returncode==0 and result.stdout==restore_text.encode("utf-8"),(
+                                  "Official CLI did not decode restored encrypted fragments in order")
+                          print("Official CLI decoded a three-fragment encrypted backup in second disposable database")
                       finally:
                           req=urllib.request.Request(restore_url,method="DELETE",headers={"Authorization":auth})
                           with urllib.request.urlopen(req,timeout=10) as response:
