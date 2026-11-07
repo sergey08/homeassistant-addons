@@ -57,6 +57,26 @@ class TunnelAutoSetupTests(unittest.TestCase):
         self.assertEqual(stat.S_IMODE(self.key.stat().st_mode), 0o600)
         self.assertEqual(stat.S_IMODE(self.binary.stat().st_mode), 0o700)
 
+    def test_binary_update_replaces_old_version_without_rotating_key(self):
+        self.settings("existing-test-credential-123")
+        provision_from_options(self.root, self.vendor, self.uid)
+        original_key = self.key.read_bytes()
+        self.vendor.write_bytes(b"new-patched-tunnel-binary")
+        provision_from_options(self.root, self.vendor, self.uid)
+        self.assertEqual(self.binary.read_bytes(), b"new-patched-tunnel-binary")
+        self.assertEqual(self.key.read_bytes(), original_key)
+        self.assertEqual(stat.S_IMODE(self.binary.stat().st_mode), 0o700)
+        self.assertEqual(stat.S_IMODE(self.key.stat().st_mode), 0o600)
+
+    def test_insecure_existing_binary_is_not_replaced_silently(self):
+        self.settings("existing-test-credential-123")
+        provision_from_options(self.root, self.vendor, self.uid)
+        self.vendor.write_bytes(b"new-patched-tunnel-binary")
+        os.chmod(self.binary, 0o777)
+        with self.assertRaisesRegex(ProvisionError, "Insecure tunnel client"):
+            provision_from_options(self.root, self.vendor, self.uid)
+        self.assertEqual(self.binary.read_bytes(), b"test-binary")
+
     def test_invalid_new_password_does_not_destroy_valid_existing_key(self):
         self.settings("original-safe-secret-key-123")
         provision_from_options(self.root, self.vendor, self.uid)
