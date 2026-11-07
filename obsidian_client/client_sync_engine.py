@@ -83,6 +83,7 @@ def write_safety_status(config):
         "encrypted_backup_preflight": "isolated_only_no_restore",
         "signed_backup_storage": "isolated_only_external_key",
         "disposable_backup_restore": "empty_database_only_test_only",
+        "official_cli_restored_backup_interoperability": "disposable_ci_only",
         "orphan_cleanup_enabled": False,
         "production_blockers": [
             "live_wire_format_variants_not_exhaustively_validated",
