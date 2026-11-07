@@ -9,6 +9,8 @@ Abrir [Moonraker MCP DEV2 CI](https://github.com/sergey08/homeassistant-addons/a
 - `moonraker-mcp-dev12-cyclonedx-sbom`: `sbom.cdx.json`, `sbom-summary.json`, `license-human-review-worksheet.csv`, `license-review-pending.json`, `trivy-results.json`, `scan-summary.md`, `license-review-queue.csv`, `go-license-evidence.csv`, `third-party-legal-texts.zip`, `alpine-license-review.csv` y resúmenes cuando estén incluidos.
 - `moonraker-mcp-dev-binary-inventory`: huellas SHA-256 de ambos ejecutables, `go version -m`, paquete/versiones Alpine y licencia declarada por paquete.
 
+**Nuevo informe de conciliación:** `license-review-evidence-hints.json` une, mediante referencias concretas del SBOM, archivos legales Go y expresiones de licencias de Alpine. **Todas las entradas mantienen `PENDING`**, y el campo `reviewer_approved` sigue en `false`. Esta evidencia facilita la revisión humana, no la sustituye.
+
 **Nota:** los artefactos tienen retención limitada (14 días). Descargarlos en un entorno privado de auditoría; no adjuntar claves, backups, `/data/tunnel` ni registros personales. Si cambia el Dockerfile, la versión Go o alguna dependencia, **regenerar el SBOM y repetir la revisión con el SHA final**.
 
 ## 2. Qué sabemos / What is established
