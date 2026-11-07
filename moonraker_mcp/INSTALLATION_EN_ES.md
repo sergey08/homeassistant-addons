@@ -2,7 +2,7 @@
 
 > **Development preview (DEV12, 2026-11-07).** Do not merge into `main` or publish a stable release until release gates below are complete. English first, Spanish second.
 
-**Second-system acceptance / Prueba independiente:** [Clean HA OS installation and recovery acceptance checklist](./CLEAN_INSTALL_ACCEPTANCE_EN_ES.md). This is a planned second-system test, not a claim that it has already passed.
+**Second-system acceptance / Prueba independiente:** [Clean HA OS installation and recovery acceptance checklist](./CLEAN_INSTALL_ACCEPTANCE_EN_ES.md). The independent ARM64 installation and internal server start have been observed, but remote tunnel and full end-to-end acceptance remain pending.
 
 ## English — Install without terminal commands
 
@@ -12,7 +12,7 @@ Moonraker MCP hosts a restricted, read-only MCP server for a Moonraker-compatibl
 
 ### Requirements
 
-- Home Assistant OS / Supervisor on **amd64 (x86-64)** or **aarch64 (ARM64)**. DEV12 includes architecture-specific builds, with an ARM64 CI smoke test; actual GUI-only installation on the second ARM64 Home Assistant remains to be verified.
+- Home Assistant OS / Supervisor on **amd64 (x86-64)** or **aarch64 (ARM64)**. DEV12 includes architecture-specific builds, with an ARM64 CI smoke test; a real independent ARM64 add-on installation has succeeded; complete end-to-end validation is still pending.
 - A reachable Moonraker instance (typically port 7125) and its API key if configured.
 - A ChatGPT account/workspace with access to custom MCP servers and OpenAI Secure MCP Tunnel, and permissions to create/manage your own tunnel in OpenAI Platform. Availability depends on account and workspace settings.
 - A **unique** strong MCP HTTP bearer token. Do not reuse your printer API key, OpenAI API key or other service tokens.
@@ -45,7 +45,7 @@ Open the official OpenAI Platform tunnel administration screen at `https://platf
 
 In `https://platform.openai.com/settings/organization/api-keys`, generate an **independent restricted API key** for the tunnel, with only the permissions required by the platform for the tunnel (currently **Tunnels: Read + Use** where offered). Enter that key in `openai_tunnel_api_key` in the **Home Assistant UI**. Do not paste it into terminal commands and do not reuse another MCP tunnel's key.
 
-DEV12 bundles the official pinned `tunnel-client` for amd64 or arm64 in the add-on image. The add-on automatically provisions a private executable and token file when tunnel access is enabled. **New users do not need to install a ZIP or run Docker commands.**
+DEV12 bundles an architecture-specific `tunnel-client` compiled from the pinned OpenAI upstream source commit with an explicitly updated Go dependency. **It is not the unchanged official OpenAI release ZIP.** The add-on automatically provisions a private executable and token file when tunnel access is enabled. **New users do not need to install a ZIP or run Docker commands.**
 
 ### 4. Start the app and enable the tunnel
 
@@ -59,7 +59,7 @@ DEV12 bundles the official pinned `tunnel-client` for amd64 or arm64 in the add-
 
 Open **Settings → Plugins → Add → Custom MCP server** (menu labels vary by client). Select **Tunnel**, pick the tunnel you created for Moonraker, choose **No authentication** for the MCP endpoint **behind the tunnel**, then create the plugin. This does **not** mean the tunnel is publicly unauthenticated: the outbound OpenAI tunnel uses your restricted API key and an internal authenticated bridge uses the separate MCP bearer token.
 
-The actual DEV11 installation was verified from ChatGPT using **all five read-only tools** through the private tunnel. This is a test of an existing installation, **not** a clean first-install test on another Home Assistant. Other accounts/workspaces may behave differently. **Never expose the raw gateway port** to mimic this flow.
+The existing Lenovo AMD64 installation was upgraded to DEV12 and verified from ChatGPT using **all five read-only tools** through the private tunnel. This is a test of an existing installation, **not** a clean first-install test on another Home Assistant. Other accounts/workspaces may behave differently. **Never expose the raw gateway port** to mimic this flow.
 
 ### What ChatGPT can read by default
 
@@ -69,7 +69,7 @@ The actual DEV11 installation was verified from ChatGPT using **all five read-on
 - `moonraker_server_info`: Moonraker version, API version and Klippy connection/readiness only; no component lists or warnings.
 - `moonraker_temperature_store`: up to 120 recent numeric readings per sensor series, with nonstandard sensor names anonymized.
 
-The DEV11 default tools deliberately suppress hostnames and filesystem paths, but still reveal machine availability, versions and limited temperature activity. The default profile has **no G-code execution, print start/stop, power control, upload, deletion, full file access, or Home Assistant administration**.
+The DEV12 default tools deliberately suppress hostnames and filesystem paths, but still reveal machine availability, versions and limited temperature activity. The default profile has **no G-code execution, print start/stop, power control, upload, deletion, full file access, or Home Assistant administration**.
 
 ### Troubleshooting / safety
 
@@ -89,7 +89,7 @@ Moonraker MCP ofrece un servidor MCP de **solo lectura** para impresoras 3D comp
 
 ### Requisitos
 
-- Home Assistant OS / Supervisor en **amd64 (x86-64)** o **aarch64 (ARM64)**. DEV12 incluye binarios específicos de cada arquitectura; la instalación real desde la interfaz en el segundo Home Assistant ARM64 sigue pendiente de comprobar.
+- Home Assistant OS / Supervisor en **amd64 (x86-64)** o **aarch64 (ARM64)**. DEV12 incluye binarios específicos de cada arquitectura; la instalación real desde la interfaz en otro Home Assistant ARM64 ya ha tenido éxito; queda pendiente validar extremo a extremo el túnel y la conexión con la impresora.
 - Moonraker accesible desde la red local y su clave API cuando se requiera.
 - Acceso en ChatGPT a servidores MCP personalizados y a OpenAI Secure MCP Tunnel, sujeto a las opciones de la cuenta o espacio de trabajo.
 - Un token MCP nuevo, largo y aleatorio, distinto de cualquier otra clave.
@@ -134,11 +134,11 @@ Si Moonraker no responde, ChatGPT podrá indicar que la impresora **podría esta
 
 Abre **Configuración → Complementos → Añadir → Servidor MCP personalizado**, selecciona **Túnel**, elige tu túnel y usa **Sin autenticación** para el endpoint MCP *interno al túnel*. El túnel se autentica por separado y el gateway sigue protegido por su propio token.
 
-En nuestra prueba DEV11 real se descubrieron las cinco herramientas de lectura y se realizaron consultas desde ChatGPT a la Snapmaker U1. Eso no implica que todas las cuentas de ChatGPT tengan la misma función habilitada.
+En el Lenovo actualizado a DEV12 se descubrieron las cinco herramientas de lectura y se realizaron consultas desde ChatGPT a la Snapmaker U1. Eso no implica que todas las cuentas de ChatGPT tengan la misma función habilitada.
 
 ### Permisos y limitaciones
 
-Por defecto solo se consultan conectividad, versión del MCP, información de Moonraker, información de Klippy y temperaturas almacenadas. Se mantienen desactivadas las consultas opcionales de ficheros G-code, historial, sensores, inventario Spoolman, energía y objetos Klipper. En DEV11, el estado de servidor e impresora oculta rutas, nombres de host y detalles internos; el historial térmico está limitado a **120 muestras por serie** y los sensores personalizados se anonimizan. **No se pueden ejecutar G-code, iniciar o detener impresiones, borrar archivos ni controlar la alimentación mediante el perfil predeterminado.**
+Por defecto solo se consultan conectividad, versión del MCP, información de Moonraker, información de Klippy y temperaturas almacenadas. Se mantienen desactivadas las consultas opcionales de ficheros G-code, historial, sensores, inventario Spoolman, energía y objetos Klipper. En DEV12, el estado de servidor e impresora oculta rutas, nombres de host y detalles internos; el historial térmico está limitado a **120 muestras por serie** y los sensores personalizados se anonimizan. **No se pueden ejecutar G-code, iniciar o detener impresiones, borrar archivos ni controlar la alimentación mediante el perfil predeterminado.**
 
 ### Incidencias frecuentes
 
@@ -156,10 +156,11 @@ Por defecto solo se consultan conectividad, versión del MCP, información de Mo
 - [x] Cinco herramientas de lectura detectadas y consultas reales a una impresora encendida
 - [x] Puerto externo sin publicar; perfiles opcionales desactivados
 - [x] Validar desde ChatGPT la impresora **apagada**, y su recuperación tras encenderla
-- [x] Filtrado y pruebas reales de privacidad de las cinco herramientas predeterminadas de DEV11 (incluido historial térmico acotado)
+- [x] Filtrado y pruebas reales de privacidad de las cinco herramientas predeterminadas de DEV12 (incluido historial térmico acotado)
 - [ ] Instalar desde cero en Home Assistant limpio **sin terminal**, con credenciales nuevas
-- [x] Comprobar la versión anunciada y las cinco herramientas reales de DEV11 desde ChatGPT
+- [x] Comprobar la versión anunciada y las cinco herramientas reales de DEV12 desde ChatGPT
 - [ ] Verificar mantenimiento, rotación de secretos, recuperación ante fallos y copias de seguridad
-- [ ] Validar instalación ARM64 real en segundo Home Assistant (CI no sustituye la prueba de usuario)
+- [x] Instalar DEV12 desde Home Assistant en equipo externo ARM64 y arrancar servidor MCP interno
+- [ ] Validar conexión real, túnel privado y cinco herramientas desde ChatGPT en el equipo ARM64 externo
 - [ ] Completar revisión humana de atribuciones y avisos de los componentes exactos del SBOM, obligaciones GPL/LGPL y distribución
 - [ ] Obtener autorización explícita para fusionar a `main` y publicar estable
