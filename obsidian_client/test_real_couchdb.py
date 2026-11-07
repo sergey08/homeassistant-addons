@@ -410,12 +410,18 @@ class RealCouchDBIntegrationTests(unittest.TestCase):
 
 
     def test_signed_snapshot_restores_into_second_empty_disposable_couchdb(self):
-        """Restore isolated encrypted documents into a NEW disposable database."""
+        self._check_signed_snapshot_restore(schema=2)
+
+    def test_legacy_signed_snapshot_restores_into_empty_disposable_couchdb(self):
+        self._check_signed_snapshot_restore(schema=1)
+
+    def _check_signed_snapshot_restore(self, schema):
+        """Restore a signed snapshot into a new disposable CouchDB database."""
         import tempfile
         from pathlib import Path
         from livesync_crypto import encrypt_hkdf_string
         from livesync_encrypted_metadata_fixture import encode_parent_metadata_fixture
-        from livesync_isolated_backup import BackupRejected, create_verified_snapshot
+        from livesync_isolated_backup import BackupRejected, _checksum, create_verified_snapshot
         from livesync_isolated_backup_store import store_signed_backup
         from livesync_disposable_restore import restore_to_empty_disposable_database
         from livesync_multichunk_audit import assemble_encrypted_chunks
@@ -467,6 +473,12 @@ class RealCouchDBIntegrationTests(unittest.TestCase):
             backup = create_verified_snapshot(
                 stored_parent, stored_leaves, note_path, stored_parent["_rev"],
                 phrase, salt, isolated_test=True)["backup"]
+            self.assertEqual(backup["schema"], 2)
+            if schema == 1:
+                # Recreate the original dev117 manifest before signing it.
+                backup["schema"] = 1
+                backup["snapshot"]["path"] = note_path
+                backup["sha256"] = _checksum(backup["snapshot"])
             target = names[1]
 
             def list_ids():
@@ -493,7 +505,12 @@ class RealCouchDBIntegrationTests(unittest.TestCase):
                     backup_root, backup, key, isolated_test=True)["backup_id"]
                 stored_record = (backup_root / (backup_id + ".json")).read_text(
                     encoding="utf-8")
-                self.assertNotIn(note_path, stored_record)
+                saved_backup = json.loads(stored_record)["backup"]
+                self.assertEqual(saved_backup["schema"], schema)
+                if schema == 1:
+                    self.assertEqual(saved_backup["snapshot"]["path"], note_path)
+                else:
+                    self.assertNotIn(note_path, stored_record)
                 for text in chunks[:2]:
                     self.assertNotIn(text, stored_record)
                 with self.assertRaisesRegex(BackupRejected, "backup_authentication_failed"):
