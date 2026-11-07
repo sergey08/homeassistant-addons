@@ -44,7 +44,20 @@ Para cada `bom-ref` del SBOM final:
 
 **Acta para la prueba real de restauración:** [RECOVERY_ACCEPTANCE_RECORD_EN_ES.md](./RECOVERY_ACCEPTANCE_RECORD_EN_ES.md). Tiene nueve controles pendientes R1–R9 y campos de firma; no contiene credenciales y **no supone que el ensayo se haya ejecutado**.
 
-## 5. Decisión de publicación / Release decision
+## 5. Etiquetas y catálogo compartido / Shared-repository release identity
+
+El repositorio `sergey08/homeassistant-addons` incluye varias aplicaciones y ya tiene GitHub Releases de Obsidian MCP, por ejemplo `v0.2.6`. **La versión de la aplicación en Home Assistant y el tag GitHub son conceptos distintos**. Para evitar ambigüedad, reservar para Moonraker:
+
+- Versión visible del complemento en `moonraker_mcp/config.yaml`: `0.1.0` (solo después de aceptar todos los requisitos).
+- Tag específico de GitHub: `moonraker-mcp-v0.1.0` (propuesto; no existe ni debe crearse antes de aprobarse).
+- Título de GitHub Release: `Moonraker MCP v0.1.0`; indicar explícitamente el directorio `moonraker_mcp/`, arquitecturas `amd64/aarch64`, precauciones de instalación y dependencia de aprobación legal.
+- La primera publicación estable deberá fusionar una versión revisada del contenido a `main` mediante PR #89 y explicar el complemento en el README del catálogo general, sin modificar las versiones ni las fichas de Obsidian.
+- No asignar un tag global `v0.1.0` ambiguo en este repositorio multicomplemento, ni asumir que publicar un GitHub Release es suficiente para que Home Assistant instale o actualice el complemento.
+- El instalador DEV usa un repositorio específico de rama. La ficha estable de `main` puede recibir una **identidad Supervisor diferente** por prefijo de repositorio; documentar migración y **no afirmar** que una instalación DEV se actualiza automáticamente sin perder opciones o datos.
+
+**Publicación prohibida por ahora:** la aprobación funcional AMD64/ARM64 y CI verde no cierran licencias ni restauración real. No crear tag, Release, imagen pública, ni fusionar hasta autorización explícita del mantenedor *después* de cerrar esos requisitos.
+
+## 6. Decisión de publicación / Release decision
 
 **NO PUBLICAR COMO ESTABLE** hasta que la revisión humana de licencias y la prueba/aceptación de recuperación de credenciales estén documentadas, la CI del SHA definitivo sea verde y exista autorización explícita del mantenedor para fusionar `main`, crear el tag/release `v0.1.0` y elegir distribución.
 
