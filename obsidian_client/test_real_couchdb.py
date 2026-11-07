@@ -348,5 +348,66 @@ class RealCouchDBIntegrationTests(unittest.TestCase):
                 self.assertEqual(call(method="DELETE")[0], 200)
 
 
+    def test_disposable_encrypted_backup_and_revision_guard(self):
+        """Read encrypted parent and leaves from loopback, no restore writes."""
+        from livesync_crypto import encrypt_hkdf_string
+        from livesync_encrypted_metadata_fixture import encode_parent_metadata_fixture
+        from livesync_isolated_backup import (
+            create_verified_snapshot, preflight_restore_snapshot, BackupRejected)
+        root = os.environ["TEST_COUCHDB_URL"].rstrip("/")
+        self.assertIn(root, ("http://127.0.0.1:5984", "http://localhost:5984"))
+        user = os.environ.get("TEST_COUCHDB_USER", "")
+        password = os.environ.get("TEST_COUCHDB_PASSWORD", "")
+        self.assertTrue(user and password)
+        auth = "Basic " + base64.b64encode(f"{user}:{password}".encode()).decode()
+        database = root + "/obsidian_backup_ci_" + uuid.uuid4().hex
+        secret = "disposable-backup-test"
+        salt = base64.b64encode(b"disposable-backup-test-salt").decode()
+        name = "Tests/Backup.md"
+        parts = ("Primera ", "segunda 🌍")
+        ids = ("h:+backupfirst", "h:+backupsecond")
+
+        def call(doc_id=None, method="GET", payload=None):
+            url = database + ("/" + quote(doc_id, safe="") if doc_id else "")
+            request = Request(url, method=method,
+                data=json.dumps(payload).encode("utf-8") if payload is not None else None,
+                headers={"Authorization": auth, "Content-Type": "application/json"})
+            with urlopen(request, timeout=8) as response:
+                return response.status, json.load(response)
+
+        created = False
+        try:
+            self.assertEqual(call(method="PUT")[0], 201)
+            created = True
+            metadata = encode_parent_metadata_fixture(
+                name, list(ids), secret, salt, ctime=100, mtime=200,
+                size=len("".join(parts).encode("utf-8")))
+            parent = {"_id": "backup-parent", "type": "plain", "path": metadata["path"],
+                      "children": [], "ctime": 0, "mtime": 0, "size": 0}
+            leaves = [{"_id": ident, "type": "leaf", "e_": True,
+                       "data": encrypt_hkdf_string(part, secret, salt)}
+                      for ident, part in zip(ids, parts)]
+            for document in [parent] + leaves:
+                self.assertEqual(call(document["_id"], "PUT", document)[0], 201)
+            _, stored_parent = call(parent["_id"])
+            stored_leaves = {ident: call(ident)[1] for ident in ids}
+            result = create_verified_snapshot(
+                stored_parent, stored_leaves, name, stored_parent["_rev"],
+                secret, salt, isolated_test=True)
+            self.assertEqual(result["verified_chunks"], 2)
+            status = preflight_restore_snapshot(
+                result["backup"], stored_parent, secret, salt, isolated_test=True)
+            self.assertFalse(status["restore_enabled"])
+            # A concurrently changed revision cannot use this backup as a write.
+            changed_parent = {**stored_parent, "_rev": "2-" + "a" * 32}
+            with self.assertRaises(BackupRejected):
+                preflight_restore_snapshot(
+                    result["backup"], changed_parent, secret, salt,
+                    isolated_test=True)
+        finally:
+            if created:
+                self.assertEqual(call(method="DELETE")[0], 200)
+
+
 if __name__ == "__main__":
     unittest.main()
