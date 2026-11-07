@@ -1,5 +1,13 @@
 # Release readiness and supply-chain audit / Preparación y cadena de suministro
 
+## 2026-11-07 — Final DEV12 documentation-migration CI / CI tras documentación de migración
+
+Checked actual branch HEAD `099fbfd23579ddd5691f8e568e47030aeb9b2df6` in [GitHub Actions 42405008568](https://github.com/sergey08/homeassistant-addons/actions/runs/42405008568): both `arm64-smoke` and `validate` **SUCCESS**. Logs show **190 unit tests passed**, **0 CRITICAL**, **0 HIGH**, 129 SBOM component reviews remain **PENDING** and the evidence reconciliation generated 129 hints without approvals. ARM64 compatibility was independently accepted by the maintainer earlier.
+
+**Release decision remains BLOCKED:** neither an actual encrypted Supervisor backup/restore plus OpenAI key revocation on a disposable HA, nor component-by-component human redistribution license approval exists. CI success is not the release go-ahead; maintain DRAFT PR #89. For the next meaningful closure, collect redacted R1–R9 recovery acceptance evidence and complete the exact-SBOM license sign-off without inventing results.
+
+---
+
 ## 2026-11-07 — DEV → stable migration decision / Decisión de migración
 
 **No automatic in-place migration is assumed.** A repository with `#dev/moonraker-mcp-dev2` and the stable `main` add-on catalog can produce different Supervisor identifiers despite sharing `slug: moonraker_mcp`. Users must not uninstall their functioning DEV app or reuse an existing private tunnel by default. The intended stable rollout is a **separately verified install** with fresh restricted credentials, private encrypted backup, explicit rollback, no published port 8765 and the seven optional profiles disabled.
