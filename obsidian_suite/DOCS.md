@@ -8,7 +8,7 @@ Obsidian MCP Suite runs three services inside **one Home Assistant app**:
 2. **OpenAI Secure MCP Tunnel** — makes the local MCP server accessible to your authorized ChatGPT plugin without publishing port 8765.
 3. **LiveSync CLI** — synchronizes Markdown notes with the existing CouchDB/Obsidian LiveSync configuration.
 
-The app is currently built for **amd64 Home Assistant OS** and supports an existing, provisioned `obsidian_bridge` vault. It does not create a new vault, CouchDB database or OpenAI account.
+The app builds for **AMD64 (`amd64`) and ARM64 (`aarch64`)** on Home Assistant installations with Supervisor and app installation enabled. It supports existing `obsidian_bridge` vaults and the fresh-install modes below.
 
 ## Fresh installation: choose the storage mode first
 

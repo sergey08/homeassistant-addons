@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.6
+
+- Supports Home Assistant on AMD64 and ARM64 using the same multi-platform LiveSync CLI image.
+- Verifies Linux AMD64 and ARM64 OpenAI tunnel packages against their official SHA256 manifests and the running architecture.
+- Tests both architectures with disposable vaults and an isolated CouchDB instance.
+
 ## 0.2.5 — 2026-11-05
 
 - Adds opt-in LiveSync Markdown vault under `/share` for future shared use with Obsidian Client.
