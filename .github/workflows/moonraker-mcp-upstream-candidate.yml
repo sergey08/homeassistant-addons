@@ -22,7 +22,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Build DEV11 source-pinned production Dockerfile for isolated test
+      - name: Build DEV12 source-pinned production Dockerfile for isolated test
         run: |
           set -eu
           docker build --pull -f moonraker_mcp/Dockerfile \
@@ -37,7 +37,11 @@ jobs:
           go version -m /tmp/candidate-mcp-raker > /tmp/upstream-modules.txt
           cat /tmp/upstream-modules.txt
           grep -q 'go1.27.3' /tmp/upstream-modules.txt
-          grep -Eq 'golang.org/x/text[[:space:]]+v0.41.0' /tmp/upstream-modules.txt
+          grep -Eq 'golang.org/x/text[[:space:]]+v0.43.0' /tmp/upstream-modules.txt
+          # Version is upgraded by x/net security override; fail if the old module remains.
+          if grep -Eq 'golang.org/x/net[[:space:]]+' /tmp/upstream-modules.txt; then
+            grep -Eq 'golang.org/x/net[[:space:]]+v0.62.0' /tmp/upstream-modules.txt
+          fi
 
       - name: Smoke test real candidate via private authenticated MCP gateway
         run: |
