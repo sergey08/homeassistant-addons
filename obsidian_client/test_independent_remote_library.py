@@ -29,6 +29,10 @@ class IndependentLibraryTests(unittest.TestCase):
         self.assertIn('id="edit-action" hidden', body)
         self.assertIn('id="compare-local"', body)
         self.assertIn('id="show-diff"', body)
+        self.assertIn('id="advance-baseline"', body)
+        self.assertIn("../api/remote/advance-baseline", body)
+        self.assertIn("same_result_both_changed", body)
+        self.assertIn("expected_baseline_sha256", body)
         self.assertIn("../api/remote/diff-local?path=", body)
         self.assertIn("diffResult.textContent=changes.different", body)
         for key in ("local_changed", "remote_changed", "conflict_both_changed", "same_result_both_changed", "local_missing", "no_baseline", "unchanged"):
