@@ -992,7 +992,11 @@ jobs:
                               config["livesync_e2ee_passphrase"],obfuscated_salt,
                               isolated_test=True,disposable_database=True)
                           assert restored["confirmed_leaves"]==1
-                          params=get_original("_local/obsidian_livesync_sync_parameters")
+                          params_req=urllib.request.Request(
+                              obfuscated_url+"/_local/obsidian_livesync_sync_parameters",
+                              headers={"Authorization":auth})
+                          with urllib.request.urlopen(params_req,timeout=10) as response:
+                              params=json.load(response)
                           params.pop("_rev",None)
                           req=urllib.request.Request(
                               restore_url+"/_local/obsidian_livesync_sync_parameters",
