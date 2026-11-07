@@ -1015,6 +1015,21 @@ jobs:
                               settings_file.write_text(json.dumps(settings))
                               result=subprocess.run(["node",cli,restored_cli,"sync"],
                                                     capture_output=True,text=True,timeout=90)
+                              if result.returncode:
+                                  import re
+                                  categories=re.findall(
+                                      r"\\[HA_SYNC_STATUS\\] status=[A-Za-z0-9_-]{1,64} reason=[A-Za-z0-9_-]{1,64}",
+                                      result.stderr)
+                                  failures=re.findall(
+                                      r"\\[HA_FETCH_FAILURE\\] type=[A-Za-z0-9_-]{1,40} code=[A-Za-z0-9_-]{1,40} detail=[A-Za-z0-9_-]{1,40} cause=[A-Za-z0-9_-]{1,40} origin=[A-Za-z0-9_-]{1,40}",
+                                      result.stderr)
+                                  print("Disposable restored CLI sync status tokens:",categories[-3:])
+                                  print("Disposable restored CLI failure tokens:",failures[-3:])
+                                  print("Disposable restored CLI diagnostic flags:",{
+                                      "encryption":bool(re.search("decrypt|encrypt|salt",result.stderr,re.I)),
+                                      "revision":bool(re.search("revision|conflict",result.stderr,re.I)),
+                                      "remote":bool(re.search("remote|replication",result.stderr,re.I)),
+                                      "network":bool(re.search("fetch failed|connection",result.stderr,re.I))})
                               assert result.returncode==0,"Official CLI failed syncing restored backup"
                               result=subprocess.run(["node",cli,restored_cli,"cat",python_path],
                                                     capture_output=True,text=True,timeout=45)
