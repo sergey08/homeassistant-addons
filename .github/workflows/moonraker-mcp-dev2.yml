@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - dev/moonraker-mcp-dev2
+      - release/moonraker-mcp-0.1.0-rc1
     paths:
       - 'moonraker_mcp/**'
       - '.github/workflows/moonraker-mcp-dev2.yml'
