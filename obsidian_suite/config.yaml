@@ -1,6 +1,6 @@
-name: "Obsidian MCP for Home Assistant"
-version: "0.2.7"
-slug: "obsidian_suite"
+name: "Obsidian MCP 0.2.7 (isolated test)"
+version: "0.2.7-rc1"
+slug: "obsidian_suite_test"
 description: "One Home Assistant app for Obsidian notes, ChatGPT MCP access and LiveSync synchronization"
 url: "https://github.com/sergey08/homeassistant-addons"
 arch:
@@ -15,8 +15,6 @@ init: false
 map:
   - type: app_config
     read_only: false
-  - type: all_app_configs
-    read_only: false
   - type: share
     read_only: false
 options:
@@ -25,7 +23,7 @@ options:
   enable_livesync: false
   livesync_interval: 60
   vault_path: ""
-  storage_mode: "livesync"
+  storage_mode: "Local - default"
   livesync_shared_vault_path: ""
 schema:
   tunnel_id: str
