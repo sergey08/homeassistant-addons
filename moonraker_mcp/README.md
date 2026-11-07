@@ -1,5 +1,12 @@
 # Moonraker MCP for Home Assistant — DEV
 
+## DEV12 — ARM64 / aarch64 preview (7 November 2026)
+
+**ES:** La rama de desarrollo incorpora soporte experimental para `aarch64` además de `amd64`. El Dockerfile selecciona el binario oficial de OpenAI `tunnel-client` v0.0.19 adecuado a cada CPU y verifica sus SHA-256 publicados en la versión oficial: AMD64 `9ee9448592345a9dd1517fb79791ab54d24f051142eb92bcbe8cd355effc9142`; ARM64 `5a19e556c4a8736ab7a6fde6f0568f6e7411fa2dff21186fc15bc30e9b98a603`. El código de `mcp-raker` se compila desde la misma revisión fijada de origen con `GOARCH` del destino. Se han añadido pruebas CI específicas de ARM64 bajo QEMU. **No implica que una instalación real ARM64 ni su túnel ya estén validados**. La primera prueba debe realizarse en un segundo Home Assistant con claves nuevas. DEV11 instalada en x86-64 no se ha modificado; `main` permanece intacta. No publicar versión estable.
+
+**EN:** The development branch now includes an experimental `aarch64` target alongside `amd64`. OpenAI's official pinned v0.0.19 tunnel-client ZIP is selected per architecture and verified against its published SHA-256. The upstream server builds from the same pinned source commit for the target GOARCH. An ARM64/QEMU CI smoke job has been added. **Real ARM64 Supervisor installation and end-to-end tunnel usage remain unverified until the second-host acceptance test passes.** Keep PR #89 in draft, without merging to `main`.
+
+
 ## DEV11 — Patched upstream, end-to-end verified / Servidor actualizado y verificado
 
 **EN:** The Home Assistant DEV add-on **0.1.0-dev11** is now running the SHA-pinned upstream `mcp-raker` source revision `f01636bec21a21cfc5f9ee84dc68dad7d44d6dd9`, compiled with the pinned Go 1.27.3 toolchain instead of the old prebuilt binary. The gateway validates and strips the newer upstream `tools/list` cache metadata (`cacheScope` / `ttlMs`) and retains its strict five-tool read-only allowlist. Trivy on the built DEV11 image reports **0 CRITICAL and 0 HIGH** vulnerabilities (1 LOW, 2 UNKNOWN in the isolated candidate scan), and the production Docker CI now enforces a failure on HIGH/CRITICAL. **All five tools were called successfully from ChatGPT through the private tunnel against the actual Snapmaker U1**: Klippy `ready`, Moonraker `2.0.0`, firmware `2.0.0-paxx12-23`, six temperature sensors with up to 120 samples and anonymous `sensor_1`. The tunnel remains private, the external MCP port unpublished, and optional write capabilities disabled.
