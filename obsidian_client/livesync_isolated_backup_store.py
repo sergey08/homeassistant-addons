@@ -14,7 +14,7 @@ from pathlib import Path
 from livesync_isolated_backup import BackupRejected, MAX_BACKUP_BYTES, _canonical, _checksum
 from livesync_write_preflight import UnsafeWrite
 
-_ID = re.compile(r"[0-9a-f]{32}\\Z")
+_ID = re.compile(r"[0-9a-f]{32}\Z")
 _MAX_RECORD = MAX_BACKUP_BYTES + 4096
 
 
