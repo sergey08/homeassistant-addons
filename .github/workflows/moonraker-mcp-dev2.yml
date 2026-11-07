@@ -101,14 +101,17 @@ jobs:
           docker cp "$cid:/usr/local/bin/mcp-raker" moonraker-mcp-audit/mcp-raker
           docker cp "$cid:/opt/moonraker-mcp/vendor/tunnel-client" moonraker-mcp-audit/tunnel-client
           docker cp "$cid:/usr/share/doc/moonraker-mcp/provenance/." moonraker-mcp-audit/
-          # Archive both the original pinned commits and the precise public
-          # go.mod/go.sum deltas, including zero-byte patches when unchanged.
+          # Only public dependency manifests are included (no options or credentials).
           for name in mcp-raker tunnel-client; do
             test -f "moonraker-mcp-audit/$name-dependencies.patch"
             test -s "moonraker-mcp-audit/$name-upstream.txt"
             test -s "moonraker-mcp-audit/$name-provenance.sha256"
             (cd moonraker-mcp-audit && sha256sum -c "$name-provenance.sha256")
-            grep -q '^resolved_x_net=golang.org/x/net v0.62.0          sha256sum moonraker-mcp-audit/mcp-raker moonraker-mcp-audit/tunnel-client > moonraker-mcp-audit/binary-sha256.txt
+            grep -Fq 'resolved_x_net=golang.org/x/net v0.62.0' "moonraker-mcp-audit/$name-upstream.txt"
+          done
+          grep -Fq 'upstream_commit=f01636bec21a21cfc5f9ee84dc68dad7d44d6dd9' moonraker-mcp-audit/mcp-raker-upstream.txt
+          grep -Fq 'upstream_commit=c2144b0904980bcbae2636cdca4f4167e9818e0b' moonraker-mcp-audit/tunnel-client-upstream.txt
+          sha256sum moonraker-mcp-audit/mcp-raker moonraker-mcp-audit/tunnel-client > moonraker-mcp-audit/binary-sha256.txt
           go version -m moonraker-mcp-audit/mcp-raker > moonraker-mcp-audit/mcp-raker-modules.txt
           go version -m moonraker-mcp-audit/tunnel-client > moonraker-mcp-audit/tunnel-client-modules.txt
           grep -Eq '[[:space:]]mod[[:space:]]' moonraker-mcp-audit/mcp-raker-modules.txt
