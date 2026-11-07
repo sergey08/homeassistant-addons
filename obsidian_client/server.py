@@ -1376,6 +1376,7 @@ _local_save_lock = Lock()
 _PRIVATE_VAULT = "/data/obsidian-client-markdown"
 _PRIVATE_BACKUPS = "/data/obsidian-client-backups"
 _PRIVATE_BASELINES = "/data/obsidian-client-sync-baselines"
+_PRIVATE_BASELINE_BACKUPS = "/data/obsidian-client-baseline-backups"
 
 # Opt-in only: the MCP's already-provisioned LiveSync Markdown vault.
 # No second synchronizer is started. The legacy shared MCP path must exist.
@@ -1456,7 +1457,7 @@ def pull_verified_remote_to_private():
                                expected_sha256=expected_local)
             try:
                 advanced = advance_baseline(
-                    _PRIVATE_BASELINES, "/data/obsidian-client-baseline-backups",
+                    _PRIVATE_BASELINES, _PRIVATE_BASELINE_BACKUPS,
                     path, expected_base, remote, remote)
             except (BaselineError, OSError):
                 return jsonify(
@@ -1710,7 +1711,7 @@ def advance_verified_baseline():
             if digest(local) != content_hash:
                 return jsonify(error="local_content_changed"), 409
             result = advance_baseline(_PRIVATE_BASELINES,
-                                      "/data/obsidian-client-baseline-backups",
+                                      _PRIVATE_BASELINE_BACKUPS,
                                       path, old_hash, remote, local)
     except LocalVaultError:
         return jsonify(error="local_copy_unavailable"), 409
