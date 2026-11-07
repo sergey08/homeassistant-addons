@@ -83,6 +83,46 @@ class RestoreTests(unittest.TestCase):
         self.assertEqual(len(self.db.docs), 3)
         self.assertNotIn(self.backup["snapshot"]["parent"]["_id"], self.db.docs)
 
+    def test_concurrent_leaf_creation_is_not_overwritten(self):
+        """Another writer wins after preflight; no overwrite or parent PUT."""
+        leaf_id = self.backup["snapshot"]["leaves"][0]["_id"]
+        original_put = self.db.put
+
+        def competing_put(doc):
+            if doc["_id"] == leaf_id:
+                self.db.docs[leaf_id] = {"_id": leaf_id,
+                                         "_rev": "1-" + "e" * 32,
+                                         "type": "leaf", "e_": True,
+                                         "data": "%=other-writer"}
+            return original_put(doc)
+
+        with self.assertRaises(DisposableRestoreError) as error:
+            restore_to_empty_disposable_database(
+                self.backup, self.db.list_ids, self.db.read, competing_put,
+                PASS, SALT, isolated_test=True, disposable_database=True)
+        self.assertEqual(error.exception.phase, "leaf_uncertain")
+        self.assertEqual(self.db.docs[leaf_id]["data"], "%=other-writer")
+        self.assertNotIn(self.backup["snapshot"]["parent"]["_id"], self.db.docs)
+
+    def test_parent_acknowledgement_loss_never_retries(self):
+        """Even a successful server-side create can have an uncertain result."""
+        original_put = self.db.put
+        parent_id = self.backup["snapshot"]["parent"]["_id"]
+
+        def lost_ack(doc):
+            result = original_put(doc)
+            if doc["_id"] == parent_id:
+                raise TimeoutError("lost-disposable-ack")
+            return result
+
+        with self.assertRaises(DisposableRestoreError) as error:
+            restore_to_empty_disposable_database(
+                self.backup, self.db.list_ids, self.db.read, lost_ack,
+                PASS, SALT, isolated_test=True, disposable_database=True)
+        self.assertEqual(error.exception.phase, "parent_uncertain")
+        self.assertEqual(self.db.puts.count(parent_id), 1)
+        self.assertIn(parent_id, self.db.docs)
+
     def test_tampered_backup_rejected_without_puts(self):
         self.backup["snapshot"]["leaves"][0]["data"] = "%=tampered"
         with self.assertRaisesRegex(BackupRejected, "backup_checksum_mismatch"):
