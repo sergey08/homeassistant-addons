@@ -137,6 +137,27 @@ class RestoreTests(unittest.TestCase):
         self.assertEqual(self.db.puts.count(parent_id), 1)
         self.assertIn(parent_id, self.db.docs)
 
+    def test_leaf_revision_change_after_readback_prevents_success(self):
+        snapshot = self.backup["snapshot"]
+        leaf_id = snapshot["leaves"][0]["_id"]
+        parent_id = snapshot["parent"]["_id"]
+
+        def competing_put(doc):
+            result = self.db.put(doc)
+            if doc["_id"] == parent_id:
+                # A concurrent writer keeps the ciphertext but changes its revision.
+                self.db.docs[leaf_id]["_rev"] = "2-" + "e" * 32
+            return result
+
+        with self.assertRaises(DisposableRestoreError) as error:
+            restore_to_empty_disposable_database(
+                self.root, self.backup_id, self.key,
+                self.db.list_ids, self.db.read, competing_put, PASS, SALT,
+                isolated_test=True, disposable_database=True)
+        self.assertEqual(error.exception.phase, "parent_uncertain")
+        self.assertEqual(str(error.exception.__cause__), "restored_leaf_changed")
+        self.assertEqual(self.db.puts, [leaf["_id"] for leaf in snapshot["leaves"]] + [parent_id])
+
     def test_recomputed_checksum_cannot_bypass_backup_authentication(self):
         path = self.root / (self.backup_id + ".json")
         record = json.loads(path.read_text(encoding="utf-8"))

@@ -82,7 +82,7 @@ def restore_to_empty_disposable_database(backup_root, backup_id, backup_key,
     except Exception as exc:
         raise DisposableRestoreError("target_preflight_uncertain") from exc
 
-    confirmed = 0
+    confirmed_leaves = {}
     for leaf in leaves:
         candidate = deepcopy(leaf)
         candidate.pop("_rev", None)
@@ -95,7 +95,7 @@ def restore_to_empty_disposable_database(backup_root, backup_id, backup_key,
                     or fetched.get("_rev") != new_revision
                     or {k: v for k, v in fetched.items() if k != "_rev"} != candidate):
                 raise ValueError("leaf_readback_unverified")
-            confirmed += 1
+            confirmed_leaves[candidate["_id"]] = {**candidate, "_rev": new_revision}
         except Exception as exc:
             raise DisposableRestoreError("leaf_uncertain") from exc
 
@@ -109,16 +109,18 @@ def restore_to_empty_disposable_database(backup_root, backup_id, backup_key,
         if (not isinstance(fetched, dict) or fetched.get("_rev") != new_revision
                 or {k: v for k, v in fetched.items() if k != "_rev"} != candidate):
             raise ValueError("parent_readback_unverified")
-        # Never claim success before the newly stored ciphertext and leaf order
-        # reconstruct to the same exact bytes and content.
+        # Check the exact ciphertext and revisions again after creating the parent.
+        restored_leaves = {ident: read_document(ident) for ident in ids}
+        if restored_leaves != confirmed_leaves:
+            raise ValueError("restored_leaf_changed")
         restored = assemble_encrypted_chunks(
-            fetched, {ident: read_document(ident) for ident in ids},
+            fetched, restored_leaves,
             snapshot["path"], new_revision, passphrase, salt_b64)
         if restored["content"] != checked["content"]:
             raise ValueError("restored_content_mismatch")
     except Exception as exc:
         raise DisposableRestoreError("parent_uncertain") from exc
     return {"status": "restored_in_empty_disposable_database_only",
-            "confirmed_leaves": confirmed, "verified_bytes": checked["bytes"],
+            "confirmed_leaves": len(confirmed_leaves), "verified_bytes": checked["bytes"],
             "automatic_retry": False, "restore_to_production_enabled": False,
             "remote_writes_enabled": False}
