@@ -1,6 +1,6 @@
 # Operación segura del túnel: credenciales, recuperación y copias / Secure tunnel operations
 
-**DEV10 · 2026-11-05.** Procedimiento de explotación, no un informe de una rotación ejecutada. No contiene credenciales reales.
+**DEV12 · 2026-11-07.** Procedimiento de explotación y pruebas sintéticas aisladas; no es un informe de rotación o restauración real del Supervisor. No contiene credenciales reales.
 
 ## Español
 
@@ -41,4 +41,10 @@ To rotate the OpenAI key, create a new restricted key, place it in the Home Assi
 
 Home Assistant add-on backups may include `options.json` and private tunnel assets. Treat any backups and diagnostic exports as potentially secret-bearing, protect access/encryption, and follow the operator's retention policy. For independent fresh installs use a new tunnel and new credentials rather than restoring another user's private data.
 
-**Not yet validated:** a controlled real credential rotation and backup restoration in a disposable second Home Assistant. Do not run this test against the working DEV10 instance without explicit authorization.
+**Validated in isolated unit tests:** synthetic private-data backup/restore demonstrates that restoring an old tunnel directory can resurrect an old key, that an empty password option does not revoke it, and that setting a new password safely replaces it. **Not yet validated:** actual Home Assistant Supervisor encrypted backup restoration, OpenAI provider-side key revocation, and real tunnel reconnection in a disposable independent installation. Do not run these tests against the working DEV12 Lenovo instance without explicit authorization.
+
+### Pruebas sintéticas DEV12 y límites de su evidencia (07/11/2026)
+
+Los tests `test_synthetic_backup_restore_requires_key_rotation_again` y `test_synthetic_restore_with_empty_key_keeps_stale_credential` usan exclusivamente claves ficticias y directorios temporales. Simulan copiar/restaurar `/data/tunnel`, detectan que restaurar datos antiguos recupera también una clave anterior y verifican que `openai_tunnel_api_key` con una clave **nueva y explícita** la sustituye conservando permisos `0600` y `0700`.
+
+**Estas pruebas NO son un respaldo/restore del Supervisor real, no cifran un archivo HA y NO revocan ninguna clave en OpenAI**. La restauración real en un Home Assistant independiente desechable, el tratamiento de copias antiguas y la revocación efectiva siguen siendo requisitos de publicación estable. Nunca probar con las credenciales del Lenovo.
