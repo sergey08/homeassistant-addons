@@ -2,7 +2,7 @@
 
 **Moonraker MCP 0.1.0-dev12 · Development only · 2026-11-07**
 
-This procedure is for a **second, independent HA OS/Supervisor aarch64 (ARM64) installation; amd64 also remains supported**, not for an existing working installation; the Lenovo AMD64 instance is now running DEV12. It is an acceptance checklist, **not** evidence that the test has already happened. Do not transfer credentials, private `/data/tunnel` folders or backups from an existing installation.
+This procedure is for a **second, independent HA OS/Supervisor aarch64 (ARM64) installation; amd64 also remains supported**, not for an existing working installation; the Lenovo AMD64 instance is now running DEV12. An independent ARM64 tester has installed and tested DEV12 and the maintainer accepted the result on 2026-11-07. This checklist remains a full diagnostic protocol; no claim is made that every individual step (especially rotation or restore) was documented. Do not transfer credentials, private `/data/tunnel` folders or backups from an existing installation.
 
 ## Español — Comprobación sin terminal
 
@@ -26,6 +26,6 @@ This procedure is for a **second, independent HA OS/Supervisor aarch64 (ARM64) i
 
 Test on a **separate, disposable HA OS/Supervisor aarch64 (ARM64) or amd64 instance** using its own restricted OpenAI key, tunnel ID and unique MCP Bearer token. Install the dev add-on through the app store; configure only through the HA UI. Verify startup without manual files, outbound tunnel, five read-only names, sanitized results, 120-point temperature cap, forbidden write-tool rejection, printer offline/online transition, no exposed port, safe restart, independent key rotation, and encrypted backup/restore with fresh credentials.
 
-Do not import the existing operator's secrets. Record only redacted evidence. Do **not** mark this checklist complete until each item has been observed on the independent host; GitHub Actions' simulated first-run test is useful but does not replace this end-to-end procedure.
+Do not import the existing operator's secrets. Record only redacted evidence. The independent ARM64 functional acceptance was confirmed by the maintainer on 2026-11-07. Individual security scenarios (especially credential rotation/revocation and backup/restore) have **not** been evidenced and remain open. GitHub Actions' simulated first-run tests do not replace these scenarios.
 
-**Release gate:** PR #89 remains DRAFT; main merge/stable distribution needs independent clean install, exact-SBOM human license/notice review and explicit authorization.
+**Release gate:** PR #89 remains DRAFT; main merge/stable distribution still requires exact-SBOM human license/notice review, security/credential-recovery sign-off and explicit authorization. Independent ARM64 functionality is user-accepted.
