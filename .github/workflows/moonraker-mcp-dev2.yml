@@ -516,3 +516,34 @@ jobs:
             exit 1
           }
           echo "Gateway process is unprivileged; no printer contacted"
+
+  alpine-source-integrity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch exact aports commit with sparse source directories
+        run: |
+          set -eu
+          APORTS_SHA=2235ae248c31ea48a9df764becdfecc2a85b4f31
+          mkdir -p /tmp/alpine-aports
+          git -C /tmp/alpine-aports init
+          git -C /tmp/alpine-aports remote add origin https://github.com/alpinelinux/aports.git
+          git -C /tmp/alpine-aports -c protocol.version=2 fetch --depth=1 --filter=blob:none origin "$APORTS_SHA"
+          git -C /tmp/alpine-aports sparse-checkout init --cone
+          git -C /tmp/alpine-aports sparse-checkout set \
+            main/alpine-baselayout main/apk-tools main/busybox main/ca-certificates \
+            main/gdbm main/gcc main/musl main/readline main/pax-utils main/xz
+          git -C /tmp/alpine-aports checkout --detach FETCH_HEAD
+          test "$(git -C /tmp/alpine-aports rev-parse HEAD)" = "$APORTS_SHA"
+      - name: Verify local aports checksums, not external sources or legal approval
+        run: |
+          python3 moonraker_mcp/alpine_source_integrity.py \
+            /tmp/alpine-aports moonraker-mcp-audit/alpine-source-integrity.json
+      - name: Archive Alpine source integrity evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: moonraker-mcp-alpine-source-integrity
+          path: moonraker-mcp-audit/alpine-source-integrity.json
+          retention-days: 14
+          if-no-files-found: error
