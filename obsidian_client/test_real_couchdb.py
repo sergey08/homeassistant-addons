@@ -409,5 +409,107 @@ class RealCouchDBIntegrationTests(unittest.TestCase):
                 self.assertEqual(call(method="DELETE")[0], 200)
 
 
+    def test_signed_snapshot_restores_into_second_empty_disposable_couchdb(self):
+        """Restore isolated encrypted documents into a NEW disposable database."""
+        import tempfile
+        from pathlib import Path
+        from livesync_crypto import encrypt_hkdf_string
+        from livesync_encrypted_metadata_fixture import encode_parent_metadata_fixture
+        from livesync_isolated_backup import create_verified_snapshot
+        from livesync_isolated_backup_store import store_signed_backup, read_signed_backup
+        from livesync_disposable_restore import restore_to_empty_disposable_database
+        from livesync_multichunk_audit import assemble_encrypted_chunks
+        root = os.environ["TEST_COUCHDB_URL"].rstrip("/")
+        self.assertIn(root, ("http://127.0.0.1:5984", "http://localhost:5984"))
+        user = os.environ.get("TEST_COUCHDB_USER", "")
+        password = os.environ.get("TEST_COUCHDB_PASSWORD", "")
+        self.assertTrue(user and password)
+        auth = "Basic " + base64.b64encode(f"{user}:{password}".encode()).decode()
+        names = ["obsidian_restore_src_ci_" + uuid.uuid4().hex,
+                 "obsidian_restore_dst_ci_" + uuid.uuid4().hex]
+        phrase = "disposable-only-restore-key"
+        salt = base64.b64encode(b"disposable-restore-ci-salt").decode()
+        note_path = "Tests/BackupRestore.md"
+        chunks = ("Texto ", "restaurado 🌍", "\\n")
+        leaf_ids = ["h:+restored" + str(i) for i in range(len(chunks))]
+        meta = encode_parent_metadata_fixture(
+            note_path, leaf_ids, phrase, salt, ctime=100, mtime=200,
+            size=len("".join(chunks).encode("utf-8")))
+        parent = {"_id": "synthetic-restored-parent", "type": "plain",
+                  "path": meta["path"], "children": [],
+                  "ctime": 0, "mtime": 0, "size": 0}
+        leaves = [
+            {"_id": ident, "type": "leaf", "e_": True,
+             "data": encrypt_hkdf_string(text, phrase, salt)}
+            for ident, text in zip(leaf_ids, chunks)]
+
+        def call(db_name, ident=None, method="GET", payload=None):
+            url = root + "/" + db_name
+            if ident is not None:
+                url += "/" + quote(ident, safe="")
+            req = Request(url, method=method,
+                          data=json.dumps(payload).encode("utf-8")
+                               if payload is not None else None,
+                          headers={"Authorization": auth,
+                                   "Content-Type": "application/json"})
+            with urlopen(req, timeout=8) as resp:
+                return resp.status, json.load(resp)
+
+        created = []
+        try:
+            for name in names:
+                self.assertEqual(call(name, method="PUT")[0], 201)
+                created.append(name)
+            for document in [parent] + leaves:
+                self.assertEqual(call(names[0], document["_id"], "PUT", document)[0], 201)
+            stored_parent = call(names[0], parent["_id"])[1]
+            stored_leaves = {ident: call(names[0], ident)[1] for ident in leaf_ids}
+            backup = create_verified_snapshot(
+                stored_parent, stored_leaves, note_path, stored_parent["_rev"],
+                phrase, salt, isolated_test=True)["backup"]
+            with tempfile.TemporaryDirectory() as workdir:
+                key = bytes(range(32))
+                record = store_signed_backup(
+                    str(Path(workdir) / "backups"), backup, key, isolated_test=True)
+                verified_backup = read_signed_backup(
+                    str(Path(workdir) / "backups"), record["backup_id"],
+                    key, isolated_test=True)["backup"]
+            target = names[1]
+
+            def list_ids():
+                return [row["id"] for row in call(target, "_all_docs")[1]["rows"]]
+
+            def read_doc(ident):
+                try:
+                    return call(target, ident)[1]
+                except HTTPError as exc:
+                    if exc.code == 404:
+                        return None
+                    raise
+
+            def put_doc(doc):
+                try:
+                    return call(target, doc["_id"], "PUT", doc)
+                except HTTPError as exc:
+                    return exc.code, {"error": "conflict"}
+
+            result = restore_to_empty_disposable_database(
+                verified_backup, list_ids, read_doc, put_doc, phrase, salt,
+                isolated_test=True, disposable_database=True)
+            self.assertEqual(result["confirmed_leaves"], 3)
+            new_parent = read_doc(parent["_id"])
+            new_leaves = {ident: read_doc(ident) for ident in leaf_ids}
+            recovered = assemble_encrypted_chunks(
+                new_parent, new_leaves, note_path,
+                new_parent["_rev"], phrase, salt)
+            self.assertEqual(recovered["content"], "".join(chunks))
+            self.assertEqual(len(list_ids()), 4)
+            self.assertEqual(call(names[0], parent["_id"])[1]["_rev"],
+                             stored_parent["_rev"])
+        finally:
+            for name in reversed(created):
+                self.assertEqual(call(name, method="DELETE")[0], 200)
+
+
 if __name__ == "__main__":
     unittest.main()
