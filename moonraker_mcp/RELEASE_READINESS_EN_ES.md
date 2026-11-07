@@ -1,5 +1,25 @@
 # Release readiness and supply-chain audit / Preparación y cadena de suministro
 
+## 2026-11-07 — DEV12 acceptance status / Estado actualizado de DEV12
+
+**Decision / Decisión: DEVELOPMENT PREVIEW ONLY — NO PUBLIC STABLE RELEASE YET.** The older DEV11 section below is historical evidence, not the current release decision.
+
+| Gate / Requisito | Evidence / Evidencia | Status / Estado |
+| --- | --- | --- |
+| Latest source and CI / Código y CI | DEV12 head `81bec6b4399532ae8fe32bfe66962cabad20e4d6`; two successful GitHub Actions runs [42394945651](https://github.com/sergey08/homeassistant-addons/actions/runs/42394945651) and [42394940825](https://github.com/sergey08/homeassistant-addons/actions/runs/42394940825) | PASS / SUPERADA |
+| Lenovo AMD64 in-place upgrade / Actualización Lenovo | Home Assistant Supervisor shows `0.1.0-dev12`, `started`, protected token present, private tunnel enabled, host port 8765 unpublished and all optional profiles off | PASS / SUPERADA |
+| Live ChatGPT MCP calls / Consultas reales | All five read-only tools called successfully through the existing private tunnel: version `0.2.0-patched-dev12`, printer online/ready, Moonraker `2.0.0`, Klipper `2.0.0-paxx12-23`, temperature series delivered | PASS / SUPERADA |
+| Independent ARM64 install / Instalación ARM64 externa | Third-party Home Assistant Supervised ARM64 installed DEV12 and started an internal `mcp-raker` server. Its real printer address, own token, remote tunnel and ChatGPT tool calls have not been verified | PARTIAL / PARCIAL |
+| Independent first-use documentation / Guía primer uso | `mcp_http_token` documented in the installation guide; ES/EN in-app translations added and CI passed. Rendering in a user's HA interface not yet confirmed | PARTIAL / PARCIAL |
+| Secret rotation and backup restore / Rotación y restauración | Test on disposable independent HA with private credentials, without copying Lenovo secrets. Existing Lenovo backup before upgrade was not verified | BLOCKED / BLOQUEADO |
+| Human license/NOTICE/source review / Revisión humana de licencias | CycloneDX, legal text evidence and license queue available; exact redistributed-image license obligations and notices need human sign-off | BLOCKED / BLOQUEADO |
+| Merge to `main` or stable publication / Publicación estable | Draft PR #89; do not merge or distribute as stable before passing gates and explicit maintainer approval | BLOCKED / BLOQUEADO |
+
+**Important:** A successful compile, vulnerability gate, boot and printer query are not certification of legal redistribution, complete security, or compatibility with every HA host. The independent user's private credentials must never be sent to GitHub, Obsidian or the maintainer.
+
+---
+
+
 **Current status / Estado actual: 2026-11-06 · DEV11 · DEVELOPMENT ONLY.** Historical sections below document DEV10 and earlier investigations. Evidence comes from pinned-source builds, CI and the tested private installation; it is not a third-party security or legal certification.
 
 ## Current release decision / Decisión actual de publicación — DEV11
