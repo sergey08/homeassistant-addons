@@ -197,7 +197,7 @@ class RealCouchDBIntegrationTests(unittest.TestCase):
         original = "# Primera revision\\n"
         updated = "# Segunda revision\\n"
         parent_id, old_leaf_id, new_leaf_id = (
-            "test:encrypted-parent", "test:encrypted-old", "test:encrypted-new")
+            "test:encrypted-parent", "h:+testencryptedold", "h:+testencryptednew")
 
         def call(url, method="GET", payload=None, headers=None):
             wire = json.dumps(payload).encode("utf-8") if payload is not None else None
