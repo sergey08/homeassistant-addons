@@ -8,6 +8,13 @@ class GatewayTests(unittest.TestCase):
     def setUpClass(cls):
         cls.allowed = load_allowed()
 
+    def test_modern_discovery_reports_current_addon_version(self):
+        from gateway import modern_discovery
+        request = {"jsonrpc": "2.0", "id": 123}
+        response = modern_discovery(request)
+        self.assertEqual(response["result"]["_meta"]["io.modelcontextprotocol/serverInfo"]["version"], "0.1.0-dev12")
+        self.assertEqual(response["id"], 123)
+
     def test_upstream_redirect_does_not_forward_bearer_token(self):
         import urllib.error
         import urllib.request
