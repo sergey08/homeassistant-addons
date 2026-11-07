@@ -271,6 +271,26 @@ jobs:
             exit 1
           fi
 
+      - name: Reconcile upstream license evidence with exact SBOM without approving it
+        run: |
+          set -eu
+          python3 moonraker_mcp/license_review_prefill.py \
+            moonraker-mcp-audit/license-review-pending.json \
+            moonraker-mcp-audit/go-license-evidence.csv \
+            moonraker-mcp-audit/alpine-license-review.csv \
+            moonraker-mcp-audit/license-review-evidence-hints.json
+          test -s moonraker-mcp-audit/license-review-evidence-hints.json
+          python3 - <<'PY'
+          import json
+          p="moonraker-mcp-audit/license-review-evidence-hints.json"
+          data=json.load(open(p))
+          assert data["purpose"] == "EVIDENCE_HINTS_ONLY_NOT_LICENSE_APPROVAL"
+          assert data["reviewer_approved"] is False
+          assert data["components"]
+          assert all(x["status"] == "PENDING" and x["human_review_required"] for x in data["components"])
+          print("Evidence hints never clear license review")
+          PY
+
       - name: Confirm stable license-documentation gate is closed without manual reviews
         run: |
           set -eu
@@ -300,6 +320,7 @@ jobs:
             moonraker-mcp-audit/legal-text-bundle-summary.json
             moonraker-mcp-audit/license-human-review-worksheet.csv
             moonraker-mcp-audit/license-review-pending.json
+            moonraker-mcp-audit/license-review-evidence-hints.json
             moonraker-mcp-audit/trivy-results.json
             moonraker-mcp-audit/scan-summary.md
           retention-days: 14
