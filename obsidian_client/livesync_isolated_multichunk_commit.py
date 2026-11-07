@@ -6,6 +6,7 @@ deletions. No CouchDB URLs or secrets are accepted by this module.
 """
 from copy import deepcopy
 
+from livesync_crypto import decrypt_hkdf_string
 from livesync_encrypted_metadata_fixture import decode_parent_metadata_fixture
 from livesync_encrypted_parent_snapshot import validate_encrypted_parent_snapshot
 from livesync_revision_contract import (
@@ -24,7 +25,7 @@ class IncompleteMultichunkCommit(ValueError):
 
 
 def commit_isolated_multichunk_plan(
-        plan, put_document, passphrase, pbkdf2_salt_b64, *,
+        plan, put_document, read_document, passphrase, pbkdf2_salt_b64, *,
         isolated_test=False, remote_writes_enabled=False):
     """Create all NEW encrypted leaves then CAS the existing encrypted parent.
 
@@ -33,7 +34,7 @@ def commit_isolated_multichunk_plan(
     """
     if isolated_test is not True or remote_writes_enabled is not False:
         raise UnsafeWrite("isolated_commit_only")
-    if not callable(put_document):
+    if not callable(put_document) or not callable(read_document):
         raise UnsafeWrite("transport_required")
     if not isinstance(plan, dict) or plan.get("write_supported") is not False:
         raise UnsafeWrite("untrusted_plan")
@@ -82,11 +83,29 @@ def commit_isolated_multichunk_plan(
     # The new encrypted metadata must have zeroed outer fields.
     if any(parent.get(k) != 0 for k in ("ctime", "mtime", "size")):
         raise UnsafeWrite("unencrypted_parent_fields")
+    # Confirm that all leaf plaintext chunks match encrypted parent size
+    # before sending a single document to the isolated transport.
+    try:
+        total_bytes = sum(len(decrypt_hkdf_string(
+            leaf["data"], passphrase, pbkdf2_salt_b64).encode("utf-8"))
+            for leaf in leaves)
+    except Exception as exc:
+        raise UnsafeWrite("unverified_leaf_ciphertext") from exc
+    if total_bytes != metadata.get("size") or total_bytes > 2_000_000:
+        raise UnsafeWrite("chunk_total_size_mismatch")
     confirmed = 0
     for leaf in leaves:
         try:
             status, reply = put_document(deepcopy(leaf))
-            require_confirmed_create_response(status, reply, leaf["_id"])
+            revision = require_confirmed_create_response(status, reply, leaf["_id"])
+            fetched = read_document(leaf["_id"])
+            if (not isinstance(fetched, dict)
+                    or fetched.get("_id") != leaf["_id"]
+                    or fetched.get("_rev") != revision
+                    or fetched.get("type") != "leaf"
+                    or fetched.get("e_") is not True
+                    or fetched.get("data") != leaf["data"]):
+                raise ValueError("leaf_readback_mismatch")
             confirmed += 1
         except Exception as exc:
             raise IncompleteMultichunkCommit("leaf_uncertain", confirmed) from exc
