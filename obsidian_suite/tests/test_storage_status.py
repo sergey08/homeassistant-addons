@@ -36,6 +36,21 @@ class StorageStatusTests(unittest.TestCase):
             self.assertEqual(status["vault_origin"], "add-on private data")
             self.assertEqual(status["vault_location"], str(data / "vault"))
 
+    def test_default_local_folder_is_reported_without_creating_it(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            data, legacy = root / "data", root / "app_configs"
+            data.mkdir()
+            (legacy / "vault").mkdir(parents=True)
+            (data / "options.json").write_text(json.dumps({
+                "storage_mode": "local_default", "enable_livesync": True
+            }))
+            status = collect_status(data=data, legacy=legacy)
+            self.assertEqual(status["vault_origin"], "add-on private data")
+            self.assertEqual(status["vault_location"], str(data / "local-vault"))
+            self.assertFalse(status["sync_enabled"])
+            self.assertFalse((data / "local-vault").exists())
+
     def test_bad_config_does_not_claim_selected_vault(self):
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)

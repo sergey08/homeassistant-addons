@@ -14,11 +14,14 @@ The app builds for **AMD64 (`amd64`) and ARM64 (`aarch64`)** on Home Assistant i
 
 The default configuration starts with **LiveSync selected but disabled**, and the **ChatGPT tunnel disabled**. This is intentional: a new installation should not require credentials before its first start.
 
-**Local Markdown mode (no CouchDB needed):**
+**Local Markdown modes:**
 
-1. In **Configuration**, select **Local** as the storage mode. For an existing folder, enter its path under `/share` and leave **Create local folder** off. For a new folder, enable **Create local folder** and enter a path whose parent already exists, or leave the path blank to use `/share/obsidian-vault`.
-2. Save and start or restart the app. A newly created folder contains `Bienvenida.md`. Existing folders are used as-is.
-3. The MCP HTTP service runs internally. If you want access from ChatGPT, configure and enable the private tunnel separately.
+| Configuration | What to do |
+|---|---|
+| Personal folder (`local`) | Enter the path to an existing folder under `/share` in **Personal folder path**. |
+| Default folder (`local_default`) | Select the mode. The app creates `/data/local-vault` with `Bienvenida.md` on first start. Backups that include the app include this folder. |
+
+Save and start or restart the app. To use the MCP from ChatGPT, configure and enable the private tunnel separately.
 
 **LiveSync mode (your Obsidian vault via CouchDB):**
 

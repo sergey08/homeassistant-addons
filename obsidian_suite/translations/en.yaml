@@ -13,11 +13,8 @@ configuration:
     description: "Time between LiveSync polling cycles, from 30 to 3600 seconds. Default is 60 seconds."
 
   vault_path:
-    name: Local Markdown folder
-    description: "In Local mode, enter a path under /share. If you enable Create local folder and leave this blank, /share/obsidian-vault is used."
-  create_local_vault:
-    name: Create local folder
-    description: "Local mode only. On startup, creates the folder if missing and adds a welcome note. An existing folder is used as-is."
+    name: Personal folder path
+    description: "Only for local mode (personal folder). Enter the path of an existing folder under /share."
   storage_mode:
     name: Storage mode
-    description: "LiveSync uses your vault synchronized with CouchDB. Local uses a Markdown folder in Home Assistant."
+    description: "livesync: synchronized with CouchDB. local: personal folder. local_default: default local folder, included in app backups."

@@ -2,7 +2,7 @@
 
 ## 0.2.7
 
-- Local mode can use an existing Markdown folder or create one from the app configuration. Newly created folders start with a bilingual welcome note.
+- Added a default local mode with no path to configure. The app creates `/data/local-vault` with a bilingual welcome note and Home Assistant includes the folder in app backups. The existing personal-folder and LiveSync modes are still available.
 
 ## 0.2.6
 

@@ -45,11 +45,10 @@ def required(path, executable=False):
 
 def main():
     options = json.loads((DATA / "options.json").read_text(encoding="utf-8"))
-    mode, vault, run_livesync = select_storage(options, BASE / "vault", initialize_local=True)
-    configured_vault = mode == "local"
+    mode, vault, run_livesync = select_storage(options, BASE / "vault", app_data=DATA, initialize_local=True)
     trash = BASE / "mcp-trash"
     # Do not follow unexpected symbolic links when preparing persistent storage.
-    for folder in ((trash,) if configured_vault else (vault, trash)):
+    for folder in ((vault, trash) if mode == "livesync" else (trash,)):
         if folder.is_symlink():
             raise RuntimeError(f"Managed storage path must not be a symbolic link: {folder}")
         folder.mkdir(parents=True, exist_ok=True)

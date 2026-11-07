@@ -23,7 +23,6 @@ options:
   enable_livesync: false
   livesync_interval: 60
   vault_path: ""
-  create_local_vault: false
   storage_mode: "livesync"
   livesync_shared_vault_path: ""
 schema:
@@ -32,6 +31,5 @@ schema:
   enable_livesync: bool
   livesync_interval: int(30,3600)
   vault_path: str
-  create_local_vault: bool
-  storage_mode: list(livesync|local)
+  storage_mode: list(livesync|local|local_default)
   livesync_shared_vault_path: str

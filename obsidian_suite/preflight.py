@@ -19,7 +19,7 @@ def main():
     except (OSError, ValueError):
         options = {}
     try:
-        mode, vault, sync_enabled = select_storage(options, BASE / "vault")
+        mode, vault, sync_enabled = select_storage(options, BASE / "vault", app_data=OWNED)
         status(f"Vault directory ({mode})", vault.is_dir(), "Check the configured folder")
     except (ValueError, OSError) as exc:
         status("Vault directory", False, str(exc))
