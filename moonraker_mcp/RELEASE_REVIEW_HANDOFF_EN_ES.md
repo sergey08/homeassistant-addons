@@ -19,6 +19,8 @@ En la ejecución [42399856467](https://github.com/sergey08/homeassistant-addons/
 
 El binario del túnel distribuido **no es el ZIP oficial OpenAI v0.0.19**: se compila desde un commit upstream fijado de la versión 0.0.20 y utiliza una versión actualizada de `golang.org/x/net`. La prueba del ZIP v0.0.19 es solo regresión de migración.
 
+**Priorización de licencias:** consultar [LICENSE_REVIEW_PRIORITIES_EN_ES.md](./LICENSE_REVIEW_PRIORITIES_EN_ES.md) para los 16 paquetes Alpine de revisión copyleft/recíproca, 9 con expresiones especiales y 12 candidatas permisivas. Son datos del run 42401009003, no aprobación legal.
+
 ## 3. Revisión humana necesaria / Required human review
 
 Para cada `bom-ref` del SBOM final:
