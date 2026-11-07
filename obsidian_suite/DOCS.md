@@ -16,10 +16,9 @@ The default configuration starts with **LiveSync selected but disabled**, and th
 
 **Local Markdown mode (no CouchDB needed):**
 
-1. Create an existing Markdown directory under Home Assistant's `/share`, e.g. `/share/notes`.
-2. In **Configuration**, set `storage_mode: local`, `vault_path: /share/notes`, `enable_livesync: false`, and initially `enable_tunnel: false`.
-3. Start the add-on. The MCP HTTP service runs internally; it is not exposed publicly. The private tunnel can be configured and enabled separately after its credentials and binary are provisioned.
-4. Verify access and test only disposable notes first. Enabling the tunnel allows authorized ChatGPT users to edit files inside this folder.
+1. In **Configuration**, select **Local** as the storage mode. For an existing folder, enter its path under `/share` and leave **Create local folder** off. For a new folder, enable **Create local folder** and enter a path whose parent already exists, or leave the path blank to use `/share/obsidian-vault`.
+2. Save and start or restart the app. A newly created folder contains `Bienvenida.md`. Existing folders are used as-is.
+3. The MCP HTTP service runs internally. If you want access from ChatGPT, configure and enable the private tunnel separately.
 
 **LiveSync mode (your Obsidian vault via CouchDB):**
 

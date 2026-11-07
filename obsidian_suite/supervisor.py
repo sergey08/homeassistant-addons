@@ -45,7 +45,7 @@ def required(path, executable=False):
 
 def main():
     options = json.loads((DATA / "options.json").read_text(encoding="utf-8"))
-    mode, vault, run_livesync = select_storage(options, BASE / "vault")
+    mode, vault, run_livesync = select_storage(options, BASE / "vault", initialize_local=True)
     configured_vault = mode == "local"
     trash = BASE / "mcp-trash"
     # Do not follow unexpected symbolic links when preparing persistent storage.

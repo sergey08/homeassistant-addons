@@ -19,10 +19,11 @@ https://github.com/sergey08/homeassistant-addons
 
 ### Available apps
 
-**Obsidian MCP for Home Assistant — 0.2.6**
+**Obsidian MCP for Home Assistant — 0.2.7**
 
 - Install from the Home Assistant app store on AMD64 (`amd64`) or ARM64 (`aarch64`).
 - Work with local Markdown files or use optional Self-hosted LiveSync with your existing CouchDB server. Use the optional OpenAI Secure MCP Tunnel for private access from ChatGPT.
+- In Local mode, use an existing Markdown folder or enable **Create local folder** in Configuration to start with a welcome note.
 - Update an existing installation from its own app page to retain its persistent vault and configuration. A separate catalog entry is a separate installation.
 - For a new tunnel setup, choose the official Linux ZIP that matches your architecture and use the SHA256 manifest from the same release. Home Assistant `aarch64` uses the `linux-arm64.zip` package.
 
@@ -61,10 +62,11 @@ https://github.com/sergey08/homeassistant-addons
 
 ### Aplicaciones disponibles
 
-**Obsidian MCP for Home Assistant — 0.2.6**
+**Obsidian MCP for Home Assistant — 0.2.7**
 
 - Instala el complemento desde la tienda de Home Assistant en AMD64 (`amd64`) o ARM64 (`aarch64`).
 - Trabaja con archivos Markdown locales o activa Self-hosted LiveSync con tu servidor CouchDB existente. El túnel seguro de OpenAI es opcional y permite el acceso privado desde ChatGPT.
+- En modo Local, usa una carpeta Markdown existente o activa **Crear carpeta local** en Configuración para empezar con una nota de bienvenida.
 - Actualiza una instalación existente desde su propia ficha para conservar la bóveda y la configuración persistentes. Una entrada de otro catálogo corresponde a una instalación independiente.
 - Para configurar un túnel nuevo, elige el ZIP oficial de Linux que corresponda a tu arquitectura y usa el manifiesto SHA256 de la misma versión. Home Assistant `aarch64` usa el paquete `linux-arm64.zip`.
 

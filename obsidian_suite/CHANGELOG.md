@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.7
+
+- Local mode can use an existing Markdown folder or create one from the app configuration. Newly created folders start with a bilingual welcome note.
+
 ## 0.2.6
 
 - Supports Home Assistant on AMD64 and ARM64 using the same multi-platform LiveSync CLI image.

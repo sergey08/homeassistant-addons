@@ -13,8 +13,11 @@ configuration:
     description: "Time between LiveSync polling cycles, from 30 to 3600 seconds. Default is 60 seconds."
 
   vault_path:
-    name: Carpeta Markdown local (opcional)
-    description: "Dejar vacío en modo LiveSync: se utiliza automáticamente la bóveda de Obsidian sincronizada. Solo en modo Local, indicar una carpeta existente dentro de /share, por ejemplo /share/obsidian-prueba-local."
+    name: Carpeta Markdown local
+    description: "En modo Local, indica una ruta dentro de /share. Si activas Crear carpeta local y dejas este campo vacío, se usa /share/obsidian-vault."
+  create_local_vault:
+    name: Crear carpeta local
+    description: "Solo en modo Local. Al arrancar, crea la carpeta si falta y añade una nota de bienvenida. Si la carpeta ya existe, la usa tal como está."
   storage_mode:
     name: Modo de almacenamiento
-    description: "LiveSync utiliza tu bóveda habitual sincronizada con CouchDB. Local utiliza una carpeta Markdown existente indicada en Carpeta Markdown local, sin LiveSync."
+    description: "LiveSync utiliza tu bóveda sincronizada con CouchDB. Local utiliza una carpeta Markdown en Home Assistant."
