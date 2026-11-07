@@ -43,6 +43,8 @@ class BackupVerificationTests(unittest.TestCase):
         self.assertEqual(result["verified_chunks"], 3)
         self.assertFalse(result["restore_enabled"])
         manifest = result["backup"]
+        self.assertEqual(manifest["schema"], 2)
+        self.assertNotIn("path", manifest["snapshot"])
         self.assertEqual(manifest["snapshot"]["parent"], parent)
         self.assertEqual(
             [item["_id"] for item in manifest["snapshot"]["leaves"]],

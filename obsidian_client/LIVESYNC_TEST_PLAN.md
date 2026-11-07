@@ -28,7 +28,7 @@ Our existing `test_real_couchdb.py` writes *synthetic CouchDB documents*. It val
 
 ### Backup contents and restore outcomes
 
-- The backup keeps the note content in its original LiveSync ciphertext. The JSON record also contains metadata, including the note path in cleartext and historical CouchDB revisions. Keep it in private test storage. SHA-256 checks the snapshot and HMAC authenticates the record with a separate key.
+- The backup keeps the note content in its original LiveSync ciphertext. Format 2 reads the note path from the encrypted parent metadata and omits the separate cleartext path field. Format 1 backups remain readable and retain their cleartext path. Both formats expose metadata such as document IDs and CouchDB revisions. IDs may disclose paths when path obfuscation is disabled. Keep the JSON in private test storage. SHA-256 checks the snapshot and HMAC authenticates the record with a separate key.
 - The restore helper authenticates the record and validates the snapshot before accessing the destination. An unreferenced fragment or an attachment on the parent document fails this check. The helper creates the fragments before the parent and rechecks the stored ciphertext and revisions before reporting success.
 - `leaf_uncertain` or `parent_uncertain` means the attempt may have written documents. Inspect or discard only the disposable destination. Use a fresh empty database for another attempt. The helper does not retry, overwrite or delete documents.
 
@@ -63,7 +63,7 @@ La prueba actual `test_real_couchdb.py` escribe *documentos CouchDB sintéticos*
 
 ### Contenido de la copia y resultados de la restauración
 
-- La copia conserva el contenido de la nota con el cifrado original de LiveSync. El registro JSON incluye metadatos, entre ellos la ruta de la nota en claro y las revisiones históricas de CouchDB. Guárdalo en un espacio privado de pruebas. SHA-256 comprueba la integridad de la copia y HMAC autentica el registro con una clave separada.
+- La copia conserva el contenido de la nota con el cifrado original de LiveSync. El formato 2 lee la ruta de la nota desde los metadatos cifrados del documento padre y omite el campo de ruta en claro. Las copias en formato 1 siguen siendo legibles y conservan la ruta en claro. Ambos formatos exponen metadatos como los identificadores de documentos y las revisiones de CouchDB. Los identificadores pueden revelar rutas si la ofuscación está desactivada. Guarda el JSON en un espacio privado de pruebas. SHA-256 comprueba la integridad de la copia y HMAC autentica el registro con una clave separada.
 - La función de restauración autentica el registro y valida la copia antes de consultar el destino. Rechaza fragmentos no referenciados y adjuntos en el documento padre. Crea los fragmentos antes que el padre y vuelve a comprobar el cifrado y las revisiones guardadas antes de comunicar el éxito.
 - `leaf_uncertain` o `parent_uncertain` indica que el intento puede haber escrito documentos. Inspecciona o descarta únicamente el destino desechable. Usa una nueva base vacía para otro intento. La función no reintenta, sobrescribe ni borra documentos.
 

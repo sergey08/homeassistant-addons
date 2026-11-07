@@ -6,7 +6,8 @@ from copy import deepcopy
 from pathlib import Path
 from unittest.mock import Mock
 from test_livesync_isolated_backup import fixture, PASS, SALT, REV, PATH
-from livesync_isolated_backup import BackupRejected, _checksum, create_verified_snapshot
+from livesync_isolated_backup import (
+    BackupRejected, _checksum, create_verified_snapshot, preflight_restore_snapshot)
 from livesync_isolated_backup_store import store_signed_backup
 from livesync_disposable_restore import (
     restore_to_empty_disposable_database, DisposableRestoreError)
@@ -66,6 +67,19 @@ class RestoreTests(unittest.TestCase):
         self.assertFalse(result["restore_to_production_enabled"])
         self.assertEqual(self.db.puts, [x["_id"] for x in self.backup["snapshot"]["leaves"]]
                          + [self.backup["snapshot"]["parent"]["_id"]])
+
+    def test_legacy_signed_backup_keeps_working(self):
+        legacy = deepcopy(self.backup)
+        legacy["schema"] = 1
+        legacy["snapshot"]["path"] = PATH
+        legacy["sha256"] = _checksum(legacy["snapshot"])
+        self.backup_id = store_signed_backup(
+            self.root, legacy, self.key, isolated_test=True)["backup_id"]
+
+        result = preflight_restore_snapshot(
+            legacy, legacy["snapshot"]["parent"], PASS, SALT, isolated_test=True)
+        self.assertEqual(result["status"], "verified_no_change_required")
+        self.assertEqual(self.restore()["confirmed_leaves"], 3)
 
     def test_nonempty_database_rejected_before_any_put(self):
         self.db.docs["unrelated"] = {"_id": "unrelated"}
