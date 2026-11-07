@@ -15,19 +15,15 @@ MAX_BYTES = 250 * 1024 * 1024
 ALLOWED_HOSTS = {
     "salsa.debian.org", "gitlab.alpinelinux.org", "busybox.net",
     "ftp.gnu.org", "gcc.gnu.org", "musl.libc.org",
-    "dev.gentoo.org", "github.com",
+    "dev.gentoo.org", "github.com", "distfiles.alpinelinux.org",
 }
 CHUNK = 1024 * 1024
 
 
-def verify_one(item):
-    name, url, expected = item["file"], item["url"], item["sha512"]
+def _hash_download(url, expected, name):
     parsed = urlparse(url)
     if parsed.scheme != "https" or parsed.hostname not in ALLOWED_HOSTS:
         raise ValueError("Unexpected download host")
-    if (not isinstance(expected, str) or len(expected) != 128
-            or any(c not in "0123456789abcdef" for c in expected)):
-        raise ValueError("Invalid expected checksum")
     digest = hashlib.sha512()
     size = 0
     with urlopen(Request(url, headers={"User-Agent": "MoonrakerMCP-SourceAudit/0.1"}), timeout=90) as response:
@@ -45,7 +41,30 @@ def verify_one(item):
         raise ValueError("Empty source archive")
     if digest.hexdigest() != expected:
         raise ValueError("SHA-512 mismatch")
-    return {"file": name, "url": url, "sha512": digest.hexdigest(), "bytes": size, "status": "VERIFIED_SHA512"}
+    return {"file": name, "url": url, "sha512": digest.hexdigest(),
+            "bytes": size, "status": "VERIFIED_SHA512"}
+
+
+def verify_one(item):
+    name, url, expected = item["file"], item["url"], item["sha512"]
+    if (not isinstance(expected, str) or len(expected) != 128
+            or any(c not in "0123456789abcdef" for c in expected)):
+        raise ValueError("Invalid expected checksum")
+    # Alpine's own source cache is an optional fallback for GitLab-hosted
+    # archives only. NEVER substitute a mismatching checksum or other version.
+    candidate_urls = [url]
+    if urlparse(url).hostname == "gitlab.alpinelinux.org" and name in {
+        "apk-tools-v2.14.13.tar.gz", "ca-certificates-20261020.tar.bz2"
+    }:
+        candidate_urls.append("https://distfiles.alpinelinux.org/distfiles/v3.22/" + name)
+    failures = []
+    for candidate in candidate_urls:
+        try:
+            return _hash_download(candidate, expected, name)
+        except (OSError, ValueError, TimeoutError) as exc:
+            failures.append(type(exc).__name__)
+    raise ValueError("All approved sources unavailable or SHA-512 mismatched: " +
+                     ", ".join(failures))
 
 
 def audit(manifest_path):
