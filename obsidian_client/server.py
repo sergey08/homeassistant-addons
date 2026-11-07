@@ -1393,6 +1393,90 @@ def editor_markdown_vault():
         raise LocalVaultError(str(exc)) from exc
 
 
+@app.post("/api/remote/pull-private")
+def pull_verified_remote_to_private():
+    """Explicit one-way pull: CAS local Markdown and advance private baseline.
+
+    The remote is only read, using the encrypted snapshot verification contract.
+    An interrupted metadata update leaves a recoverable changed local copy and
+    an immutable Markdown backup; never claims a completed sync in that case.
+    """
+    from client_sync_baseline import (BaselineError, SHA, load_baseline,
+                                      digest, advance_baseline, classify)
+    from private_markdown_vault import (LocalVaultError, read_note,
+                                        save_note, _path)
+    from storage_selection import select_storage, StorageSelectionError
+    if request.headers.get("X-Obsidian-Client-Action") != "pull-private":
+        return jsonify(error="missing_action_header"), 403
+    if request.headers.get("Sec-Fetch-Site") not in (None, "same-origin"):
+        return jsonify(error="cross_origin_blocked"), 403
+    if request.headers.get("Origin") and request.headers.get("Sec-Fetch-Site") != "same-origin":
+        return jsonify(error="cross_origin_blocked"), 403
+    if (request.mimetype != "application/json"
+            or request.content_length is None or request.content_length > 2048):
+        return jsonify(error="invalid_request"), 400
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict) or set(payload) != {
+            "path", "expected_baseline_sha256", "expected_remote_sha256",
+            "expected_local_sha256"}:
+        return jsonify(error="invalid_request"), 400
+    path = payload.get("path")
+    expected_base = payload.get("expected_baseline_sha256")
+    expected_remote = payload.get("expected_remote_sha256")
+    expected_local = payload.get("expected_local_sha256")
+    if not all(isinstance(value, str) and SHA.fullmatch(value)
+               for value in (expected_base, expected_remote, expected_local)):
+        return jsonify(error="invalid_expected_hash"), 400
+    if expected_local != expected_base or expected_remote == expected_base:
+        return jsonify(error="unsafe_pull_direction"), 409
+    try:
+        selected = select_storage(options(), private_vault=_PRIVATE_VAULT,
+                                  shared_vault=_MCP_SHARED_VAULT)
+        if not selected["independent_of_mcp"] or selected["mode"] != "local":
+            return jsonify(error="independent_local_mode_required"), 409
+        _path(editor_markdown_vault(), path)
+    except (StorageSelectionError, LocalVaultError):
+        return jsonify(error="invalid_storage_or_path"), 409
+    remote, error = read_encrypted_note(path, verify_revision=True)
+    if error or not isinstance(remote, str):
+        return jsonify(error="remote_snapshot_not_verified"), 409
+    if digest(remote) != expected_remote:
+        return jsonify(error="remote_content_changed"), 409
+    try:
+        with _local_save_lock:
+            local = read_note(editor_markdown_vault(), path)
+            if (load_baseline(_PRIVATE_BASELINES, path) != expected_base
+                    or local["sha256"] != expected_local):
+                return jsonify(error="local_or_baseline_changed"), 409
+            state = classify(expected_base, remote, local["content"])
+            if state["sync_state"] != "remote_changed":
+                return jsonify(error="unsafe_pull_direction"), 409
+            result = save_note(editor_markdown_vault(), _PRIVATE_BACKUPS,
+                               path, remote, "update",
+                               expected_sha256=expected_local)
+            try:
+                advanced = advance_baseline(
+                    _PRIVATE_BASELINES, "/data/obsidian-client-baseline-backups",
+                    path, expected_base, remote, remote)
+            except (BaselineError, OSError):
+                return jsonify(
+                    error="baseline_advance_after_pull_failed",
+                    local_updated=True, local_backup_created=True,
+                    remote_write_enabled=False,
+                    recovery="verify_convergence_then_advance_baseline"), 409
+    except LocalVaultError as exc:
+        return jsonify(error=exc.code, remote_write_enabled=False), 409
+    except (BaselineError, OSError):
+        return jsonify(error="private_pull_failed",
+                       remote_write_enabled=False), 409
+    response = jsonify(status="pulled_private", path=path,
+                       sha256=result["sha256"], baseline_updated=advanced["updated"],
+                       local_backup_created=True, remote_write_enabled=False,
+                       sync_enabled=False)
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
 @app.get("/api/remote/manual-sync-plan")
 def readonly_manual_sync_plan():
     """Read-only candidate actions based on fresh verified encrypted snapshot."""
