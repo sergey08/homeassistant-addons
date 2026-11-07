@@ -89,6 +89,14 @@ The DEV12 default tools deliberately suppress hostnames and filesystem paths, bu
 
 ## Español — Instalación sin utilizar el terminal
 
+### Migración futura de DEV al catálogo estable: no desinstalar primero
+
+El repositorio de desarrollo con sufijo de rama y el catálogo estable de `main` pueden tener **identificadores distintos en Home Assistant Supervisor**, aunque el `slug` del complemento sea el mismo. La aplicación estable **todavía no está publicada** y no se puede garantizar una actualización directa que conserve opciones y datos.
+
+Antes de una futura migración, prepara una copia **cifrada y protegida** de Home Assistant; registra la configuración solo en un lugar privado, nunca en GitHub ni en el chat. Conserva la instalación DEV y sus claves actuales hasta verificar la nueva instalación estable con **credenciales y túnel independientes** en un HA desechable o durante una migración planificada. No ejecutes simultáneamente ambos complementos usando el mismo túnel. Desinstala DEV únicamente después de comprobar conexión, restricciones de puertos, permisos y recuperación. Restaurar archivos privados de otra identidad Supervisor podría no funcionar o recuperar claves antiguas. Consulta el [acta de recuperación](./RECOVERY_ACCEPTANCE_RECORD_EN_ES.md).
+
+
+
 ### Qué hace el complemento
 
 Moonraker MCP ofrece un servidor MCP de **solo lectura** para impresoras 3D compatibles con Moonraker. Se ejecuta en Home Assistant, pero **consulta directamente Moonraker**, sin pasar por las entidades de Home Assistant. El túnel privado opcional de OpenAI permite que ChatGPT acceda al MCP mediante una conexión saliente sin abrir puertos del router. El MCP también puede ejecutarse localmente sin túnel.
