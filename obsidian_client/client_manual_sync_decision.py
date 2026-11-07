@@ -11,11 +11,9 @@ class SyncBlocked(ValueError):
 
 
 def decide_manual_sync(baseline_sha256, remote_content, local_content, *,
-                       remote_verified=False, remote_revision=None):
+                       remote_verified=False):
     if remote_verified is not True:
         raise SyncBlocked("remote_snapshot_not_verified")
-    if not isinstance(remote_revision, str) or len(remote_revision) > 120:
-        raise SyncBlocked("remote_revision_unavailable")
     try:
         state = classify(baseline_sha256, remote_content, local_content)
     except BaselineError as exc:
