@@ -17,6 +17,17 @@ Se han leído directamente 10 archivos `APKBUILD` del repositorio oficial `alpin
 | [pax-utils](https://github.com/alpinelinux/aports/blob/3.22-stable/main/pax-utils/APKBUILD) | `1.3.8-r1` | `5073fed2e6898f789f16ba8dfa543f6bf4706864` | scanelf | GPL-2.0-only | El paquete de origen pax-utils genera el subpaquete scanelf; identificar fuente y licencia del ejecutable distribuido. |
 | [xz](https://github.com/alpinelinux/aports/blob/3.22-stable/main/xz/APKBUILD) | `5.8.4-r0` | `b2d6af2e7b824108755dba06fc4ff1fa47211fa9` | xz-libs | GPL-2.0-or-later AND 0BSD AND Public-Domain AND LGPL-2.1-or-later | Distinguir licencias por archivo y comprobar ofertas de fuentes si son exigibles. |
 
+## Verificación de revisión inmutable de Alpine (2026-11-07)
+
+Se ha identificado el commit completo de la rama upstream `alpinelinux/aports:3.22-stable` en el momento del cotejo:
+
+- Commit de aports: [`2235ae248c31ea48a9df764becdfecc2a85b4f31`](https://github.com/alpinelinux/aports/commit/2235ae248c31ea48a9df764becdfecc2a85b4f31) (fecha Git del commit: 2026-11-07 12:43:18 UTC).
+- Se han vuelto a recuperar **las diez rutas `main/<familia>/APKBUILD` indicando expresamente ese commit**, no la rama.
+- Resultado: **los 10 blobs Git coinciden exactamente con los SHA de la tabla superior**.
+- Para reproducir la lectura de un archivo, usar `https://github.com/alpinelinux/aports/blob/2235ae248c31ea48a9df764becdfecc2a85b4f31/main/<familia>/APKBUILD` (sustituir `<familia>`).
+- Esta comprobación da un punto de referencia **inmutable** para las recetas de los 16 paquetes auditados, pero **no** certifica que el paquete binario instalado fuera construido precisamente con este árbol, ni que ya se hayan inspeccionado sus ficheros auxiliares y fuentes completas.
+- La fuente correspondiente, parches, excepciones y obligaciones de licencia siguen pendientes de validación individual por el revisor.
+
 ## Trabajo para cerrar el gate humano
 
 1. Descargar el SBOM CycloneDX del **SHA final de la imagen**, el inventario APK y las diferencias de `go.mod/go.sum`. El inventario DEV12 verificado hasta ahora corresponde a [CI 42408893008](https://github.com/sergey08/homeassistant-addons/actions/runs/42408893008), SHA `06696618cf00da5ee31ec1efd0f5ba2f40dfb4fa`.
