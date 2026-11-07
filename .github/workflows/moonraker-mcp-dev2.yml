@@ -594,7 +594,8 @@ jobs:
           python3 moonraker_mcp/alpine_remote_source_integrity.py \
             moonraker_mcp/alpine-external-sources-pending.json \
             moonraker-mcp-audit/alpine-remote-source-integrity.json
-      - name: Retain successful remote checksum evidence
+      - name: Retain partial or successful remote checksum evidence
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: moonraker-mcp-alpine-remote-source-integrity
