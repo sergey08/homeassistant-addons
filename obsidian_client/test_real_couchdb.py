@@ -177,5 +177,92 @@ class RealCouchDBIntegrationTests(unittest.TestCase):
                 self.assertEqual(call(db, "DELETE")[0], 200)
 
 
+    def test_disposable_encrypted_leaf_and_parent_cas_rejects_stale_writer(self):
+        """Only loopback disposable DB; encrypted parent is updated with _rev CAS."""
+        from livesync_crypto import encrypt_hkdf_string, decrypt_hkdf_string
+        from livesync_encrypted_metadata_fixture import (
+            encode_parent_metadata_fixture, decode_parent_metadata_fixture)
+        from livesync_revision_contract import (
+            prepare_conditional_document, RevisionConflict)
+        root = os.environ["TEST_COUCHDB_URL"].rstrip("/")
+        self.assertIn(root, ("http://127.0.0.1:5984", "http://localhost:5984"))
+        user = os.environ.get("TEST_COUCHDB_USER", "")
+        password = os.environ.get("TEST_COUCHDB_PASSWORD", "")
+        self.assertTrue(user and password)
+        auth = "Basic " + base64.b64encode(f"{user}:{password}".encode()).decode()
+        base = root + "/obsidian_encrypted_cas_ci_" + uuid.uuid4().hex
+        salt = base64.b64encode(b"disposable-ci-encrypted-cas-salt").decode()
+        phrase = "disposable-ci-only"
+        path = "Disposable/Encrypted.md"
+        original = "# Primera revision\\n"
+        updated = "# Segunda revision\\n"
+        parent_id, old_leaf_id, new_leaf_id = (
+            "test:encrypted-parent", "test:encrypted-old", "test:encrypted-new")
+
+        def call(url, method="GET", payload=None, headers=None):
+            wire = json.dumps(payload).encode("utf-8") if payload is not None else None
+            request = Request(url, data=wire, method=method, headers={
+                "Authorization": auth, "Content-Type": "application/json",
+                **(headers or {})})
+            with urlopen(request, timeout=8) as response:
+                return response.status, json.load(response)
+
+        created = False
+        try:
+            self.assertEqual(call(base, "PUT")[0], 201)
+            created = True
+            parent_meta = encode_parent_metadata_fixture(
+                path, [old_leaf_id], phrase, salt,
+                ctime=1730000000000, mtime=1730000000000,
+                size=len(original.encode("utf-8")))
+            parent = {
+                "_id": parent_id, "type": "plain",
+                "path": parent_meta["path"], "children": [],
+                "ctime": 0, "mtime": 0, "size": 0, "eden": {}}
+            old_leaf = {
+                "_id": old_leaf_id, "type": "leaf", "e_": True,
+                "data": encrypt_hkdf_string(original, phrase, salt)}
+            self.assertEqual(call(base + "/" + parent_id, "PUT", parent)[0], 201)
+            self.assertEqual(call(base + "/" + old_leaf_id, "PUT", old_leaf)[0], 201)
+            _, stored_parent = call(base + "/" + parent_id)
+            old_rev = stored_parent["_rev"]
+
+            new_leaf = {
+                "_id": new_leaf_id, "type": "leaf", "e_": True,
+                "data": encrypt_hkdf_string(updated, phrase, salt)}
+            self.assertEqual(call(base + "/" + new_leaf_id, "PUT", new_leaf)[0], 201)
+            next_meta = encode_parent_metadata_fixture(
+                path, [new_leaf_id], phrase, salt,
+                ctime=1730000000000, mtime=1730000001000,
+                size=len(updated.encode("utf-8")))
+            proposed = prepare_conditional_document(
+                stored_parent,
+                {**stored_parent, "path": next_meta["path"]}, old_rev)
+            endpoint = base + "/" + parent_id
+            request_headers = {"If-Match": '"' + old_rev + '"'}
+            status, saved = call(endpoint, "PUT", proposed, request_headers)
+            self.assertEqual(status, 201)
+            self.assertTrue(saved["ok"])
+
+            with self.assertRaises(HTTPError) as stale:
+                call(endpoint, "PUT", proposed, request_headers)
+            self.assertIn(stale.exception.code, (409, 412))
+            _, current_parent = call(endpoint)
+            self.assertEqual(current_parent["_rev"], saved["rev"])
+            decoded_meta = decode_parent_metadata_fixture(
+                current_parent["path"], phrase, salt)
+            self.assertEqual(decoded_meta["children"], [new_leaf_id])
+            _, current_leaf = call(base + "/" + new_leaf_id)
+            self.assertEqual(
+                decrypt_hkdf_string(current_leaf["data"], phrase, salt), updated)
+            _, old_leaf_still_exists = call(base + "/" + old_leaf_id)
+            self.assertEqual(
+                decrypt_hkdf_string(old_leaf_still_exists["data"], phrase, salt),
+                original)
+        finally:
+            if created:
+                self.assertEqual(call(base, "DELETE")[0], 200)
+
+
 if __name__ == "__main__":
     unittest.main()
