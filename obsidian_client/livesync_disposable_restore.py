@@ -58,6 +58,11 @@ def restore_to_empty_disposable_database(backup_root, backup_id, backup_key,
             passphrase, salt_b64)
     except Exception as exc:
         raise UnsafeWrite("backup_ciphertext_not_verified") from exc
+    # Assembly verifies every unique child reference, so any surplus leaf is unreferenced.
+    if checked["chunks"] != len(leaf_map):
+        raise UnsafeWrite("unexpected_backup_leaves")
+    if parent.get("_attachments") is not None:
+        raise UnsafeWrite("unsupported_backup_parent_attachments")
     if parent.get("_conflicts") or parent.get("_deleted") or parent.get("deleted"):
         raise UnsafeWrite("conflicted_backup_parent")
     if any(leaf.get("_attachments") is not None

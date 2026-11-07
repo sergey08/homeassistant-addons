@@ -154,6 +154,29 @@ class RestoreTests(unittest.TestCase):
                 isolated_test=True, disposable_database=True)
         self.assertEqual(target.mock_calls, [])
 
+    def test_signed_backup_with_unexpected_documents_is_rejected_before_access(self):
+        extra_leaf = {**self.backup["snapshot"]["leaves"][0], "_id": "h:+unreferenced"}
+        for reason in ("unexpected_backup_leaves", "unsupported_backup_parent_attachments"):
+            with self.subTest(reason=reason):
+                backup = deepcopy(self.backup)
+                snapshot = backup["snapshot"]
+                if reason == "unexpected_backup_leaves":
+                    snapshot["leaves"].append(extra_leaf)
+                else:
+                    snapshot["parent"]["_attachments"] = {
+                        "extra.txt": {"content_type": "text/plain", "data": "ZXh0cmE="}}
+                backup["sha256"] = _checksum(snapshot)
+                backup_id = store_signed_backup(
+                    self.root, backup, self.key, isolated_test=True)["backup_id"]
+
+                target = Mock()
+                with self.assertRaisesRegex(UnsafeWrite, reason):
+                    restore_to_empty_disposable_database(
+                        self.root, backup_id, self.key,
+                        target.list_ids, target.read, target.put, PASS, SALT,
+                        isolated_test=True, disposable_database=True)
+                self.assertEqual(target.mock_calls, [])
+
     def test_no_production_or_unqualified_recovery(self):
         for kwargs in (
             {"isolated_test": False, "disposable_database": True},
