@@ -31,6 +31,17 @@ def _checksum(value):
     return hashlib.sha256(_canonical(value)).hexdigest()
 
 
+def _snapshot_path(backup, passphrase, salt_b64):
+    snapshot = backup["snapshot"]
+    if backup["schema"] == 1:
+        return snapshot["path"]
+    if "path" in snapshot:
+        raise BackupRejected("unexpected_cleartext_path")
+    metadata = decode_parent_metadata_fixture(snapshot["parent"]["path"],
+                                              passphrase, salt_b64)
+    return metadata["path"]
+
+
 def create_verified_snapshot(parent, leaves, path, expected_revision,
                              passphrase, salt_b64, *, isolated_test=False,
                              remote_writes_enabled=False):
@@ -60,10 +71,10 @@ def create_verified_snapshot(parent, leaves, path, expected_revision,
             require_matching_revision(leaves[child_id]["_rev"],
                                       leaves[child_id]["_rev"])
         snapshot = {"parent": parent, "leaves": [leaves[x] for x in ids],
-                    "path": path, "parent_revision": expected_revision}
+                    "parent_revision": expected_revision}
         if len(_canonical(snapshot)) > MAX_BACKUP_BYTES:
             raise BackupRejected("backup_too_large")
-        sealed = {"schema": 1, "kind": "isolated_encrypted_snapshot",
+        sealed = {"schema": 2, "kind": "isolated_encrypted_snapshot",
                   "snapshot": snapshot, "sha256": _checksum(snapshot)}
         return {"backup": sealed, "verified_chunks": result["chunks"],
                 "verified_bytes": result["bytes"], "remote_writes_enabled": False,
@@ -85,7 +96,7 @@ def preflight_restore_snapshot(backup, current_parent, passphrase, salt_b64, *,
     if not isinstance(backup, dict) or set(backup) != {
             "schema", "kind", "snapshot", "sha256"}:
         raise BackupRejected("invalid_backup_format")
-    if backup["schema"] != 1 or backup["kind"] != "isolated_encrypted_snapshot":
+    if backup["schema"] not in (1, 2) or backup["kind"] != "isolated_encrypted_snapshot":
         raise BackupRejected("unsupported_backup")
     snapshot = backup["snapshot"]
     if (not isinstance(snapshot, dict) or not isinstance(backup["sha256"], str)
@@ -105,7 +116,8 @@ def preflight_restore_snapshot(backup, current_parent, passphrase, salt_b64, *,
         leaf_map = {leaf["_id"]: leaf for leaf in leaves}
         if len(leaf_map) != len(leaves):
             raise BackupRejected("duplicate_backup_leaves")
-        assemble_encrypted_chunks(parent, leaf_map, snapshot["path"],
+        path = _snapshot_path(backup, passphrase, salt_b64)
+        assemble_encrypted_chunks(parent, leaf_map, path,
                                   snapshot["parent_revision"], passphrase, salt_b64)
         if not isinstance(current_parent, dict):
             raise BackupRejected("current_parent_missing")

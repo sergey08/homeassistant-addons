@@ -6,6 +6,7 @@ transport is constructed: injected callbacks are exclusively test-only.
 """
 from copy import deepcopy
 
+from livesync_isolated_backup import _snapshot_path
 from livesync_isolated_backup_store import read_signed_backup
 from livesync_multichunk_audit import assemble_encrypted_chunks
 from livesync_revision_contract import require_confirmed_create_response
@@ -39,7 +40,8 @@ def restore_to_empty_disposable_database(backup_root, backup_id, backup_key,
     record = read_signed_backup(backup_root, backup_id, backup_key,
                                 isolated_test=isolated_test,
                                 remote_writes_enabled=remote_writes_enabled)
-    snapshot = record["backup"]["snapshot"]
+    backup = record["backup"]
+    snapshot = backup["snapshot"]
     if not isinstance(snapshot, dict):
         raise UnsafeWrite("invalid_snapshot")
     parent = snapshot.get("parent")
@@ -53,8 +55,9 @@ def restore_to_empty_disposable_database(backup_root, backup_id, backup_key,
         raise UnsafeWrite("invalid_leaf_identities")
     leaf_map = {leaf["_id"]: leaf for leaf in leaves}
     try:
+        path = _snapshot_path(backup, passphrase, salt_b64)
         checked = assemble_encrypted_chunks(
-            parent, leaf_map, snapshot["path"], snapshot["parent_revision"],
+            parent, leaf_map, path, snapshot["parent_revision"],
             passphrase, salt_b64)
     except Exception as exc:
         raise UnsafeWrite("backup_ciphertext_not_verified") from exc
@@ -115,7 +118,7 @@ def restore_to_empty_disposable_database(backup_root, backup_id, backup_key,
             raise ValueError("restored_leaf_changed")
         restored = assemble_encrypted_chunks(
             fetched, restored_leaves,
-            snapshot["path"], new_revision, passphrase, salt_b64)
+            path, new_revision, passphrase, salt_b64)
         if restored["content"] != checked["content"]:
             raise ValueError("restored_content_mismatch")
     except Exception as exc:

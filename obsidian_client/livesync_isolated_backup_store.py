@@ -49,7 +49,9 @@ def _sign(payload, secret):
 def _verified_envelope(backup):
     if (not isinstance(backup, dict)
             or set(backup) != {"schema", "kind", "snapshot", "sha256"}
-            or backup["schema"] != 1
+            or backup["schema"] not in (1, 2)
+            or not isinstance(backup["snapshot"], dict)
+            or (backup["schema"] == 2 and "path" in backup["snapshot"])
             or backup["kind"] != "isolated_encrypted_snapshot"
             or not isinstance(backup["sha256"], str)
             or len(backup["sha256"]) != 64):

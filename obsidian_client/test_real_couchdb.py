@@ -493,6 +493,7 @@ class RealCouchDBIntegrationTests(unittest.TestCase):
                     backup_root, backup, key, isolated_test=True)["backup_id"]
                 stored_record = (backup_root / (backup_id + ".json")).read_text(
                     encoding="utf-8")
+                self.assertNotIn(note_path, stored_record)
                 for text in chunks[:2]:
                     self.assertNotIn(text, stored_record)
                 with self.assertRaisesRegex(BackupRejected, "backup_authentication_failed"):
