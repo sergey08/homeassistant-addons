@@ -1,8 +1,8 @@
 # Fresh Home Assistant installation acceptance / Validación de instalación limpia
 
-**Moonraker MCP 0.1.0-dev11 · Development only · 2026-11-06**
+**Moonraker MCP 0.1.0-dev12 · Development only · 2026-11-07**
 
-This procedure is for a **second, independent HA OS/Supervisor amd64 installation**, not for the production/working DEV11. It is an acceptance checklist, **not** evidence that the test has already happened. Do not transfer credentials, private `/data/tunnel` folders or backups from an existing installation.
+This procedure is for a **second, independent HA OS/Supervisor aarch64 (ARM64) installation; amd64 also remains supported**, not for the production/working DEV11. It is an acceptance checklist, **not** evidence that the test has already happened. Do not transfer credentials, private `/data/tunnel` folders or backups from an existing installation.
 
 ## Español — Comprobación sin terminal
 
