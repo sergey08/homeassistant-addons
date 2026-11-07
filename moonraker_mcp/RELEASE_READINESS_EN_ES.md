@@ -1,5 +1,23 @@
 # Release readiness and supply-chain audit / Preparación y cadena de suministro
 
+## 2026-11-07 — Proposed v0.1.0 stable release gate / Puertas de liberación de v0.1.0
+
+**Publication mode: BLOCKED until explicit gate acceptance.** Development builds in `dev/moonraker-mcp-dev2` are available for controlled installation; this does not equal a stable release. PR #89 must remain DRAFT, without a `v0.1.0` tag, `main` merge, GHCR distribution or stable add-on listing.
+
+| Gate | Required evidence | Owner / Evidence source |
+| --- | --- | --- |
+| AMD64 real upgrade | DEV11 → DEV12, credentials preserved, 5/5 real MCP tool calls, no host ports | Done: Lenovo HA/Moonraker MCP observations 07/11 |
+| ARM64 clean install | Independent HA GUI install, own Moonraker IP/API key, own MCP token, 5/5 MCP tool calls via own tunnel | External tester; startup/install observed, remote tests pending |
+| Rotation and recovery | On disposable HA, revoke old tunnel key, test new key, encrypted backup+restore without leaking credentials | External tester + maintainer; pending |
+| Image security | Latest commit CI both architectures, Trivy 0 HIGH/CRITICAL, SBOM/inventory preserved | GitHub Actions; verify final commit |
+| License redistribution | Review exact final-image CycloneDX components, texts and obligations (GPL/LGPL/MPL, Apache NOTICE, BSD), record reviewed entries and maintainer signoff. No inferred clearance | Human reviewer; **not approved** |
+| End-user documentation | Spanish/English, initial token help, safe ports, direct Moonraker URL, signed-off first-use walkthrough | Maintainer; visual HA check pending |
+| Publish approval | Written authorization for v0.1.0, main merge, tag and distribution method after gates are checked | Maintainer; not yet authorized |
+
+**Note:** The legacy tunnel-client v0.0.19 in CI is an offline *regression fixture for migration only*, not the shipped executable. DEV12 ships a Go-built upstream-pinned tunnel-client v0.0.20 with patched `golang.org/x/net`. Do not suggest that a successful legacy fixture test proves the shipped client's legal redistribution rights.
+
+---
+
 ## 2026-11-07 — DEV12 acceptance status / Estado actualizado de DEV12
 
 **Decision / Decisión: DEVELOPMENT PREVIEW ONLY — NO PUBLIC STABLE RELEASE YET.** The older DEV11 section below is historical evidence, not the current release decision.
