@@ -55,7 +55,7 @@ The add-on uses its previously provisioned vault under `/app_configs/obsidian_br
 
 ### Option 2 — Personal local folder
 
-Select **Storage mode → local**, enter the existing directory in **Personal folder path**, then save and start or restart the app. Use a real subdirectory of `/share`. Home Assistant handles the shared folder separately from app backups.
+Select **Storage mode → local**, enter the existing directory in **Local - Personal folder path**, then save and start or restart the app. Use a real subdirectory of `/share`. Home Assistant handles the shared folder separately from app backups.
 
 ### Option 3 — Default local folder
 
