@@ -11,7 +11,7 @@ import os
 import re
 import secrets
 from pathlib import Path
-from livesync_isolated_backup import BackupRejected, MAX_BACKUP_BYTES, _canonical
+from livesync_isolated_backup import BackupRejected, MAX_BACKUP_BYTES, _canonical, _checksum
 from livesync_write_preflight import UnsafeWrite
 
 _ID = re.compile(r"[0-9a-f]{32}\\Z")
@@ -46,13 +46,27 @@ def _sign(payload, secret):
     return hmac.new(_key(secret), _canonical(payload), hashlib.sha256).hexdigest()
 
 
+def _verified_envelope(backup):
+    if (not isinstance(backup, dict)
+            or set(backup) != {"schema", "kind", "snapshot", "sha256"}
+            or backup["schema"] != 1
+            or backup["kind"] != "isolated_encrypted_snapshot"
+            or not isinstance(backup["sha256"], str)
+            or len(backup["sha256"]) != 64):
+        raise BackupRejected("invalid_backup")
+    try:
+        valid = hmac.compare_digest(_checksum(backup["snapshot"]), backup["sha256"])
+    except (TypeError, ValueError, OverflowError, UnicodeError) as exc:
+        raise BackupRejected("invalid_backup") from exc
+    if not valid:
+        raise BackupRejected("backup_checksum_mismatch")
+
+
 def store_signed_backup(root, backup, secret, *, isolated_test=False,
                         remote_writes_enabled=False):
     """Persist an isolated backup with exclusive creation and durable fsync."""
     _gate(isolated_test, remote_writes_enabled)
-    if not isinstance(backup, dict) or set(backup) != {
-            "schema", "kind", "snapshot", "sha256"}:
-        raise BackupRejected("invalid_backup")
+    _verified_envelope(backup)
     try:
         encoded = _canonical(backup)
     except (TypeError, ValueError, OverflowError, UnicodeError) as exc:
@@ -122,6 +136,7 @@ def read_signed_backup(root, backup_id, secret, *, isolated_test=False,
         unsigned = {key: record[key] for key in ("version", "backup_id", "backup")}
         if not hmac.compare_digest(_sign(unsigned, secret), mac):
             raise BackupRejected("backup_authentication_failed")
+        _verified_envelope(record["backup"])
         return {"backup": record["backup"], "authenticated": True,
                 "restore_enabled": False, "remote_writes_enabled": False}
     except (ValueError, TypeError, UnicodeDecodeError) as exc:
