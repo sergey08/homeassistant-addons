@@ -76,11 +76,13 @@ def write_safety_status(config):
                                  "compare", "diff", "baseline_acknowledge"],
         "write_gate": "closed",
         "isolated_tests": "run_in_github_actions",
+        "isolated_commit_recovery": "manual_inspection_required_on_ambiguous_results",
         "production_blockers": [
             "live_wire_format_variants_not_exhaustively_validated",
             "multi_chunk_transaction_and_orphan_recovery",
             "remote_revision_race_and_conflict_resolution",
             "remote_write_backup_and_restore_protocol",
+            "orphan_leaf_inspection_and_safe_cleanup",
             "end_to_end_roundtrip_across_supported_clients",
         ],
     }
