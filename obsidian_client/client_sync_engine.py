@@ -58,3 +58,29 @@ def preflight(config, *, vault=CLIENT_VAULT, database=CLIENT_DB,
         "remote_writes_enabled": False,
         "blocking_reasons": reasons,
     }
+
+
+def write_safety_status(config):
+    """Describe the write gate without enabling any transport or remote writes.
+
+    CI validates disposable encrypted round trips, not authorization to write
+    to the user's CouchDB. This deliberately reports the pending production
+    compatibility and recovery requirements, independent of configuration.
+    """
+    return {
+        "independent_of_mcp": config.get("editor_storage_mode", "private") in ("private", "local"),
+        "production_remote_writes_enabled": False,
+        "manual_bidirectional_sync_enabled": False,
+        "automatic_sync_enabled": False,
+        "supported_operations": ["remote_read", "private_import", "private_edit",
+                                 "compare", "diff", "baseline_acknowledge"],
+        "write_gate": "closed",
+        "isolated_tests": "run_in_github_actions",
+        "production_blockers": [
+            "live_wire_format_variants_not_exhaustively_validated",
+            "multi_chunk_transaction_and_orphan_recovery",
+            "remote_revision_race_and_conflict_resolution",
+            "remote_write_backup_and_restore_protocol",
+            "end_to_end_roundtrip_across_supported_clients",
+        ],
+    }
