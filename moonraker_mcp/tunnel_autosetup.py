@@ -1,6 +1,6 @@
-"""Provision official bundled OpenAI tunnel client and private key from HA options.
+"""Provision the pinned source-built OpenAI tunnel client and private key from HA options.
 
-The official version and checksum are pinned at Docker image build time.
+Binary source revision and patched dependencies are pinned during Docker build.
 No network downloads or secret-bearing command arguments at startup.
 """
 import hashlib
@@ -15,7 +15,6 @@ from tunnel_provision import _private_directory, ProvisionError
 
 UID = 65534
 BUNDLED = Path("/opt/moonraker-mcp/vendor/tunnel-client")
-EXPECTED_ZIP_SHA256 = "9ee9448592345a9dd1517fb79791ab54d24f051142eb92bcbe8cd355effc9142"
 
 
 def _atomic_private(path, contents, uid=UID, mode=0o600):
@@ -53,11 +52,19 @@ def provision_from_options(base="/data", vendor=BUNDLED, uid=UID):
     target = bindir / "tunnel-client"
     if target.is_symlink():
         raise ProvisionError("Refusing symbolic-link tunnel client")
-    if not target.exists():
-        if not vendor.is_file() or vendor.is_symlink():
-            raise ProvisionError("Missing bundled official OpenAI tunnel client")
-        # Binary was downloaded and SHA-256 checked during image build.
-        # Use a private atomic copy so the client survives app upgrades.
+    if not vendor.is_file() or vendor.is_symlink():
+        raise ProvisionError("Missing bundled tunnel client")
+    if target.exists():
+        binary_info = target.stat()
+        if (not stat.S_ISREG(binary_info.st_mode) or binary_info.st_uid != uid
+                or binary_info.st_mode & 0o077):
+            raise ProvisionError("Insecure tunnel client ownership or permissions")
+    # Reconcile the private executable with the current image at every restart.
+    # Without this check a DEV11 binary survives a patched DEV12 image upgrade.
+    # Never log binary bytes, secrets or the private tunnel directory content.
+    vendor_hash = hashlib.sha256(vendor.read_bytes()).digest()
+    existing_hash = hashlib.sha256(target.read_bytes()).digest() if target.exists() else None
+    if existing_hash != vendor_hash:
         _atomic_private(target, vendor.read_bytes(), uid, 0o700)
     binary_info = target.stat()
     if not stat.S_ISREG(binary_info.st_mode) or binary_info.st_uid != uid or binary_info.st_mode & 0o077:
