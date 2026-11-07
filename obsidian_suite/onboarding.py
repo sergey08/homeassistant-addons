@@ -21,7 +21,7 @@ LEGACY = Path("/app_configs/obsidian_bridge")
 CSRF_TOKEN = secrets.token_urlsafe(32)
 MAX_REQUEST = 180000
 
-def collect_status(data=DATA, legacy=LEGACY):
+def collect_status(data=DATA, legacy=LEGACY, app_config=Path("/config")):
     base = legacy if (legacy / "vault").is_dir() else data
     try:
         options = json.loads((data / "options.json").read_text(encoding="utf-8"))
@@ -31,7 +31,7 @@ def collect_status(data=DATA, legacy=LEGACY):
         return path.is_file() and path.stat().st_size > 0
     tunnel = bool(options.get("enable_tunnel", False))
     try:
-        mode, vault, sync = select_storage(options, base / "vault", app_data=data)
+        mode, vault, sync = select_storage(options, base / "vault", app_config=app_config)
         vault_ready = vault.is_dir()
         vault_error = ""
         vault_location = str(vault.resolve(strict=False))
@@ -46,7 +46,7 @@ def collect_status(data=DATA, legacy=LEGACY):
         "vault_location": vault_location,
         "vault_origin": {
             "local": "Home Assistant share",
-            "local_default": "add-on private data",
+            "Local - default": "app public configuration",
         }.get(mode, "legacy app config" if base == legacy else "add-on private data"),
         "storage_mode": mode,
         "vault_error": vault_error,

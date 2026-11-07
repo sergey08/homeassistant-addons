@@ -19,7 +19,7 @@ The default configuration starts with **LiveSync selected but disabled**, and th
 | Configuration | What to do |
 |---|---|
 | Personal folder (`local`) | Enter the path to an existing folder under `/share` in **Personal folder path**. |
-| Default folder (`local_default`) | Select the mode. The app creates `/data/local-vault` with `Bienvenida.md` on first start. Backups that include the app include this folder. |
+| Default folder (`Local - default`) | Select the mode. The app creates `/config/local-vault` with `Bienvenida.md` on first start. Find it in Samba under `app_configs/<app-id>/local-vault`, where the app ID ends in `_obsidian_suite`. Backups that include the app include this folder. |
 
 Save and start or restart the app. To use the MCP from ChatGPT, configure and enable the private tunnel separately.
 

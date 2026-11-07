@@ -37,7 +37,7 @@ In **Home Assistant → Settings → Apps → Obsidian MCP for Home Assistant �
 |---|---|---|
 | `livesync` | Existing LiveSync vault | Enable LiveSync to synchronize with CouchDB |
 | `local` | Existing personal Markdown folder under `/share` | Enter its full path in `vault_path` |
-| `local_default` | `/data/local-vault`, included in backups that contain this app | Select the mode and start or restart the app |
+| `Local - default` | `/config/local-vault`, included in backups that contain this app | Select the mode and start or restart the app |
 
 Both local modes work without CouchDB and ignore the LiveSync switch. The ChatGPT tunnel is optional in all modes.
 
@@ -59,11 +59,11 @@ Select **Storage mode → local**, enter the existing directory in **Personal fo
 
 ### Option 3 — Default local folder
 
-Select **Storage mode → local_default**, then save and start or restart the app. It creates `/data/local-vault` with a bilingual `Bienvenida.md` on the first start. Future starts reuse your notes. Home Assistant includes this folder when the backup includes the app.
+Select **Storage mode → Local - default**, then save and start or restart the app. It creates `/config/local-vault` with a bilingual `Bienvenida.md` on the first start. Future starts reuse your notes. Over Samba, open the `app_configs` share, then the folder ending in `_obsidian_suite` and its `local-vault` subfolder. Home Assistant includes this folder when the backup includes the app.
 
 ### Switching modes safely
 
-- **LiveSync → Local:** back up your notes, select `local` and specify your existing folder, or select `local_default`, then save and restart. This does **not** move the LiveSync vault.
+- **LiveSync → Local:** back up your notes, select `local` and specify your existing folder, or select `Local - default`, then save and restart. This does **not** move the LiveSync vault.
 - **Local → LiveSync:** select `livesync`, clear `vault_path`, enable LiveSync and restart. The original synchronized vault and CouchDB settings are reused.
 - **Never run two add-ons using the same OpenAI tunnel ID simultaneously, nor two LiveSync writers on the same vault.** Stop the experimental instance before starting the production tunnel.
 - The add-on's **Configuration** tab is the source of truth for these settings; the Ingress page provides diagnostics, not another configuration form.

@@ -2,7 +2,7 @@
 
 ## 0.2.7
 
-- Added a default local mode with no path to configure. The app creates `/data/local-vault` with a bilingual welcome note and Home Assistant includes the folder in app backups. The existing personal-folder and LiveSync modes are still available.
+- Added a default local mode with no path to configure. The app creates `/config/local-vault` in its public app configuration folder with a bilingual welcome note. The vault is accessible through Samba and included in app backups. The existing personal-folder and LiveSync modes are still available.
 
 ## 0.2.6
 

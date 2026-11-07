@@ -13,6 +13,8 @@ ingress_entry: /
 boot: manual
 init: false
 map:
+  - type: app_config
+    read_only: false
   - type: all_app_configs
     read_only: false
   - type: share
@@ -31,5 +33,5 @@ schema:
   enable_livesync: bool
   livesync_interval: int(30,3600)
   vault_path: str
-  storage_mode: list(livesync|local|local_default)
+  storage_mode: list(livesync|local|Local - default)
   livesync_shared_vault_path: str

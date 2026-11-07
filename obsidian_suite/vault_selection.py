@@ -52,17 +52,17 @@ def initialize_local_vault(vault: Path) -> None:
 
 
 def select_storage(options: dict, default_vault: Path, shared_root: Path = Path("/share"),
-                   *, app_data: Path = Path("/data"), initialize_local: bool = False) -> tuple[str, Path, bool]:
+                   *, app_config: Path = Path("/config"), initialize_local: bool = False) -> tuple[str, Path, bool]:
     """Resolve mode and folder; never start LiveSync while in local mode.
 
     Missing mode preserves 0.2.2 behavior. The original enable_livesync
     option remains authoritative for installations that already use it.
     """
     mode = str(options.get("storage_mode", "livesync")).strip()
-    if mode not in ("livesync", "local", "local_default"):
+    if mode not in ("livesync", "local", "Local - default"):
         raise ValueError("Invalid storage_mode")
-    if mode == "local_default":
-        vault = app_data / "local-vault"
+    if mode == "Local - default":
+        vault = app_config / "local-vault"
         if initialize_local:
             initialize_local_vault(vault)
         return mode, vault, False

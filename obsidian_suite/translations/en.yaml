@@ -14,7 +14,7 @@ configuration:
 
   vault_path:
     name: Personal folder path
-    description: "Only for local mode (personal folder). Enter the path of an existing folder under /share."
+    description: "Only used in Local - choose folder. Enter an existing folder under /share."
   storage_mode:
     name: Storage mode
-    description: "livesync: synchronized with CouchDB. local: personal folder. local_default: default local folder, included in app backups."
+    description: "livesync uses LiveSync. local uses the folder you choose. Local - default uses the app folder, accessible via Samba and included in app backups."
