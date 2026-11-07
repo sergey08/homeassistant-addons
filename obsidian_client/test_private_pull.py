@@ -116,14 +116,14 @@ class PrivatePullTests(unittest.TestCase):
 
     def test_non_independent_storage_rejected(self):
         with patch("storage_selection.select_storage",
-                   return_value={"mode": "mcp_shared", "independent_of_mcp": False}), \\
+                   return_value={"mode": "mcp_shared", "independent_of_mcp": False}), \
              patch("server.read_encrypted_note") as fetch:
             response = self.pull()
         self.assertEqual(response.status_code, 409)
         fetch.assert_not_called()
 
     def test_metadata_failure_retains_new_copy_and_old_baseline(self):
-        with patch("server.read_encrypted_note", return_value=("remote", None)), \\
+        with patch("server.read_encrypted_note", return_value=("remote", None)), \
              patch("client_sync_baseline.advance_baseline",
                    side_effect=__import__("client_sync_baseline").BaselineError("test")):
             response = self.pull()
