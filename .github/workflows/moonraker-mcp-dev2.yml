@@ -547,3 +547,33 @@ jobs:
           path: moonraker-mcp-audit/alpine-source-integrity.json
           retention-days: 14
           if-no-files-found: error
+
+  readline-remote-integrity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch pinned Alpine Readline source recipe
+        run: |
+          set -eu
+          SHA=2235ae248c31ea48a9df764becdfecc2a85b4f31
+          mkdir -p /tmp/alpine-aports
+          git -C /tmp/alpine-aports init
+          git -C /tmp/alpine-aports remote add origin https://github.com/alpinelinux/aports.git
+          git -C /tmp/alpine-aports -c protocol.version=2 fetch --depth=1 --filter=blob:none origin "$SHA"
+          git -C /tmp/alpine-aports sparse-checkout init --cone
+          git -C /tmp/alpine-aports sparse-checkout set main/readline
+          git -C /tmp/alpine-aports checkout --detach FETCH_HEAD
+          test "$(git -C /tmp/alpine-aports rev-parse HEAD)" = "$SHA"
+      - name: Verify SHA512 of 13 upstream GNU patches without executing downloads
+        run: |
+          python3 moonraker_mcp/readline_patch_integrity.py \
+            /tmp/alpine-aports/main/readline/APKBUILD \
+            moonraker-mcp-audit/readline-remote-integrity.json
+      - name: Archive verified GNU patch provenance
+        uses: actions/upload-artifact@v4
+        with:
+          name: moonraker-mcp-readline-remote-integrity
+          path: moonraker-mcp-audit/readline-remote-integrity.json
+          retention-days: 14
+          if-no-files-found: error
