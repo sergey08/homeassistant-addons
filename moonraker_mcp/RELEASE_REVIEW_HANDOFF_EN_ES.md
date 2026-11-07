@@ -42,6 +42,8 @@ Para cada `bom-ref` del SBOM final:
 - Pendiente: comprobar visualmente que la ayuda localizada para `mcp_http_token` aparece en Home Assistant.
 - Repetir control final de opciones `enable_*`, puertos, red y comportamiento de impresora desconectada antes del release.
 
+**Acta para la prueba real de restauración:** [RECOVERY_ACCEPTANCE_RECORD_EN_ES.md](./RECOVERY_ACCEPTANCE_RECORD_EN_ES.md). Tiene nueve controles pendientes R1–R9 y campos de firma; no contiene credenciales y **no supone que el ensayo se haya ejecutado**.
+
 ## 5. Decisión de publicación / Release decision
 
 **NO PUBLICAR COMO ESTABLE** hasta que la revisión humana de licencias y la prueba/aceptación de recuperación de credenciales estén documentadas, la CI del SHA definitivo sea verde y exista autorización explícita del mantenedor para fusionar `main`, crear el tag/release `v0.1.0` y elegir distribución.
