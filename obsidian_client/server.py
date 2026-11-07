@@ -1412,9 +1412,7 @@ def readonly_manual_sync_plan():
     remote, error = read_encrypted_note(path, verify_revision=True)
     if error or not isinstance(remote, str):
         return jsonify(error="remote_snapshot_not_verified", read_only=True), 409
-    # The existing revision-verifying read contract establishes freshness.
-    # No _rev from that contract is exposed by this endpoint, and no remote
-    # candidate can be committed without a separate CAS snapshot in a future version.
+    # Verified read only: a future commit must obtain and compare actual _rev.
     try:
         with _local_save_lock:
             try:
@@ -1426,8 +1424,7 @@ def readonly_manual_sync_plan():
                     raise
             baseline = load_baseline(_PRIVATE_BASELINES, path)
             plan = decide_manual_sync(baseline, remote, local,
-                                      remote_verified=True,
-                                      remote_revision="verified-read-only-snapshot")
+                                      remote_verified=True)
     except (BaselineError, SyncBlocked, LocalVaultError):
         return jsonify(error="manual_sync_preflight_unavailable", read_only=True), 409
     response = jsonify(path=path, **plan, read_only=True,
