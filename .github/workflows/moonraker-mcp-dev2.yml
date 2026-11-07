@@ -193,7 +193,7 @@ jobs:
           set -eu
           python3 moonraker_mcp/security_release_gate.py moonraker-mcp-audit/trivy-results.json
 
-      - name: Generate CycloneDX inventory from actual DEV11 Docker image
+      - name: Generate CycloneDX inventory from actual DEV12 Docker image
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # full SHA, same reviewed scanner
         with:
           image-ref: moonraker-mcp:ci
@@ -288,7 +288,7 @@ jobs:
       - name: Retain signed-off candidate SBOM evidence for maintainer review
         uses: actions/upload-artifact@v4
         with:
-          name: moonraker-mcp-dev11-cyclonedx-sbom
+          name: moonraker-mcp-dev12-cyclonedx-sbom
           path: |
             moonraker-mcp-audit/sbom.cdx.json
             moonraker-mcp-audit/sbom-summary.json
@@ -322,7 +322,7 @@ jobs:
           '
           echo "Upstream license and NOTICE files included in redistribution"
 
-      - name: Verify official OpenAI tunnel-client v0.0.19 in Alpine (offline runtime)
+      - name: Regression-test legacy official OpenAI tunnel-client v0.0.19 provisioning (offline; not shipped)
         run: |
           set -eu
           tmpdir="$(mktemp -d)"
@@ -345,7 +345,7 @@ jobs:
           docker run --rm --network none -v "$tmpdir:/data:ro" \
             --entrypoint su-exec moonraker-mcp:ci 65534:65534 \
             /data/tunnel/bin/tunnel-client --version
-          echo "Official v0.0.19 executable verified and launched on Alpine without OpenAI or printer connectivity"
+          echo "Legacy v0.0.19 archive accepted by isolated offline migration test; DEV12 ships source-built patched v0.0.20"
 
       - name: Refuse insecure tunnel startup before opening any listener
         run: |
