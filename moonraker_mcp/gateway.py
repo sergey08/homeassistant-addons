@@ -54,6 +54,7 @@ LOCAL_FILE_TOOLS = {
 }
 SAFE_HEADER_VALUE = re.compile(r"^[A-Za-z0-9._-]{1,128}$")
 SUPPORTED_PROTOCOL_VERSIONS = frozenset(("2025-03-26", "2025-06-18"))
+ADDON_VERSION = "0.1.0-dev12"
 MODERN_PROTOCOL = "2026-07-28"
 # A newer client may propose 2025-11-25 during initialize. Negotiate back
 # to the upstream-compatible 2025-06-18; do not claim 2025-11-25 support.
@@ -118,7 +119,7 @@ def modern_discovery(request):
         "supportedVersions": [MODERN_PROTOCOL],
         "capabilities": {"tools": {}},
         "_meta": {"io.modelcontextprotocol/serverInfo": {
-            "name": "moonraker-mcp-gateway", "version": "0.1.0-dev12"}},
+            "name": "moonraker-mcp-gateway", "version": ADDON_VERSION}},
         "ttlMs": 0,
         "cacheScope": "private",
     }}
@@ -327,7 +328,7 @@ def initialize_legacy_upstream(upstream_url, token):
                "params": {"protocolVersion": "2025-06-18",
                           "capabilities": {},
                           "clientInfo": {"name": "moonraker-mcp-compat",
-                                         "version": "0.1.0-dev7"}}}
+                                         "version": ADDON_VERSION}}}
     req = urllib.request.Request(upstream_url, data=json.dumps(initial).encode(),
                                  headers=headers)
     with UPSTREAM_OPENER.open(req, timeout=12) as response:
