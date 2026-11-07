@@ -271,7 +271,7 @@ No utiliza Obsidian MCP. Las consultas son de solo lectura; la importación modi
 <p><button id="load" type="button">Consultar notas en CouchDB</button>
 <span id="status" role="status" aria-live="polite"></span></p>
 <ul id="notes"></ul><h2 id="selected-title"></h2><pre id="content"></pre>
-<p id="edit-action" hidden><a id="edit-link" href="#">Abrir editor Markdown (copia local independiente)</a> <button id="compare-local" type="button">Comparar con copia local</button> <button id="show-diff" type="button" hidden>Ver diferencias línea a línea</button> <button id="import-private" type="button" hidden>Importar copia privada</button></p>
+<p id="edit-action" hidden><a id="edit-link" href="#">Abrir editor Markdown (copia local independiente)</a> <button id="compare-local" type="button">Comparar con copia local</button> <button id="show-diff" type="button" hidden>Ver diferencias línea a línea</button> <button id="advance-baseline" type="button" hidden>Confirmar versión común</button> <button id="import-private" type="button" hidden>Importar copia privada</button></p>
 <p id="comparison-result" role="status" aria-live="polite"></p><pre id="diff-result" hidden style="white-space:pre-wrap;overflow-wrap:anywhere"></pre>
 <p>El editor guarda una copia local privada. No modifica CouchDB ni sincroniza las notas.</p>
 <p><a href="../">Volver / Back</a></p>
@@ -286,6 +286,7 @@ const editLink=document.getElementById("edit-link");
 const compareButton=document.getElementById("compare-local");
 const importButton=document.getElementById("import-private");
 const diffButton=document.getElementById("show-diff");
+const advanceButton=document.getElementById("advance-baseline");
 const diffResult=document.getElementById("diff-result");
 const comparisonResult=document.getElementById("comparison-result");
 let selectionVersion=0;
@@ -303,7 +304,7 @@ async function preview(path){
 button.addEventListener("click",async()=>{
   selectionVersion++;
   button.disabled=true;list.replaceChildren();title.textContent="";content.textContent="";
-  editAction.hidden=true;editLink.removeAttribute("href");importButton.hidden=true;diffButton.hidden=true;diffResult.hidden=true;diffResult.textContent="";comparisonResult.textContent="";
+  editAction.hidden=true;editLink.removeAttribute("href");importButton.hidden=true;diffButton.hidden=true;advanceButton.hidden=true;diffResult.hidden=true;diffResult.textContent="";comparisonResult.textContent="";
   status.textContent="Consultando CouchDB…";
   try{
     const data=await preview();
@@ -314,7 +315,7 @@ button.addEventListener("click",async()=>{
       control.addEventListener("click",async()=>{
         const currentSelection=++selectionVersion;
         title.textContent=path;content.textContent="Cargando…";
-        editAction.hidden=true;editLink.removeAttribute("href");importButton.hidden=true;diffButton.hidden=true;diffResult.hidden=true;diffResult.textContent="";comparisonResult.textContent="";
+        editAction.hidden=true;editLink.removeAttribute("href");importButton.hidden=true;diffButton.hidden=true;advanceButton.hidden=true;diffResult.hidden=true;diffResult.textContent="";comparisonResult.textContent="";
         try{
           const note=await preview(path);
           if(currentSelection!==selectionVersion)return;
@@ -341,6 +342,25 @@ button.addEventListener("click",async()=>{
                     diffResult.textContent=changes.different?(changes.diff+(changes.truncated?"\\n[Vista parcial: diferencias truncadas]":"")):"Sin diferencias línea a línea.";
                   }catch(error){if(currentSelection===selectionVersion)diffResult.textContent="No se pudo comparar: "+error.message;}
                   finally{diffButton.disabled=false;}
+                };
+              }
+              advanceButton.hidden=!(data.sync_state==="same_result_both_changed"&&data.baseline_available===true&&data.remote_write_enabled===false);
+              if(!advanceButton.hidden){
+                advanceButton.onclick=async()=>{
+                  if(currentSelection!==selectionVersion)return;
+                  if(!confirm("Ambas copias son idénticas. ¿Registrar esta nueva versión común sin cambiar ninguna nota?"))return;
+                  advanceButton.disabled=true;
+                  try{
+                    const response=await fetch("../api/remote/advance-baseline",{method:"POST",credentials:"same-origin",
+                      headers:{"Content-Type":"application/json","X-Obsidian-Client-Action":"advance-baseline"},
+                      body:JSON.stringify({path:path,expected_baseline_sha256:data.baseline_sha256,expected_content_sha256:data.remote_sha256})});
+                    const advance=await response.json();
+                    if(currentSelection!==selectionVersion)return;
+                    if(!response.ok)throw Error(advance.error||"baseline_advance_failed");
+                    advanceButton.hidden=true;
+                    comparisonResult.textContent="Nueva línea base registrada y versión anterior respaldada. Notas sin cambios.";
+                  }catch(error){if(currentSelection===selectionVersion)comparisonResult.textContent="No se pudo registrar: "+error.message;}
+                  finally{advanceButton.disabled=false;}
                 };
               }
               importButton.hidden=!(data.state==="remote_only"&&data.baseline_available===false&&data.remote_write_enabled===false);
@@ -1420,8 +1440,8 @@ def compare_local_and_remote():
     except BaselineError:
         return jsonify(error="baseline_unavailable", read_only=True), 409
     result = compare_note_contents(remote, local)
-    response = jsonify(path=path, **result, **lineage, read_only=True,
-                       remote_write_enabled=False)
+    response = jsonify(path=path, **result, **lineage, baseline_sha256=baseline,
+                       read_only=True, remote_write_enabled=False)
     response.headers["Cache-Control"] = "no-store"
     return response
 
