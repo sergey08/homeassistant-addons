@@ -78,6 +78,7 @@ def write_safety_status(config):
         "isolated_tests": "run_in_github_actions",
         "isolated_commit_recovery": "manual_inspection_required_on_ambiguous_results",
         "multichunk_readonly_audit": "isolated_tests_only",
+        "isolated_multichunk_cas": "leaf_readback_before_parent_cas_test_only",
         "orphan_cleanup_enabled": False,
         "production_blockers": [
             "live_wire_format_variants_not_exhaustively_validated",

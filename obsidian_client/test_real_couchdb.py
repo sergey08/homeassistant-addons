@@ -264,5 +264,89 @@ class RealCouchDBIntegrationTests(unittest.TestCase):
                 self.assertEqual(call(base, "DELETE")[0], 200)
 
 
+    def test_multichunk_readback_then_parent_cas_in_disposable_database(self):
+        """All encrypted leaves must be readable before existing parent CAS."""
+        from livesync_crypto import encrypt_hkdf_string
+        from livesync_encrypted_metadata_fixture import encode_parent_metadata_fixture
+        from livesync_isolated_multichunk_commit import commit_isolated_multichunk_plan
+        from livesync_multichunk_audit import assemble_encrypted_chunks
+        root = os.environ["TEST_COUCHDB_URL"].rstrip("/")
+        self.assertIn(root, ("http://127.0.0.1:5984", "http://localhost:5984"))
+        user = os.environ.get("TEST_COUCHDB_USER", "")
+        password = os.environ.get("TEST_COUCHDB_PASSWORD", "")
+        self.assertTrue(user and password)
+        auth = "Basic " + base64.b64encode(f"{user}:{password}".encode()).decode()
+        base = root + "/obsidian_multichunk_cas_ci_" + uuid.uuid4().hex
+        phrase = "isolated-ci-multichunk"
+        salt = base64.b64encode(b"isolated-ci-multichunk-salt").decode()
+        note_path = "Tests/Multi.md"
+        parent_id = "synthetic-parent"
+        parts = ("Hola ", "mundo 🌍", "\\n")
+        ids = ["h:+disposable" + str(i) for i in range(len(parts))]
+
+        def call(doc_id=None, method="GET", payload=None):
+            url = base + ("/" + quote(doc_id, safe="") if doc_id is not None else "")
+            request = Request(url, method=method,
+                data=json.dumps(payload).encode("utf-8") if payload is not None else None,
+                headers={"Authorization": auth, "Content-Type": "application/json"})
+            with urlopen(request, timeout=8) as response:
+                return response.status, json.load(response)
+
+        created = False
+        try:
+            self.assertEqual(call(method="PUT")[0], 201)
+            created = True
+            original_meta = encode_parent_metadata_fixture(
+                note_path, ["h:+prior"], phrase, salt,
+                ctime=100, mtime=100, size=5)
+            original = {"_id": parent_id, "type": "plain",
+                        "path": original_meta["path"], "children": [],
+                        "ctime": 0, "mtime": 0, "size": 0}
+            self.assertEqual(call(parent_id, "PUT", original)[0], 201)
+            _, stored = call(parent_id)
+            meta = encode_parent_metadata_fixture(
+                note_path, ids, phrase, salt, ctime=100, mtime=200,
+                size=len("".join(parts).encode("utf-8")))
+            leaves = [
+                {"_id": ident, "type": "leaf", "e_": True,
+                 "data": encrypt_hkdf_string(part, phrase, salt)}
+                for ident, part in zip(ids, parts)]
+            parent = {**stored, "path": meta["path"], "children": [],
+                      "ctime": 0, "mtime": 0, "size": 0}
+            plan = {"write_supported": False, "path": note_path,
+                    "leaves": leaves, "parent": parent,
+                    "expected_parent_revision": stored["_rev"]}
+            sequence = []
+
+            def put(doc):
+                sequence.append(("put", doc["_id"]))
+                try:
+                    return call(doc["_id"], "PUT", doc)
+                except HTTPError as exc:
+                    return exc.code, {"error": "conflict"}
+
+            def read(doc_id):
+                sequence.append(("get", doc_id))
+                return call(doc_id)[1]
+
+            committed = commit_isolated_multichunk_plan(
+                plan, put, read, phrase, salt, isolated_test=True)
+            self.assertEqual(committed["confirmed_chunks"], 3)
+            self.assertEqual(sequence, [
+                item for ident in ids for item in (("put", ident), ("get", ident))]
+                + [("put", parent_id)])
+            _, final_parent = call(parent_id)
+            final_leaves = {ident: call(ident)[1] for ident in ids}
+            restored = assemble_encrypted_chunks(
+                final_parent, final_leaves, note_path,
+                final_parent["_rev"], phrase, salt)
+            self.assertEqual(restored["content"], "".join(parts))
+            self.assertEqual(restored["chunks"], 3)
+            self.assertNotEqual(final_parent["_rev"], stored["_rev"])
+        finally:
+            if created:
+                self.assertEqual(call(method="DELETE")[0], 200)
+
+
 if __name__ == "__main__":
     unittest.main()
