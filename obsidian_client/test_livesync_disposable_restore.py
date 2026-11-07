@@ -1,8 +1,13 @@
 """Disposable backup recovery: no revision overwrites and leaf-first only."""
+import json
+import tempfile
 import unittest
 from copy import deepcopy
+from pathlib import Path
+from unittest.mock import Mock
 from test_livesync_isolated_backup import fixture, PASS, SALT, REV, PATH
-from livesync_isolated_backup import create_verified_snapshot, BackupRejected
+from livesync_isolated_backup import BackupRejected, _checksum, create_verified_snapshot
+from livesync_isolated_backup_store import store_signed_backup
 from livesync_disposable_restore import (
     restore_to_empty_disposable_database, DisposableRestoreError)
 from livesync_write_preflight import UnsafeWrite
@@ -40,12 +45,19 @@ class RestoreTests(unittest.TestCase):
         self.backup = create_verified_snapshot(
             parent, leaves, PATH, REV, PASS, SALT,
             isolated_test=True)["backup"]
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.root = Path(tmp.name) / "backups"
+        self.key = bytes(range(32))
+        self.backup_id = store_signed_backup(
+            self.root, self.backup, self.key, isolated_test=True)["backup_id"]
         self.db = FakeEmptyDB()
 
-    def restore(self, **kwargs):
+    def restore(self):
         return restore_to_empty_disposable_database(
-            self.backup, self.db.list_ids, self.db.read, self.db.put,
-            PASS, SALT, isolated_test=True, disposable_database=True, **kwargs)
+            self.root, self.backup_id, self.key,
+            self.db.list_ids, self.db.read, self.db.put, PASS, SALT,
+            isolated_test=True, disposable_database=True)
 
     def test_restores_new_revisions_and_verified_content(self):
         result = self.restore()
@@ -98,7 +110,8 @@ class RestoreTests(unittest.TestCase):
 
         with self.assertRaises(DisposableRestoreError) as error:
             restore_to_empty_disposable_database(
-                self.backup, self.db.list_ids, self.db.read, competing_put,
+                self.root, self.backup_id, self.key,
+                self.db.list_ids, self.db.read, competing_put,
                 PASS, SALT, isolated_test=True, disposable_database=True)
         self.assertEqual(error.exception.phase, "leaf_uncertain")
         self.assertEqual(self.db.docs[leaf_id]["data"], "%=other-writer")
@@ -117,17 +130,29 @@ class RestoreTests(unittest.TestCase):
 
         with self.assertRaises(DisposableRestoreError) as error:
             restore_to_empty_disposable_database(
-                self.backup, self.db.list_ids, self.db.read, lost_ack,
+                self.root, self.backup_id, self.key,
+                self.db.list_ids, self.db.read, lost_ack,
                 PASS, SALT, isolated_test=True, disposable_database=True)
         self.assertEqual(error.exception.phase, "parent_uncertain")
         self.assertEqual(self.db.puts.count(parent_id), 1)
         self.assertIn(parent_id, self.db.docs)
 
-    def test_tampered_backup_rejected_without_puts(self):
-        self.backup["snapshot"]["leaves"][0]["data"] = "%=tampered"
-        with self.assertRaisesRegex(BackupRejected, "backup_checksum_mismatch"):
-            self.restore()
-        self.assertEqual(self.db.puts, [])
+    def test_recomputed_checksum_cannot_bypass_backup_authentication(self):
+        path = self.root / (self.backup_id + ".json")
+        record = json.loads(path.read_text(encoding="utf-8"))
+        backup = record["backup"]
+        # Alter a valid historical revision without changing any ciphertext.
+        backup["snapshot"]["leaves"][0]["_rev"] = "99-" + "f" * 32
+        backup["sha256"] = _checksum(backup["snapshot"])
+        path.write_text(json.dumps(record), encoding="utf-8")
+
+        target = Mock()
+        with self.assertRaisesRegex(BackupRejected, "backup_authentication_failed"):
+            restore_to_empty_disposable_database(
+                self.root, self.backup_id, self.key,
+                target.list_ids, target.read, target.put, PASS, SALT,
+                isolated_test=True, disposable_database=True)
+        self.assertEqual(target.mock_calls, [])
 
     def test_no_production_or_unqualified_recovery(self):
         for kwargs in (
@@ -137,8 +162,8 @@ class RestoreTests(unittest.TestCase):
              "remote_writes_enabled": True}):
             with self.assertRaisesRegex(UnsafeWrite, "disposable_restore_only"):
                 restore_to_empty_disposable_database(
-                    self.backup, self.db.list_ids, self.db.read, self.db.put,
-                    PASS, SALT, **kwargs)
+                    self.root, self.backup_id, self.key,
+                    self.db.list_ids, self.db.read, self.db.put, PASS, SALT, **kwargs)
         self.assertEqual(self.db.puts, [])
 
 

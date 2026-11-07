@@ -939,7 +939,7 @@ jobs:
                       print("Official CLI decoded obfuscated CAS update; stale revision rejected")
                       # Restore a verified, encrypted backup into a SECOND disposable DB.
                       from livesync_isolated_backup import create_verified_snapshot
-                      from livesync_isolated_backup_store import store_signed_backup,read_signed_backup
+                      from livesync_isolated_backup_store import store_signed_backup
                       from livesync_disposable_restore import restore_to_empty_disposable_database
                       def get_original(doc_id):
                           req=urllib.request.Request(obfuscated_url+"/"+quote(doc_id,safe=""),headers={"Authorization":auth})
@@ -951,12 +951,6 @@ jobs:
                           verified_parent,{updated_leaf["_id"]:verified_leaf},python_path,
                           verified_parent["_rev"],config["livesync_e2ee_passphrase"],
                           obfuscated_salt,isolated_test=True)["backup"]
-                      with tempfile.TemporaryDirectory() as backup_dir:
-                          key=bytes(range(32))
-                          save=store_signed_backup(str(pathlib.Path(backup_dir)/"records"),
-                                                   backup,key,isolated_test=True)
-                          backup=read_signed_backup(str(pathlib.Path(backup_dir)/"records"),
-                                                    save["backup_id"],key,isolated_test=True)["backup"]
                       restore_name=obfuscated_db_name+"_restored"
                       restore_url=root+"/"+restore_name
                       with urllib.request.urlopen(urllib.request.Request(
@@ -987,11 +981,20 @@ jobs:
                                       return response.status,json.load(response)
                               except urllib.error.HTTPError as error:
                                   return error.code,{"error":"conflict"}
-                          restored=restore_to_empty_disposable_database(
-                              backup,target_ids,target_get,target_put,
-                              config["livesync_e2ee_passphrase"],obfuscated_salt,
-                              isolated_test=True,disposable_database=True)
+                          with tempfile.TemporaryDirectory() as backup_dir:
+                              backup_root=pathlib.Path(backup_dir)/"records"
+                              key=bytes(range(32))
+                              save=store_signed_backup(backup_root,backup,key,isolated_test=True)
+                              restored=restore_to_empty_disposable_database(
+                                  backup_root,save["backup_id"],key,target_ids,target_get,target_put,
+                                  config["livesync_e2ee_passphrase"],obfuscated_salt,
+                                  isolated_test=True,disposable_database=True)
                           assert restored["confirmed_leaves"]==1
+                          # A populated database needs the LiveSync version marker.
+                          # Seed it from the CLI fixture after testing the empty restore.
+                          version=get_original("obsydian_livesync_version")
+                          version.pop("_rev",None)
+                          assert target_put(version)[0]==201
                           params_req=urllib.request.Request(
                               obfuscated_url+"/_local/obsidian_livesync_sync_parameters",
                               headers={"Authorization":auth})
@@ -1017,19 +1020,20 @@ jobs:
                                                     capture_output=True,text=True,timeout=90)
                               if result.returncode:
                                   import re
+                                  diagnostics=result.stdout+"\n"+result.stderr
                                   categories=re.findall(
-                                      r"\\[HA_SYNC_STATUS\\] status=[A-Za-z0-9_-]{1,64} reason=[A-Za-z0-9_-]{1,64}",
-                                      result.stderr)
+                                      r"\[HA_SYNC_STATUS\] status=[A-Za-z0-9_-]{1,64} reason=[A-Za-z0-9_-]{1,64}",
+                                      diagnostics)
                                   failures=re.findall(
-                                      r"\\[HA_FETCH_FAILURE\\] type=[A-Za-z0-9_-]{1,40} code=[A-Za-z0-9_-]{1,40} detail=[A-Za-z0-9_-]{1,40} cause=[A-Za-z0-9_-]{1,40} origin=[A-Za-z0-9_-]{1,40}",
-                                      result.stderr)
+                                      r"\[HA_FETCH_FAILURE\] type=[A-Za-z0-9_-]{1,40} code=[A-Za-z0-9_-]{1,40} detail=[A-Za-z0-9_-]{1,40} cause=[A-Za-z0-9_-]{1,40} origin=[A-Za-z0-9_-]{1,40}",
+                                      diagnostics)
                                   print("Disposable restored CLI sync status tokens:",categories[-3:])
                                   print("Disposable restored CLI failure tokens:",failures[-3:])
                                   print("Disposable restored CLI diagnostic flags:",{
-                                      "encryption":bool(re.search("decrypt|encrypt|salt",result.stderr,re.I)),
-                                      "revision":bool(re.search("revision|conflict",result.stderr,re.I)),
-                                      "remote":bool(re.search("remote|replication",result.stderr,re.I)),
-                                      "network":bool(re.search("fetch failed|connection",result.stderr,re.I))})
+                                      "encryption":bool(re.search("decrypt|encrypt|salt",diagnostics,re.I)),
+                                      "revision":bool(re.search("revision|conflict",diagnostics,re.I)),
+                                      "remote":bool(re.search("remote|replication",diagnostics,re.I)),
+                                      "network":bool(re.search("fetch failed|connection",diagnostics,re.I))})
                               assert result.returncode==0,"Official CLI failed syncing restored backup"
                               result=subprocess.run(["node",cli,restored_cli,"cat",python_path],
                                                     capture_output=True,text=True,timeout=45)
