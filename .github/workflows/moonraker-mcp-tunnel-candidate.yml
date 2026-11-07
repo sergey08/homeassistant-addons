@@ -38,8 +38,16 @@ jobs:
           docker cp "$cid:/usr/local/bin/mcp-raker" /tmp/mcp-raker-source
           go version -m /tmp/tunnel-source-client > /tmp/tunnel-source-modules
           go version -m /tmp/mcp-raker-source > /tmp/mcp-raker-source-modules
+          echo "Tunnel client embedded dependencies:"
+          cat /tmp/tunnel-source-modules
+          echo "MCP server embedded dependencies:"
+          cat /tmp/mcp-raker-source-modules
           grep -Eq 'golang.org/x/net[[:space:]]+v0.62.0' /tmp/tunnel-source-modules
-          grep -Eq 'golang.org/x/net[[:space:]]+v0.62.0' /tmp/mcp-raker-source-modules
+          # A module which is absent from a final binary is not a failure.
+          # If present, it must not use the previously vulnerable version.
+          if grep -Eq 'golang.org/x/net[[:space:]]+' /tmp/mcp-raker-source-modules; then
+            grep -Eq 'golang.org/x/net[[:space:]]+v0.62.0' /tmp/mcp-raker-source-modules
+          fi
           ! grep -Eq 'golang.org/x/net[[:space:]]+v0.60.0' /tmp/tunnel-source-modules
           docker run --rm --platform linux/${{ matrix.architecture }} --network none \
             --entrypoint /opt/moonraker-mcp/vendor/tunnel-client "$image" --version
