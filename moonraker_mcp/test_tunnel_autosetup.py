@@ -97,6 +97,48 @@ class TunnelAutoSetupTests(unittest.TestCase):
         provision_from_options(self.root, self.vendor, self.uid)
         self.assertNotIn(b"first-secret", self.key.read_bytes())
 
+    def test_synthetic_backup_restore_requires_key_rotation_again(self):
+        """An old backup can restore a revoked-looking credential; re-provision fresh."""
+        import shutil
+        self.settings("synthetic-old-restricted-key-123")
+        provision_from_options(self.root, self.vendor, self.uid)
+
+        with tempfile.TemporaryDirectory() as staged:
+            backup = Path(staged) / "backup"
+            shutil.copytree(self.root / "tunnel", backup, symlinks=True)
+            self.settings("synthetic-rotated-restricted-key-456")
+            provision_from_options(self.root, self.vendor, self.uid)
+            self.assertEqual(self.key.read_bytes(), b"synthetic-rotated-restricted-key-456")
+
+            # Emulate restoration of only the private tunnel directory.
+            # This is NOT an actual Home Assistant Supervisor restore test.
+            shutil.rmtree(self.root / "tunnel")
+            shutil.copytree(backup, self.root / "tunnel", symlinks=True)
+            self.assertEqual(self.key.read_bytes(), b"synthetic-old-restricted-key-123")
+            # A protected HA option carrying a NEW key must replace backup data.
+            self.settings("synthetic-recovery-restricted-key-789")
+            provision_from_options(self.root, self.vendor, self.uid)
+            self.assertEqual(self.key.read_bytes(), b"synthetic-recovery-restricted-key-789")
+            self.assertEqual(stat.S_IMODE(self.key.stat().st_mode), 0o600)
+            self.assertEqual(stat.S_IMODE(self.binary.stat().st_mode), 0o700)
+
+    def test_synthetic_restore_with_empty_key_keeps_stale_credential(self):
+        """Document compatibility risk: blank option is NOT revocation."""
+        import shutil
+        self.settings("synthetic-previous-restricted-key-123")
+        provision_from_options(self.root, self.vendor, self.uid)
+        with tempfile.TemporaryDirectory() as staged:
+            backup = Path(staged) / "backup"
+            shutil.copytree(self.root / "tunnel", backup)
+            self.settings("synthetic-current-restricted-key-456")
+            provision_from_options(self.root, self.vendor, self.uid)
+            shutil.rmtree(self.root / "tunnel")
+            shutil.copytree(backup, self.root / "tunnel")
+            self.settings("")
+            provision_from_options(self.root, self.vendor, self.uid)
+            self.assertEqual(self.key.read_bytes(), b"synthetic-previous-restricted-key-123")
+            # A provider-side revocation is still necessary.
+
     def test_symlinked_options_refused(self):
         payload = self.root / "payload.json"
         payload.write_text(json.dumps({"openai_tunnel_api_key": "fake-key-123456"}))
