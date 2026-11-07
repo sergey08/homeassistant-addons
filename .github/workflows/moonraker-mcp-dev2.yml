@@ -580,3 +580,24 @@ jobs:
           path: moonraker-mcp-audit/readline-remote-integrity.json
           retention-days: 14
           if-no-files-found: error
+
+  # Network-intensive source archive checks are explicit, not part of routine
+  # code CI. An unavailable remote host must not be reported as a PASS.
+  alpine-remote-source-integrity:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify the 11 externally hosted source archives and netbase files
+        run: |
+          python3 moonraker_mcp/alpine_remote_source_integrity.py \
+            moonraker_mcp/alpine-external-sources-pending.json \
+            moonraker-mcp-audit/alpine-remote-source-integrity.json
+      - name: Retain successful remote checksum evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: moonraker-mcp-alpine-remote-source-integrity
+          path: moonraker-mcp-audit/alpine-remote-source-integrity.json
+          retention-days: 14
+          if-no-files-found: error
