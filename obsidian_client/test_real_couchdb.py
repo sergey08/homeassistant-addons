@@ -415,7 +415,10 @@ class RealCouchDBIntegrationTests(unittest.TestCase):
     def test_legacy_signed_snapshot_restores_into_empty_disposable_couchdb(self):
         self._check_signed_snapshot_restore(schema=1)
 
-    def _check_signed_snapshot_restore(self, schema):
+    def test_concurrent_leaf_creation_stops_disposable_restore(self):
+        self._check_signed_snapshot_restore(schema=2, concurrent_create=True)
+
+    def _check_signed_snapshot_restore(self, schema, *, concurrent_create=False):
         """Restore a signed snapshot into a new disposable CouchDB database."""
         import tempfile
         from pathlib import Path
@@ -423,7 +426,8 @@ class RealCouchDBIntegrationTests(unittest.TestCase):
         from livesync_encrypted_metadata_fixture import encode_parent_metadata_fixture
         from livesync_isolated_backup import BackupRejected, _checksum, create_verified_snapshot
         from livesync_isolated_backup_store import store_signed_backup
-        from livesync_disposable_restore import restore_to_empty_disposable_database
+        from livesync_disposable_restore import (
+            DisposableRestoreError, restore_to_empty_disposable_database)
         from livesync_multichunk_audit import assemble_encrypted_chunks
         from livesync_write_preflight import UnsafeWrite
         root = os.environ["TEST_COUCHDB_URL"].rstrip("/")
@@ -504,6 +508,34 @@ class RealCouchDBIntegrationTests(unittest.TestCase):
                 key = bytes(range(32))
                 backup_id = store_signed_backup(
                     backup_root, backup, key, isolated_test=True)["backup_id"]
+                if concurrent_create:
+                    leaf_id = leaf_ids[0]
+                    competitor = {**leaves[0], "concurrent_writer": True}
+                    attempts = []
+                    created_by_competitor = {}
+
+                    def competing_put(doc):
+                        if not attempts:
+                            self.assertEqual(doc["_id"], leaf_id)
+                            status, response = call(target, leaf_id, "PUT", competitor)
+                            self.assertEqual(status, 201)
+                            created_by_competitor.update(competitor, _rev=response["rev"])
+                        status, response = put_doc(doc)
+                        attempts.append((doc["_id"], status))
+                        return status, response
+
+                    with self.assertRaises(DisposableRestoreError) as error:
+                        restore_to_empty_disposable_database(
+                            backup_root, backup_id, key,
+                            list_ids, read_doc, competing_put, phrase, salt,
+                            isolated_test=True, disposable_database=True)
+                    self.assertEqual(error.exception.phase, "leaf_uncertain")
+                    self.assertEqual(attempts, [(leaf_id, 409)])
+                    self.assertEqual(list_ids(), [leaf_id])
+                    self.assertEqual(read_doc(leaf_id), created_by_competitor)
+                    self.assertIsNone(read_doc(parent["_id"]))
+                    return
+
                 stored_record = (backup_root / (backup_id + ".json")).read_text(
                     encoding="utf-8")
                 saved_backup = json.loads(stored_record)["backup"]
