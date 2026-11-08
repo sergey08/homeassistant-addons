@@ -18,7 +18,7 @@ MAX_BYTES = 2 * 1024 * 1024
 CHECKSUM_PATTERN = re.compile(r"^([0-9a-f]{128})\s+(readline82-(\d{3})\.patch)$", re.M)
 
 
-def audit(recipe_path):
+def audit(recipe_path, retain_dir=None):
     text = recipe_path.read_text(encoding="utf-8")
     if "pkgver=8.2.13" not in text or "pkgrel=1" not in text:
         raise ValueError("Unexpected pinned Readline version")
@@ -29,6 +29,8 @@ def audit(recipe_path):
     if len(matches) != PATCH_COUNT:
         raise ValueError(f"Expected 13 upstream patches, got {len(matches)}")
     verified = []
+    if retain_dir is not None:
+        retain_dir.mkdir(parents=True, exist_ok=True)
     for index, (expected, filename, num) in enumerate(matches, 1):
         if int(num) != index:
             raise ValueError(f"Unexpected patch order: {filename}")
@@ -43,6 +45,10 @@ def audit(recipe_path):
         actual = hashlib.sha512(data).hexdigest()
         if actual != expected:
             raise ValueError(f"SHA-512 mismatch: {filename}")
+        if retain_dir is not None:
+            dest = retain_dir / filename
+            with dest.open("xb") as fd:
+                fd.write(data)
         verified.append({"name": filename, "sha512": actual, "url": url, "bytes": len(data)})
     return {
         "scope": "GNU_READLINE_8_2_PATCHES_ONLY",
@@ -59,9 +65,11 @@ def main():
     p = argparse.ArgumentParser()
     p.add_argument("recipe", type=Path)
     p.add_argument("report", type=Path)
+    p.add_argument("--retain-dir", type=Path, default=None,
+                   help="Save bytes only after exact SHA-512 verification")
     args = p.parse_args()
     try:
-        report = audit(args.recipe)
+        report = audit(args.recipe, retain_dir=args.retain_dir)
         args.report.parent.mkdir(parents=True, exist_ok=True)
         args.report.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     except (ValueError, OSError, TimeoutError) as exc:
