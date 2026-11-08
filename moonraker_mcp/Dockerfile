@@ -74,6 +74,8 @@ COPY tunnel_provision.py /opt/moonraker-mcp/tunnel_provision.py
 COPY tunnel_autosetup.py /opt/moonraker-mcp/tunnel_autosetup.py
 # Bundle upstream copyright/license notices with redistributed ELF binaries.
 COPY licenses/ /usr/share/doc/moonraker-mcp/licenses/
+# Bundle human-readable attribution/source-access guidance with the image.
+COPY THIRD_PARTY_NOTICES_EN_ES.md THIRD_PARTY_SOURCE_ACCESS_EN_ES.md /usr/share/doc/moonraker-mcp/
 COPY gateway.py tool_policy.py moonraker_files.py moonraker_status.py read_only_allowlist.json /opt/moonraker-mcp/
 RUN chmod 755 /run.sh && mkdir -p /data && chown 65534:65534 /data
 # HA Supervisor keeps /data/options.json readable only by root. The small
