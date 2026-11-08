@@ -7,6 +7,7 @@ import csv
 import json
 from collections import defaultdict
 from pathlib import Path
+from urllib.parse import unquote
 
 
 def _load_rows(path, required):
@@ -46,13 +47,13 @@ def reconcile(pending, go_rows, alpine_rows):
             if r.get("source_status") == "SOURCE_LICENSE_FILES_FOUND"
             and r.get("license_file") and r.get("license_sha256")
         })
-        # An APK PURL may contain namespace qualifiers; use exact encoded name/version
-        # only when a unique, unambiguous package/version occurs.
+        # Percent-encoded PURL names (e.g. libstdc%2B%2B) must match their
+        # decoded APK package names without broad substring matching.
         apk_hints = []
+        apk_name_version = unquote(ref.split("?", 1)[0].rsplit("/", 1)[-1]) if ref.startswith("pkg:apk/") else ""
         for (name, version), candidates in apk.items():
             if (name and version and len(candidates) == 1
-                    and ref.startswith("pkg:apk/")
-                    and ("/" + name + "@" + version) in ref.split("?", 1)[0]):
+                    and apk_name_version == name + "@" + version):
                 apk_hints.append({
                     "package": name,
                     "version": version,
