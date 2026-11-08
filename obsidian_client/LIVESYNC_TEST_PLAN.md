@@ -20,6 +20,21 @@ Our existing `test_real_couchdb.py` writes *synthetic CouchDB documents*. It val
 - Tests use an isolated database and do not modify a personal vault.
 - The user-facing app remains independent from Obsidian MCP.
 
+### Reproduce the isolated backup and restore test
+
+1. In GitHub Actions, open [Tests / Pruebas](https://github.com/sergey08/homeassistant-addons/actions/workflows/obsidian-client-tests.yml), select **Run workflow** and choose the branch or tag to validate. The `Isolated CouchDB / CouchDB aislado` job starts CouchDB 3.4 on the runner and uses synthetic notes and test credentials.
+2. Open **Encrypted CLI replication against disposable CouchDB**. The test stores an HMAC-authenticated backup of a note with an obfuscated path and three encrypted fragments. It restores those documents into a second, empty database. It then seeds the LiveSync version marker and encryption parameters from the test fixture so a fresh profile of the official CLI can run `sync` and `cat`.
+3. Look for `Official CLI decoded a three-fragment encrypted backup in second disposable database`. The test compares the CLI output byte for byte against the original UTF-8 text, including newlines and a multibyte character. The **Run isolated integration test / Ejecutar integración aislada** step also checks that a wrong HMAC key leaves the destination empty.
+
+### Backup contents and restore outcomes
+
+- The backup keeps the note content in its original LiveSync ciphertext. Format 2 reads the note path from the encrypted parent metadata and omits the separate cleartext path field. Format 1 backups remain readable and retain their cleartext path. Both formats expose metadata such as document IDs and CouchDB revisions. IDs may disclose paths when path obfuscation is disabled. Keep the JSON in private test storage. SHA-256 checks the snapshot and HMAC authenticates the record with a separate key.
+- The restore helper authenticates the record and validates the snapshot before accessing the destination. An unreferenced fragment or an attachment on the parent document fails this check. The helper creates the fragments before the parent and rechecks the stored ciphertext and revisions before reporting success.
+- `leaf_uncertain` or `parent_uncertain` means the attempt may have written documents. Inspect or discard only the disposable destination. Use a fresh empty database for another attempt. The helper does not retry, overwrite or delete documents.
+
+This procedure covers one synthetic note in CI. Validation of real Obsidian Desktop vaults, attachments and production recovery is outside its scope.
+
+
 ## Español
 
 La prueba actual `test_real_couchdb.py` escribe *documentos CouchDB sintéticos*. Verifica lecturas y escrituras en la base de datos, pero **no** la compatibilidad con documentos generados por el complemento Self-hosted LiveSync de Obsidian.
@@ -39,3 +54,17 @@ La prueba actual `test_real_couchdb.py` escribe *documentos CouchDB sintéticos*
 - Rechazar formatos desconocidos sin corromper documentos.
 - Usar una base aislada sin modificar la bóveda personal.
 - Mantener el cliente completamente independiente de Obsidian MCP.
+
+### Reproducir la prueba aislada de copia y restauración
+
+1. En GitHub Actions, abre [Tests / Pruebas](https://github.com/sergey08/homeassistant-addons/actions/workflows/obsidian-client-tests.yml), selecciona **Run workflow** y elige la rama o etiqueta que quieres validar. El trabajo `Isolated CouchDB / CouchDB aislado` inicia CouchDB 3.4 en el entorno de ejecución y utiliza notas sintéticas y credenciales de prueba.
+2. Abre **Encrypted CLI replication against disposable CouchDB**. La prueba guarda una copia autenticada con HMAC de una nota con ruta ofuscada y tres fragmentos cifrados. Restaura esos documentos en una segunda base vacía. Después añade el marcador de versión y los parámetros de cifrado de la base de prueba para que un perfil nuevo del CLI oficial pueda ejecutar `sync` y `cat`.
+3. Busca `Official CLI decoded a three-fragment encrypted backup in second disposable database`. La prueba compara byte por byte la salida del CLI con el texto original en UTF-8, incluidos los saltos de línea y un carácter multibyte. El paso **Run isolated integration test / Ejecutar integración aislada** comprueba también que una clave HMAC incorrecta deja vacío el destino.
+
+### Contenido de la copia y resultados de la restauración
+
+- La copia conserva el contenido de la nota con el cifrado original de LiveSync. El formato 2 lee la ruta de la nota desde los metadatos cifrados del documento padre y omite el campo de ruta en claro. Las copias en formato 1 siguen siendo legibles y conservan la ruta en claro. Ambos formatos exponen metadatos como los identificadores de documentos y las revisiones de CouchDB. Los identificadores pueden revelar rutas si la ofuscación está desactivada. Guarda el JSON en un espacio privado de pruebas. SHA-256 comprueba la integridad de la copia y HMAC autentica el registro con una clave separada.
+- La función de restauración autentica el registro y valida la copia antes de consultar el destino. Rechaza fragmentos no referenciados y adjuntos en el documento padre. Crea los fragmentos antes que el padre y vuelve a comprobar el cifrado y las revisiones guardadas antes de comunicar el éxito.
+- `leaf_uncertain` o `parent_uncertain` indica que el intento puede haber escrito documentos. Inspecciona o descarta únicamente el destino desechable. Usa una nueva base vacía para otro intento. La función no reintenta, sobrescribe ni borra documentos.
+
+Este procedimiento cubre una nota sintética en CI. La validación de bóvedas reales de Obsidian Desktop, los adjuntos y la recuperación en producción quedan fuera de su alcance.

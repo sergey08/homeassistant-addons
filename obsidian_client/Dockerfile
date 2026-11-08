@@ -79,6 +79,17 @@ RUN mkdir -p /data/livesync-client \
     && node --version \
     && node /opt/livesync-cli/dist/index.cjs --help >/dev/null
 RUN pip install --no-cache-dir flask==3.1.1 Markdown==3.8.2 gunicorn==23.0.0 cryptography==46.0.3
-COPY server.py private_markdown_vault.py livesync_plain.py livesync_crypto.py livesync_metadata.py livesync_write_preflight.py couchdb_cas.py livesync_cli_bridge.py /app/
+COPY server.py livesync_disposable_restore.py livesync_isolated_backup_store.py livesync_isolated_backup.py livesync_multichunk_recovery_inspection.py livesync_isolated_multichunk_commit.py livesync_multichunk_audit.py livesync_encrypted_metadata_fixture.py livesync_isolated_recovery.py livesync_isolated_commit.py client_manual_sync_decision.py client_note_diff.py client_sync_baseline.py client_note_comparison.py client_sync_engine.py storage_selection.py private_markdown_vault.py livesync_plain.py livesync_crypto.py livesync_metadata.py livesync_encrypted_parent_snapshot.py livesync_revision_contract.py livesync_write_preflight.py couchdb_cas.py livesync_cli_bridge.py /app/
+RUN python -c "from livesync_disposable_restore import restore_to_empty_disposable_database; print('disposable restore packaged')"
+RUN python -c "from livesync_isolated_backup_store import store_signed_backup, read_signed_backup; print('isolated signed backup store packaged')"
+RUN python -c "from livesync_isolated_backup import create_verified_snapshot, preflight_restore_snapshot; print('isolated backup packaged')"
+RUN python -c "from livesync_multichunk_recovery_inspection import inspect_interrupted_multichunk; print('read-only isolated recovery packaged')"
+RUN python -c "from livesync_isolated_multichunk_commit import commit_isolated_multichunk_plan; print('multichunk isolated only')"
+RUN python -c "from livesync_multichunk_audit import audit_unreferenced_leaves; assert not audit_unreferenced_leaves({},[],complete_snapshot=True)['safe_to_delete']"
+RUN python -c "from livesync_isolated_recovery import inspect_isolated_commit; print('recovery packaged')"
+RUN python -c "from client_manual_sync_decision import decide_manual_sync; assert decide_manual_sync(None,'r','l',remote_verified=True)['action']=='block'"
+RUN python -c "from client_note_diff import compare_lines; assert compare_lines('a','b')['different']"
+RUN python -c "from client_sync_baseline import classify, digest; assert classify(digest('a'), 'a', 'a')['sync_state']=='unchanged'"
+RUN python -c "from client_note_comparison import compare_note_contents; from livesync_encrypted_parent_snapshot import validate_encrypted_parent_snapshot; from livesync_revision_contract import require_matching_revision; assert compare_note_contents('same', 'same')['identical']"
 EXPOSE 8099
 CMD ["sh", "-c", "mkdir -p /data/livesync-client && chmod 700 /data/livesync-client && exec gunicorn --bind 0.0.0.0:8099 --workers 1 --threads 4 --access-logfile - server:app"]

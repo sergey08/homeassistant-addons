@@ -18,7 +18,7 @@ If you need a local CouchDB backend in Home Assistant, we recommend **[Obsidian 
 
 ## Requirements
 
-- **Home Assistant OS or Supervised (amd64)** with access to add-on installation.
+- **Home Assistant with Supervisor and access to add-on installation** on AMD64 (`amd64`) or ARM64 (`aarch64`).
 - **A Markdown vault accessible to the add-on**: an existing provisioned vault at `/app_configs/obsidian_bridge/vault` for LiveSync, **or** an existing directory below `/share` for Local mode.
 - **Only for LiveSync mode:** a working CouchDB / Self-hosted LiveSync server (for example an independently installed Obsidian Sync Server add-on) and a valid LiveSync CLI settings file. Installing this add-on does **not** install CouchDB, the Obsidian client app, or the sync server.
 - **An authorized OpenAI tunnel ID, tunnel-client binary and runtime key**, if the tunnel is enabled.

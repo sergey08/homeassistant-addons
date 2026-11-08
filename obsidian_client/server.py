@@ -256,6 +256,178 @@ def livesync_cli_remote_preview():
         return jsonify(error=safe_code), 502
 
 
+@app.get("/remote/library")
+def independent_remote_library():
+    """Browse CouchDB with the Client's existing read-only LiveSync E2EE decoder.
+
+    This path does not use MCP or the official CLI fetch/rebuilder, which
+    fails against the currently observed remote dataset. No remote writes.
+    """
+    if options().get("livesync_cli_enabled") is not True:
+        return page('<h1>Biblioteca remota</h1><p>CLI LiveSync deshabilitada.</p>'), 409
+    body = """<h1>Biblioteca remota / Remote library</h1>
+<p>Lectura independiente de notas cifradas desde CouchDB mediante Self-hosted LiveSync.
+No utiliza Obsidian MCP. Las consultas son de solo lectura; la importación modifica exclusivamente la bóveda privada del cliente, tras confirmación explícita.</p>
+<p><button id="load" type="button">Consultar notas en CouchDB</button>
+<span id="status" role="status" aria-live="polite"></span></p>
+<ul id="notes"></ul><h2 id="selected-title"></h2><pre id="content"></pre>
+<p id="edit-action" hidden><a id="edit-link" href="#">Abrir editor Markdown (copia local independiente)</a> <button id="compare-local" type="button">Comparar con copia local</button> <button id="show-diff" type="button" hidden>Ver diferencias línea a línea</button> <button id="advance-baseline" type="button" hidden>Confirmar versión común</button> <button id="pull-private" type="button" hidden>Descargar cambios a copia privada</button> <button id="import-private" type="button" hidden>Importar copia privada</button></p>
+<p id="comparison-result" role="status" aria-live="polite"></p><pre id="diff-result" hidden style="white-space:pre-wrap;overflow-wrap:anywhere"></pre>
+<p>El editor guarda una copia local privada. No modifica CouchDB ni sincroniza las notas.</p>
+<p><a href="../">Volver / Back</a></p>
+<script>
+const button=document.getElementById("load");
+const status=document.getElementById("status");
+const list=document.getElementById("notes");
+const title=document.getElementById("selected-title");
+const content=document.getElementById("content");
+const editAction=document.getElementById("edit-action");
+const editLink=document.getElementById("edit-link");
+const compareButton=document.getElementById("compare-local");
+const importButton=document.getElementById("import-private");
+const diffButton=document.getElementById("show-diff");
+const advanceButton=document.getElementById("advance-baseline");
+const pullButton=document.getElementById("pull-private");
+const diffResult=document.getElementById("diff-result");
+const comparisonResult=document.getElementById("comparison-result");
+let selectionVersion=0;
+async function preview(path){
+  const endpoint=path===undefined
+    ?"../api/remote/encrypted-notes"
+    :"../api/remote/note-content?path="+encodeURIComponent(path);
+  const response=await fetch(endpoint,{
+    method:"GET",credentials:"same-origin",cache:"no-store"
+  });
+  const data=await response.json();
+  if(!response.ok)throw Error(data.error||data.status||"remote_read_failed");
+  return data;
+}
+button.addEventListener("click",async()=>{
+  selectionVersion++;
+  button.disabled=true;list.replaceChildren();title.textContent="";content.textContent="";
+  editAction.hidden=true;editLink.removeAttribute("href");importButton.hidden=true;diffButton.hidden=true;advanceButton.hidden=true;pullButton.hidden=true;diffResult.hidden=true;diffResult.textContent="";comparisonResult.textContent="";
+  status.textContent="Consultando CouchDB…";
+  try{
+    const data=await preview();
+    for(const path of data.notes||[]){
+      const item=document.createElement("li");
+      const control=document.createElement("button");
+      control.type="button";control.textContent=path;
+      control.addEventListener("click",async()=>{
+        const currentSelection=++selectionVersion;
+        title.textContent=path;content.textContent="Cargando…";
+        editAction.hidden=true;editLink.removeAttribute("href");importButton.hidden=true;diffButton.hidden=true;advanceButton.hidden=true;pullButton.hidden=true;diffResult.hidden=true;diffResult.textContent="";comparisonResult.textContent="";
+        try{
+          const note=await preview(path);
+          if(currentSelection!==selectionVersion)return;
+          if(typeof note.content!=="string")throw Error("remote_content_missing");
+          content.textContent=note.content;
+          editLink.href="../remote/edit?path="+encodeURIComponent(path);
+          compareButton.onclick=async()=>{
+            comparisonResult.textContent="Comparando versiones (solo lectura)…";
+            try{
+              const result=await fetch("../api/remote/compare-local?path="+encodeURIComponent(path),{cache:"no-store"});
+              const data=await result.json();
+              if(currentSelection!==selectionVersion)return;
+              if(!result.ok)throw Error(data.error||"comparison_failed");
+              diffButton.hidden=!(data.local_exists===true&&data.remote_write_enabled===false);
+              if(!diffButton.hidden){
+                diffButton.onclick=async()=>{
+                  if(currentSelection!==selectionVersion)return;
+                  diffButton.disabled=true;diffResult.hidden=false;diffResult.textContent="Calculando diferencias (solo lectura)…";
+                  try{
+                    const response=await fetch("../api/remote/diff-local?path="+encodeURIComponent(path),{method:"GET",credentials:"same-origin",cache:"no-store"});
+                    const changes=await response.json();
+                    if(currentSelection!==selectionVersion)return;
+                    if(!response.ok)throw Error(changes.error||"diff_failed");
+                    diffResult.textContent=changes.different?(changes.diff+(changes.truncated?"\\n[Vista parcial: diferencias truncadas]":"")):"Sin diferencias línea a línea.";
+                  }catch(error){if(currentSelection===selectionVersion)diffResult.textContent="No se pudo comparar: "+error.message;}
+                  finally{diffButton.disabled=false;}
+                };
+              }
+              advanceButton.hidden=!(data.sync_state==="same_result_both_changed"&&data.baseline_available===true&&data.remote_write_enabled===false);
+              if(!advanceButton.hidden){
+                advanceButton.onclick=async()=>{
+                  if(currentSelection!==selectionVersion)return;
+                  if(!confirm("Ambas copias son idénticas. ¿Registrar esta nueva versión común sin cambiar ninguna nota?"))return;
+                  advanceButton.disabled=true;
+                  try{
+                    const response=await fetch("../api/remote/advance-baseline",{method:"POST",credentials:"same-origin",
+                      headers:{"Content-Type":"application/json","X-Obsidian-Client-Action":"advance-baseline"},
+                      body:JSON.stringify({path:path,expected_baseline_sha256:data.baseline_sha256,expected_content_sha256:data.remote_sha256})});
+                    const advance=await response.json();
+                    if(currentSelection!==selectionVersion)return;
+                    if(!response.ok)throw Error(advance.error||"baseline_advance_failed");
+                    advanceButton.hidden=true;
+                    comparisonResult.textContent="Nueva línea base registrada y versión anterior respaldada. Notas sin cambios.";
+                  }catch(error){if(currentSelection===selectionVersion)comparisonResult.textContent="No se pudo registrar: "+error.message;}
+                  finally{advanceButton.disabled=false;}
+                };
+              }
+              pullButton.hidden=!(data.sync_state==="remote_changed"&&data.baseline_available===true&&data.local_exists===true&&data.remote_write_enabled===false);
+              if(!pullButton.hidden){
+                pullButton.onclick=async()=>{
+                  if(currentSelection!==selectionVersion)return;
+                  if(!confirm("Solo la nota remota ha cambiado. ¿Actualizar tu copia privada y conservar una copia de seguridad? CouchDB no se modifica."))return;
+                  pullButton.disabled=true;comparisonResult.textContent="Actualizando copia privada…";
+                  try{
+                    const response=await fetch("../api/remote/pull-private",{method:"POST",credentials:"same-origin",
+                      headers:{"Content-Type":"application/json","X-Obsidian-Client-Action":"pull-private"},
+                      body:JSON.stringify({path:path,expected_baseline_sha256:data.baseline_sha256,expected_remote_sha256:data.remote_sha256,expected_local_sha256:data.local_sha256})});
+                    const saved=await response.json();
+                    if(currentSelection!==selectionVersion)return;
+                    if(!response.ok)throw Error(saved.error||"private_pull_failed");
+                    pullButton.hidden=true;diffButton.hidden=true;
+                    comparisonResult.textContent="Copia privada actualizada, versión anterior respaldada y línea base renovada. CouchDB sin cambios.";
+                  }catch(error){if(currentSelection===selectionVersion)comparisonResult.textContent="Descarga no completada: "+error.message+"; revisa la comparación antes de reintentar.";}
+                  finally{pullButton.disabled=false;}
+                };
+              }
+              importButton.hidden=!(data.state==="remote_only"&&data.baseline_available===false&&data.remote_write_enabled===false);
+              if(!importButton.hidden){
+                importButton.onclick=async()=>{
+                  if(currentSelection!==selectionVersion)return;
+                  if(!confirm("¿Crear una copia Markdown privada de esta nota? No se modifica CouchDB."))return;
+                  importButton.disabled=true;comparisonResult.textContent="Importando en el almacenamiento privado…";
+                  try{
+                    const response=await fetch("../api/remote/import-private",{method:"POST",credentials:"same-origin",
+                      headers:{"Content-Type":"application/json","X-Obsidian-Client-Action":"import-private"},
+                      body:JSON.stringify({path:path,expected_sha256:data.remote_sha256})});
+                    const imported=await response.json();
+                    if(currentSelection!==selectionVersion)return;
+                    if(!response.ok)throw Error(imported.error||"private_import_failed");
+                    importButton.hidden=true;
+                    comparisonResult.textContent="Copia privada creada con línea base. CouchDB sin cambios.";
+                  }catch(error){if(currentSelection===selectionVersion)comparisonResult.textContent="Importación no completada: "+error.message;}
+                  finally{importButton.disabled=false;}
+                };
+              }
+              const labels={no_baseline:"Sin línea base: no se puede atribuir el cambio",unchanged:"Sin cambios desde la línea base",local_changed:"Solo la copia privada ha cambiado",remote_changed:"Solo la nota remota ha cambiado",conflict_both_changed:"Conflicto: ambas versiones han cambiado de forma distinta",same_result_both_changed:"Ambas versiones convergen al mismo contenido",local_missing:"La copia local ha desaparecido"};
+              const legacy={remote_only:"No hay copia local",identical:"Copia local idéntica",diverged_unknown_origin:"Las versiones difieren; requiere revisión manual"};
+              const state=labels[data.sync_state]||legacy[data.state]||"Estado desconocido";
+              comparisonResult.textContent=state+(data.remote_write_enabled===false?" · CouchDB: solo lectura":"");
+            }catch(error){if(currentSelection===selectionVersion)comparisonResult.textContent="Error: "+error.message;}
+          };
+          editAction.hidden=false;
+        }catch(error){if(currentSelection===selectionVersion)content.textContent="Error: "+error.message;}
+      });
+      item.appendChild(control);list.appendChild(item);
+    }
+    status.textContent=String(data.count||0)+" notas encontradas";
+  }catch(error){status.textContent="Error: "+error.message;}
+  finally{button.disabled=false;}
+});
+</script>"""
+    response = page(body)
+    from flask import make_response
+    result = make_response(response)
+    result.headers["Cache-Control"] = "no-store"
+    result.headers["Content-Security-Policy"] = (
+        "default-src 'none'; script-src 'unsafe-inline'; "
+        "connect-src 'self'; style-src 'unsafe-inline'; base-uri 'none'")
+    return result
+
+
 @app.get("/api/livesync-cli/connection-check")
 def livesync_cli_connection_check():
     """Read-only CouchDB database HEAD. No replication, documents or secrets."""
@@ -1223,6 +1395,8 @@ _local_save_lock = Lock()
 # No real /share files, configured remote, or LiveSync CLI database is modified.
 _PRIVATE_VAULT = "/data/obsidian-client-markdown"
 _PRIVATE_BACKUPS = "/data/obsidian-client-backups"
+_PRIVATE_BASELINES = "/data/obsidian-client-sync-baselines"
+_PRIVATE_BASELINE_BACKUPS = "/data/obsidian-client-baseline-backups"
 
 # Opt-in only: the MCP's already-provisioned LiveSync Markdown vault.
 # No second synchronizer is started. The legacy shared MCP path must exist.
@@ -1230,19 +1404,431 @@ _MCP_SHARED_VAULT = "/share/obsidian-shared-vault"
 
 
 def editor_markdown_vault():
-    """Resolve a fixed storage mode; never infer arbitrary vault paths."""
+    """Resolve the Client's own Markdown vault or explicit compatibility mode."""
     from private_markdown_vault import LocalVaultError
-    from pathlib import Path
-    mode = options().get("editor_storage_mode", "private")
-    if mode == "private":
-        return _PRIVATE_VAULT
-    if mode != "mcp_shared":
-        raise LocalVaultError("unsupported_editor_storage_mode")
-    root = Path(_MCP_SHARED_VAULT)
-    if (not root.is_dir() or root.is_symlink()
-            or root.resolve(strict=True) != root):
-        raise LocalVaultError("mcp_shared_vault_unavailable")
-    return str(root)
+    from storage_selection import select_storage, StorageSelectionError
+    try:
+        return select_storage(options(), private_vault=_PRIVATE_VAULT,
+                              shared_vault=_MCP_SHARED_VAULT)["vault"]
+    except StorageSelectionError as exc:
+        raise LocalVaultError(str(exc)) from exc
+
+
+@app.post("/api/remote/pull-private")
+def pull_verified_remote_to_private():
+    """Explicit one-way pull: CAS local Markdown and advance private baseline.
+
+    The remote is only read, using the encrypted snapshot verification contract.
+    An interrupted metadata update leaves a recoverable changed local copy and
+    an immutable Markdown backup; never claims a completed sync in that case.
+    """
+    from client_sync_baseline import (BaselineError, SHA, load_baseline,
+                                      digest, advance_baseline, classify)
+    from private_markdown_vault import (LocalVaultError, read_note,
+                                        save_note, _path)
+    from storage_selection import select_storage, StorageSelectionError
+    if request.headers.get("X-Obsidian-Client-Action") != "pull-private":
+        return jsonify(error="missing_action_header"), 403
+    if request.headers.get("Sec-Fetch-Site") not in (None, "same-origin"):
+        return jsonify(error="cross_origin_blocked"), 403
+    if request.headers.get("Origin") and request.headers.get("Sec-Fetch-Site") != "same-origin":
+        return jsonify(error="cross_origin_blocked"), 403
+    if (request.mimetype != "application/json"
+            or request.content_length is None or request.content_length > 2048):
+        return jsonify(error="invalid_request"), 400
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict) or set(payload) != {
+            "path", "expected_baseline_sha256", "expected_remote_sha256",
+            "expected_local_sha256"}:
+        return jsonify(error="invalid_request"), 400
+    path = payload.get("path")
+    expected_base = payload.get("expected_baseline_sha256")
+    expected_remote = payload.get("expected_remote_sha256")
+    expected_local = payload.get("expected_local_sha256")
+    if not all(isinstance(value, str) and SHA.fullmatch(value)
+               for value in (expected_base, expected_remote, expected_local)):
+        return jsonify(error="invalid_expected_hash"), 400
+    if expected_local != expected_base or expected_remote == expected_base:
+        return jsonify(error="unsafe_pull_direction"), 409
+    try:
+        selected = select_storage(options(), private_vault=_PRIVATE_VAULT,
+                                  shared_vault=_MCP_SHARED_VAULT)
+        if not selected["independent_of_mcp"] or selected["mode"] != "local":
+            return jsonify(error="independent_local_mode_required"), 409
+        _path(editor_markdown_vault(), path)
+    except (StorageSelectionError, LocalVaultError):
+        return jsonify(error="invalid_storage_or_path"), 409
+    remote, error = read_encrypted_note(path, verify_revision=True)
+    if error or not isinstance(remote, str):
+        return jsonify(error="remote_snapshot_not_verified"), 409
+    if digest(remote) != expected_remote:
+        return jsonify(error="remote_content_changed"), 409
+    try:
+        with _local_save_lock:
+            local = read_note(editor_markdown_vault(), path)
+            if (load_baseline(_PRIVATE_BASELINES, path) != expected_base
+                    or local["sha256"] != expected_local):
+                return jsonify(error="local_or_baseline_changed"), 409
+            state = classify(expected_base, remote, local["content"])
+            if state["sync_state"] != "remote_changed":
+                return jsonify(error="unsafe_pull_direction"), 409
+            result = save_note(editor_markdown_vault(), _PRIVATE_BACKUPS,
+                               path, remote, "update",
+                               expected_sha256=expected_local)
+            try:
+                advanced = advance_baseline(
+                    _PRIVATE_BASELINES, _PRIVATE_BASELINE_BACKUPS,
+                    path, expected_base, remote, remote)
+            except (BaselineError, OSError):
+                return jsonify(
+                    error="baseline_advance_after_pull_failed",
+                    local_updated=True, local_backup_created=True,
+                    remote_write_enabled=False,
+                    recovery="verify_convergence_then_advance_baseline"), 409
+    except LocalVaultError as exc:
+        return jsonify(error=exc.code, remote_write_enabled=False), 409
+    except (BaselineError, OSError):
+        return jsonify(error="private_pull_failed",
+                       remote_write_enabled=False), 409
+    response = jsonify(status="pulled_private", path=path,
+                       sha256=result["sha256"], baseline_updated=advanced["updated"],
+                       local_backup_created=True, remote_write_enabled=False,
+                       sync_enabled=False)
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
+@app.get("/api/remote/manual-sync-plan")
+def readonly_manual_sync_plan():
+    """Read-only candidate actions based on fresh verified encrypted snapshot."""
+    from client_manual_sync_decision import decide_manual_sync, SyncBlocked
+    from client_sync_baseline import BaselineError, load_baseline
+    from private_markdown_vault import LocalVaultError, read_note, _path
+    from storage_selection import select_storage, StorageSelectionError
+    path = request.args.get("path", "")
+    try:
+        selected = select_storage(options(), private_vault=_PRIVATE_VAULT,
+                                  shared_vault=_MCP_SHARED_VAULT)
+        if not selected["independent_of_mcp"] or selected["mode"] != "local":
+            return jsonify(error="independent_local_mode_required", read_only=True), 409
+        _path(editor_markdown_vault(), path)
+    except (StorageSelectionError, LocalVaultError):
+        return jsonify(error="invalid_storage_or_path", read_only=True), 409
+    remote, error = read_encrypted_note(path, verify_revision=True)
+    if error or not isinstance(remote, str):
+        return jsonify(error="remote_snapshot_not_verified", read_only=True), 409
+    # Verified read only: a future commit must obtain and compare actual _rev.
+    try:
+        with _local_save_lock:
+            try:
+                local = read_note(editor_markdown_vault(), path)["content"]
+            except LocalVaultError as exc:
+                if exc.code == "note_not_found":
+                    local = None
+                else:
+                    raise
+            baseline = load_baseline(_PRIVATE_BASELINES, path)
+            plan = decide_manual_sync(baseline, remote, local,
+                                      remote_verified=True)
+    except (BaselineError, SyncBlocked, LocalVaultError):
+        return jsonify(error="manual_sync_preflight_unavailable", read_only=True), 409
+    response = jsonify(path=path, **plan, read_only=True,
+                       execute_supported=False, sync_enabled=False)
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
+@app.get("/api/remote/write-safety")
+def remote_write_safety():
+    """Read-only capability report; never activates write transport."""
+    from client_sync_engine import write_safety_status
+    response = jsonify(write_safety_status(options()))
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
+@app.get("/api/livesync-cli/independent-preflight")
+def independent_livesync_preflight():
+    """Read-only diagnostics for a future independent Client sync engine."""
+    from client_sync_engine import preflight
+    result = jsonify(preflight(options()))
+    result.headers["Cache-Control"] = "no-store"
+    return result
+
+
+@app.get("/api/remote/compare-local")
+def compare_local_and_remote():
+    """Read-only compare; never infer a direction without a sync baseline."""
+    from private_markdown_vault import LocalVaultError, read_note
+    from client_note_comparison import compare_note_contents
+    from storage_selection import select_storage, StorageSelectionError
+    path = request.args.get("path", "")
+    try:
+        selected = select_storage(options(), private_vault=_PRIVATE_VAULT,
+                                  shared_vault=_MCP_SHARED_VAULT)
+    except StorageSelectionError:
+        return jsonify(error="storage_not_ready", read_only=True), 409
+    if not selected["independent_of_mcp"] or selected["mode"] != "local":
+        return jsonify(error="independent_local_mode_required", read_only=True), 409
+    # Use the strict local vault path validator before any remote request.
+    try:
+        from private_markdown_vault import _path
+        _path(editor_markdown_vault(), path)
+    except LocalVaultError:
+        return jsonify(error="invalid_note_path", read_only=True), 400
+    remote, error = read_encrypted_note(path, verify_revision=True)
+    if error:
+        return jsonify(error="remote_snapshot_not_verified", read_only=True), 409
+    try:
+        with _local_save_lock:
+            local = read_note(editor_markdown_vault(), path)["content"]
+    except LocalVaultError as exc:
+        if exc.code == "note_not_found":
+            local = None
+        else:
+            return jsonify(error="local_read_failed", read_only=True), 409
+    from client_sync_baseline import load_baseline, classify, BaselineError
+    try:
+        baseline = load_baseline(_PRIVATE_BASELINES, path)
+        lineage = classify(baseline, remote, local)
+    except BaselineError:
+        return jsonify(error="baseline_unavailable", read_only=True), 409
+    result = compare_note_contents(remote, local)
+    response = jsonify(path=path, **result, **lineage, baseline_sha256=baseline,
+                       read_only=True, remote_write_enabled=False)
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
+@app.get("/api/remote/diff-local")
+def readonly_remote_local_diff():
+    """Show bounded private-vs-remote differences, no writes or merge actions."""
+    from private_markdown_vault import LocalVaultError, read_note, _path
+    from client_note_diff import compare_lines, DiffUnavailable
+    from client_sync_baseline import BaselineError, load_baseline, classify
+    from storage_selection import select_storage, StorageSelectionError
+    path = request.args.get("path", "")
+    try:
+        selected = select_storage(options(), private_vault=_PRIVATE_VAULT,
+                                  shared_vault=_MCP_SHARED_VAULT)
+        if not selected["independent_of_mcp"] or selected["mode"] != "local":
+            return jsonify(error="independent_local_mode_required", read_only=True), 409
+        _path(editor_markdown_vault(), path)
+    except (LocalVaultError, StorageSelectionError):
+        return jsonify(error="invalid_storage_or_path", read_only=True), 409
+    remote, error = read_encrypted_note(path, verify_revision=True)
+    if error or not isinstance(remote, str):
+        return jsonify(error="remote_snapshot_not_verified", read_only=True), 409
+    try:
+        with _local_save_lock:
+            local = read_note(editor_markdown_vault(), path)["content"]
+        baseline = load_baseline(_PRIVATE_BASELINES, path)
+        result = compare_lines(remote, local)
+        lineage = classify(baseline, remote, local)
+    except LocalVaultError as exc:
+        return jsonify(error="local_copy_required" if exc.code == "note_not_found"
+                       else "local_read_failed", read_only=True), 409
+    except (BaselineError, DiffUnavailable) as exc:
+        return jsonify(error=str(exc), read_only=True), 409
+    response = jsonify(path=path, **result, **lineage,
+                       read_only=True, remote_write_enabled=False,
+                       merge_enabled=False)
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
+@app.post("/api/remote/establish-baseline")
+def establish_verified_baseline():
+    """Explicit enrollment only when private/local and verified remote copies match."""
+    from private_markdown_vault import LocalVaultError, read_note, _path
+    from client_sync_baseline import establish_baseline, BaselineError, digest
+    from storage_selection import select_storage, StorageSelectionError
+    if request.headers.get("X-Obsidian-Client-Action") != "establish-baseline":
+        return jsonify(error="missing_action_header"), 403
+    if request.headers.get("Sec-Fetch-Site") not in (None, "same-origin"):
+        return jsonify(error="cross_origin_blocked"), 403
+    if request.headers.get("Origin") and request.headers.get("Sec-Fetch-Site") != "same-origin":
+        return jsonify(error="cross_origin_blocked"), 403
+    if request.mimetype != "application/json" or request.content_length is None or request.content_length > 2048:
+        return jsonify(error="invalid_request"), 400
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict) or set(payload) != {"path", "expected_sha256"}:
+        return jsonify(error="invalid_request"), 400
+    path = payload.get("path")
+    expected = payload.get("expected_sha256")
+    try:
+        selected = select_storage(options(), private_vault=_PRIVATE_VAULT,
+                                  shared_vault=_MCP_SHARED_VAULT)
+        if not selected["independent_of_mcp"] or selected["mode"] != "local":
+            return jsonify(error="independent_local_mode_required"), 409
+        _path(editor_markdown_vault(), path)
+        if not isinstance(expected, str) or len(expected) != 64:
+            return jsonify(error="invalid_expected_hash"), 400
+    except (StorageSelectionError, LocalVaultError):
+        return jsonify(error="invalid_storage_or_path"), 409
+    remote, error = read_encrypted_note(path, verify_revision=True)
+    if error:
+        return jsonify(error="remote_snapshot_not_verified"), 409
+    if digest(remote) != expected:
+        return jsonify(error="remote_content_changed"), 409
+    try:
+        with _local_save_lock:
+            local = read_note(editor_markdown_vault(), path)["content"]
+            if digest(local) != expected:
+                return jsonify(error="local_content_changed"), 409
+            baseline = establish_baseline(_PRIVATE_BASELINES,
+                                          path, remote, local)
+    except LocalVaultError:
+        return jsonify(error="local_copy_unavailable"), 409
+    except BaselineError:
+        return jsonify(error="baseline_conflict"), 409
+    return jsonify(status="baseline_established", created=baseline["created"],
+                   sha256=baseline["sha256"], remote_write_enabled=False,
+                   sync_enabled=False), 201 if baseline["created"] else 200
+
+
+@app.post("/api/remote/advance-baseline")
+def advance_verified_baseline():
+    """Acknowledges matching remote/local content, but never changes either note."""
+    from client_sync_baseline import BaselineError, SHA, digest, advance_baseline
+    from private_markdown_vault import LocalVaultError, read_note, _path
+    from storage_selection import select_storage, StorageSelectionError
+    if request.headers.get("X-Obsidian-Client-Action") != "advance-baseline":
+        return jsonify(error="missing_action_header"), 403
+    if request.headers.get("Sec-Fetch-Site") not in (None, "same-origin"):
+        return jsonify(error="cross_origin_blocked"), 403
+    if request.headers.get("Origin") and request.headers.get("Sec-Fetch-Site") != "same-origin":
+        return jsonify(error="cross_origin_blocked"), 403
+    if (request.mimetype != "application/json" or request.content_length is None
+            or request.content_length > 2048):
+        return jsonify(error="invalid_request"), 400
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict) or set(payload) != {
+            "path", "expected_baseline_sha256", "expected_content_sha256"}:
+        return jsonify(error="invalid_request"), 400
+    path = payload["path"]
+    old_hash = payload["expected_baseline_sha256"]
+    content_hash = payload["expected_content_sha256"]
+    if (not isinstance(old_hash, str) or not SHA.fullmatch(old_hash)
+            or not isinstance(content_hash, str) or not SHA.fullmatch(content_hash)):
+        return jsonify(error="invalid_hash"), 400
+    try:
+        selected = select_storage(options(), private_vault=_PRIVATE_VAULT,
+                                  shared_vault=_MCP_SHARED_VAULT)
+        if not selected["independent_of_mcp"] or selected["mode"] != "local":
+            return jsonify(error="independent_local_mode_required"), 409
+        _path(editor_markdown_vault(), path)
+    except (StorageSelectionError, LocalVaultError):
+        return jsonify(error="invalid_storage_or_path"), 409
+    remote, error = read_encrypted_note(path, verify_revision=True)
+    if error or not isinstance(remote, str):
+        return jsonify(error="remote_snapshot_not_verified"), 409
+    if digest(remote) != content_hash:
+        return jsonify(error="remote_content_changed"), 409
+    try:
+        with _local_save_lock:
+            local = read_note(editor_markdown_vault(), path)["content"]
+            if digest(local) != content_hash:
+                return jsonify(error="local_content_changed"), 409
+            result = advance_baseline(_PRIVATE_BASELINES,
+                                      _PRIVATE_BASELINE_BACKUPS,
+                                      path, old_hash, remote, local)
+    except LocalVaultError:
+        return jsonify(error="local_copy_unavailable"), 409
+    except BaselineError as exc:
+        return jsonify(error=str(exc)), 409
+    response = jsonify(status="baseline_advanced", **result,
+                       remote_write_enabled=False, sync_enabled=False)
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
+@app.post("/api/remote/import-private")
+def import_verified_remote_note():
+    """Explicit one-way import to the Client's private Markdown vault only.
+
+    A new note is created exclusively when absent locally and when the
+    authenticated remote snapshot matches the exact hash confirmed by the
+    caller. A failed baseline registration never triggers a remote write.
+    """
+    from private_markdown_vault import LocalVaultError, read_note, save_note, _path
+    from client_sync_baseline import BaselineError, digest, load_baseline, establish_baseline, SHA
+    from storage_selection import select_storage, StorageSelectionError
+    if request.headers.get("X-Obsidian-Client-Action") != "import-private":
+        return jsonify(error="missing_action_header"), 403
+    if request.headers.get("Sec-Fetch-Site") not in (None, "same-origin"):
+        return jsonify(error="cross_origin_blocked"), 403
+    if request.headers.get("Origin") and request.headers.get("Sec-Fetch-Site") != "same-origin":
+        return jsonify(error="cross_origin_blocked"), 403
+    if (request.mimetype != "application/json" or request.content_length is None
+            or request.content_length > 2048):
+        return jsonify(error="invalid_request"), 400
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict) or set(payload) != {"path", "expected_sha256"}:
+        return jsonify(error="invalid_request"), 400
+    path, expected = payload["path"], payload["expected_sha256"]
+    if not isinstance(expected, str) or not SHA.fullmatch(expected):
+        return jsonify(error="invalid_expected_hash"), 400
+    try:
+        selected = select_storage(options(), private_vault=_PRIVATE_VAULT,
+                                  shared_vault=_MCP_SHARED_VAULT)
+        if not selected["independent_of_mcp"] or selected["mode"] != "local":
+            return jsonify(error="independent_local_mode_required"), 409
+        _path(editor_markdown_vault(), path)
+        if load_baseline(_PRIVATE_BASELINES, path) is not None:
+            return jsonify(error="baseline_already_exists"), 409
+    except (LocalVaultError, StorageSelectionError, BaselineError, OSError):
+        return jsonify(error="invalid_storage_path_or_baseline"), 409
+    remote, error = read_encrypted_note(path, verify_revision=True)
+    if error or not isinstance(remote, str):
+        return jsonify(error="remote_snapshot_not_verified"), 409
+    if digest(remote) != expected:
+        return jsonify(error="remote_content_changed"), 409
+    try:
+        with _local_save_lock:
+            if load_baseline(_PRIVATE_BASELINES, path) is not None:
+                return jsonify(error="baseline_already_exists"), 409
+            try:
+                read_note(editor_markdown_vault(), path)
+            except LocalVaultError as exc:
+                if exc.code != "note_not_found":
+                    return jsonify(error="local_read_failed"), 409
+            else:
+                return jsonify(error="local_note_exists"), 409
+            # Reuses the vault's write lock and atomic create-only semantics.
+            saved = save_note(editor_markdown_vault(), _PRIVATE_BACKUPS,
+                              path, remote, "create")
+            try:
+                baseline = establish_baseline(_PRIVATE_BASELINES,
+                                              path, remote, remote)
+            except (BaselineError, OSError):
+                # The newly created Markdown stays intact: never delete an
+                # imported note to compensate for a metadata error.
+                return jsonify(error="baseline_registration_failed",
+                               local_created=True, remote_write_enabled=False,
+                               recovery="establish_baseline_after_verification"), 409
+    except (LocalVaultError, BaselineError, OSError):
+        return jsonify(error="private_import_failed", remote_write_enabled=False), 409
+    response = jsonify(status="imported_private", path=path,
+                       sha256=saved["sha256"], baseline_created=baseline["created"],
+                       remote_write_enabled=False, remote_synced=False)
+    response.headers["Cache-Control"] = "no-store"
+    return response, 201
+
+
+@app.get("/api/editor/storage-status")
+def editor_storage_status():
+    """Read-only state; never claim CouchDB synchronization before it exists."""
+    from storage_selection import select_storage, StorageSelectionError
+    try:
+        selected = select_storage(options(), private_vault=_PRIVATE_VAULT,
+                                  shared_vault=_MCP_SHARED_VAULT)
+    except StorageSelectionError as exc:
+        return jsonify(error=str(exc), ready=False), 409
+    # Do not expose user files or credentials; this only reports configured mode.
+    return jsonify(**selected, ready=selected["sync_engine"] != "not_implemented")
+
+
 
 
 
@@ -1256,7 +1842,7 @@ def livesync_cli_local_note():
             note = read_note(editor_markdown_vault(), name)
         return jsonify(**note, remote_synced=False)
     except LocalVaultError as exc:
-        code = 404 if exc.code == "note_not_found" else 409 if exc.code == "mcp_shared_vault_unavailable" else 400
+        code = 404 if exc.code == "note_not_found" else 409 if exc.code in ("mcp_shared_vault_unavailable", "livesync_not_ready") else 400
         return jsonify(error=exc.code), code
 
 
@@ -1264,6 +1850,8 @@ def livesync_cli_local_note():
 def livesync_cli_local_save():
     """Save private Markdown atomically; remote synchronization is disabled."""
     from private_markdown_vault import LocalVaultError, read_note, save_note
+    if options().get("editor_storage_mode") == "livesync":
+        return jsonify(error="livesync_not_ready", remote_synced=False), 409
     if request.headers.get("X-Obsidian-Client-Action") != "local-save":
         return jsonify(error="missing_action_header"), 403
     if request.headers.get("Sec-Fetch-Site") not in (None, "same-origin"):
@@ -1292,7 +1880,7 @@ def livesync_cli_local_save():
     except LocalVaultError as exc:
         code = (409 if exc.code in ("note_exists", "revision_conflict",
                                    "expected_revision_required", "note_not_found")
-                else 413 if exc.code == "note_too_large" else 409 if exc.code == "mcp_shared_vault_unavailable" else 400)
+                else 413 if exc.code == "note_too_large" else 409 if exc.code in ("mcp_shared_vault_unavailable", "livesync_not_ready") else 400)
         return jsonify(error=exc.code), code
 
 
@@ -1309,7 +1897,7 @@ def private_drafts():
         '<li><a href="remote/new?path=' + quote(name, safe="") + '">' +
         html.escape(name) + "</a></li>" for name in notes)
     return page('<h1>Notas Markdown / Markdown notes</h1>'
-                '<p>Las notas compartidas se sincronizan mediante el MCP; los borradores privados no.</p>'
+                '<p>Las notas compartidas se sincronizan mediante el MCP; los borradores privados no. Modo LiveSync independiente: en desarrollo.</p>'
                 '<p><a href="remote/new?path=Nuevo.md">Crear nota / New note</a></p>'
                 '<ul>' + rows + '</ul>'
                 '<p><a href="./">Volver / Back</a></p>')
@@ -1639,6 +2227,7 @@ def home():
     status = ('<p><a href="api/demo">Offline example / Ejemplo aislado (JSON)</a> · '
               '<a href="api/connection">CouchDB diagnostics / Diagnóstico CouchDB (JSON)</a> · '
               '<a href="livesync/setup">Configuración LiveSync</a> · '
+              '<a href="remote/library">Biblioteca CouchDB / Remote library</a> · '
               '<a href="private-drafts">Borradores locales / Private drafts</a></p>')
     if not root.is_dir():
         cfg = options()

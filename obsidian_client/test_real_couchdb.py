@@ -177,5 +177,366 @@ class RealCouchDBIntegrationTests(unittest.TestCase):
                 self.assertEqual(call(db, "DELETE")[0], 200)
 
 
+    def test_disposable_encrypted_leaf_and_parent_cas_rejects_stale_writer(self):
+        """Only loopback disposable DB; encrypted parent is updated with _rev CAS."""
+        from livesync_crypto import encrypt_hkdf_string, decrypt_hkdf_string
+        from livesync_encrypted_metadata_fixture import (
+            encode_parent_metadata_fixture, decode_parent_metadata_fixture)
+        from livesync_revision_contract import (
+            prepare_conditional_document, RevisionConflict)
+        root = os.environ["TEST_COUCHDB_URL"].rstrip("/")
+        self.assertIn(root, ("http://127.0.0.1:5984", "http://localhost:5984"))
+        user = os.environ.get("TEST_COUCHDB_USER", "")
+        password = os.environ.get("TEST_COUCHDB_PASSWORD", "")
+        self.assertTrue(user and password)
+        auth = "Basic " + base64.b64encode(f"{user}:{password}".encode()).decode()
+        base = root + "/obsidian_encrypted_cas_ci_" + uuid.uuid4().hex
+        salt = base64.b64encode(b"disposable-ci-encrypted-cas-salt").decode()
+        phrase = "disposable-ci-only"
+        path = "Disposable/Encrypted.md"
+        original = "# Primera revision\\n"
+        updated = "# Segunda revision\\n"
+        parent_id, old_leaf_id, new_leaf_id = (
+            "test:encrypted-parent", "h:+testencryptedold", "h:+testencryptednew")
+
+        def call(url, method="GET", payload=None, headers=None):
+            wire = json.dumps(payload).encode("utf-8") if payload is not None else None
+            request = Request(url, data=wire, method=method, headers={
+                "Authorization": auth, "Content-Type": "application/json",
+                **(headers or {})})
+            with urlopen(request, timeout=8) as response:
+                return response.status, json.load(response)
+
+        created = False
+        try:
+            self.assertEqual(call(base, "PUT")[0], 201)
+            created = True
+            parent_meta = encode_parent_metadata_fixture(
+                path, [old_leaf_id], phrase, salt,
+                ctime=1730000000000, mtime=1730000000000,
+                size=len(original.encode("utf-8")))
+            parent = {
+                "_id": parent_id, "type": "plain",
+                "path": parent_meta["path"], "children": [],
+                "ctime": 0, "mtime": 0, "size": 0, "eden": {}}
+            old_leaf = {
+                "_id": old_leaf_id, "type": "leaf", "e_": True,
+                "data": encrypt_hkdf_string(original, phrase, salt)}
+            self.assertEqual(call(base + "/" + parent_id, "PUT", parent)[0], 201)
+            self.assertEqual(call(base + "/" + old_leaf_id, "PUT", old_leaf)[0], 201)
+            _, stored_parent = call(base + "/" + parent_id)
+            old_rev = stored_parent["_rev"]
+
+            new_leaf = {
+                "_id": new_leaf_id, "type": "leaf", "e_": True,
+                "data": encrypt_hkdf_string(updated, phrase, salt)}
+            self.assertEqual(call(base + "/" + new_leaf_id, "PUT", new_leaf)[0], 201)
+            next_meta = encode_parent_metadata_fixture(
+                path, [new_leaf_id], phrase, salt,
+                ctime=1730000000000, mtime=1730000001000,
+                size=len(updated.encode("utf-8")))
+            proposed = prepare_conditional_document(
+                stored_parent,
+                {**stored_parent, "path": next_meta["path"]}, old_rev)
+            endpoint = base + "/" + parent_id
+            request_headers = {"If-Match": '"' + old_rev + '"'}
+            status, saved = call(endpoint, "PUT", proposed, request_headers)
+            self.assertEqual(status, 201)
+            self.assertTrue(saved["ok"])
+
+            with self.assertRaises(HTTPError) as stale:
+                call(endpoint, "PUT", proposed, request_headers)
+            self.assertIn(stale.exception.code, (409, 412))
+            _, current_parent = call(endpoint)
+            self.assertEqual(current_parent["_rev"], saved["rev"])
+            decoded_meta = decode_parent_metadata_fixture(
+                current_parent["path"], phrase, salt)
+            self.assertEqual(decoded_meta["children"], [new_leaf_id])
+            _, current_leaf = call(base + "/" + new_leaf_id)
+            self.assertEqual(
+                decrypt_hkdf_string(current_leaf["data"], phrase, salt), updated)
+            _, old_leaf_still_exists = call(base + "/" + old_leaf_id)
+            self.assertEqual(
+                decrypt_hkdf_string(old_leaf_still_exists["data"], phrase, salt),
+                original)
+        finally:
+            if created:
+                self.assertEqual(call(base, "DELETE")[0], 200)
+
+
+    def test_multichunk_readback_then_parent_cas_in_disposable_database(self):
+        """All encrypted leaves must be readable before existing parent CAS."""
+        from livesync_crypto import encrypt_hkdf_string
+        from livesync_encrypted_metadata_fixture import encode_parent_metadata_fixture
+        from livesync_isolated_multichunk_commit import commit_isolated_multichunk_plan
+        from livesync_multichunk_audit import assemble_encrypted_chunks
+        root = os.environ["TEST_COUCHDB_URL"].rstrip("/")
+        self.assertIn(root, ("http://127.0.0.1:5984", "http://localhost:5984"))
+        user = os.environ.get("TEST_COUCHDB_USER", "")
+        password = os.environ.get("TEST_COUCHDB_PASSWORD", "")
+        self.assertTrue(user and password)
+        auth = "Basic " + base64.b64encode(f"{user}:{password}".encode()).decode()
+        base = root + "/obsidian_multichunk_cas_ci_" + uuid.uuid4().hex
+        phrase = "isolated-ci-multichunk"
+        salt = base64.b64encode(b"isolated-ci-multichunk-salt").decode()
+        note_path = "Tests/Multi.md"
+        parent_id = "synthetic-parent"
+        parts = ("Hola ", "mundo 🌍", "\\n")
+        ids = ["h:+disposable" + str(i) for i in range(len(parts))]
+
+        def call(doc_id=None, method="GET", payload=None):
+            url = base + ("/" + quote(doc_id, safe="") if doc_id is not None else "")
+            request = Request(url, method=method,
+                data=json.dumps(payload).encode("utf-8") if payload is not None else None,
+                headers={"Authorization": auth, "Content-Type": "application/json"})
+            with urlopen(request, timeout=8) as response:
+                return response.status, json.load(response)
+
+        created = False
+        try:
+            self.assertEqual(call(method="PUT")[0], 201)
+            created = True
+            original_meta = encode_parent_metadata_fixture(
+                note_path, ["h:+prior"], phrase, salt,
+                ctime=100, mtime=100, size=5)
+            original = {"_id": parent_id, "type": "plain",
+                        "path": original_meta["path"], "children": [],
+                        "ctime": 0, "mtime": 0, "size": 0}
+            self.assertEqual(call(parent_id, "PUT", original)[0], 201)
+            _, stored = call(parent_id)
+            meta = encode_parent_metadata_fixture(
+                note_path, ids, phrase, salt, ctime=100, mtime=200,
+                size=len("".join(parts).encode("utf-8")))
+            leaves = [
+                {"_id": ident, "type": "leaf", "e_": True,
+                 "data": encrypt_hkdf_string(part, phrase, salt)}
+                for ident, part in zip(ids, parts)]
+            parent = {**stored, "path": meta["path"], "children": [],
+                      "ctime": 0, "mtime": 0, "size": 0}
+            plan = {"write_supported": False, "path": note_path,
+                    "leaves": leaves, "parent": parent,
+                    "expected_parent_revision": stored["_rev"]}
+            sequence = []
+
+            def put(doc):
+                sequence.append(("put", doc["_id"]))
+                try:
+                    return call(doc["_id"], "PUT", doc)
+                except HTTPError as exc:
+                    return exc.code, {"error": "conflict"}
+
+            def read(doc_id):
+                sequence.append(("get", doc_id))
+                return call(doc_id)[1]
+
+            committed = commit_isolated_multichunk_plan(
+                plan, put, read, phrase, salt, isolated_test=True)
+            self.assertEqual(committed["confirmed_chunks"], 3)
+            self.assertEqual(sequence, [
+                item for ident in ids for item in (("put", ident), ("get", ident))]
+                + [("put", parent_id)])
+            _, final_parent = call(parent_id)
+            final_leaves = {ident: call(ident)[1] for ident in ids}
+            restored = assemble_encrypted_chunks(
+                final_parent, final_leaves, note_path,
+                final_parent["_rev"], phrase, salt)
+            self.assertEqual(restored["content"], "".join(parts))
+            self.assertEqual(restored["chunks"], 3)
+            self.assertNotEqual(final_parent["_rev"], stored["_rev"])
+        finally:
+            if created:
+                self.assertEqual(call(method="DELETE")[0], 200)
+
+
+    def test_disposable_encrypted_backup_and_revision_guard(self):
+        """Read encrypted parent and leaves from loopback, no restore writes."""
+        from livesync_crypto import encrypt_hkdf_string
+        from livesync_encrypted_metadata_fixture import encode_parent_metadata_fixture
+        from livesync_isolated_backup import (
+            create_verified_snapshot, preflight_restore_snapshot, BackupRejected)
+        root = os.environ["TEST_COUCHDB_URL"].rstrip("/")
+        self.assertIn(root, ("http://127.0.0.1:5984", "http://localhost:5984"))
+        user = os.environ.get("TEST_COUCHDB_USER", "")
+        password = os.environ.get("TEST_COUCHDB_PASSWORD", "")
+        self.assertTrue(user and password)
+        auth = "Basic " + base64.b64encode(f"{user}:{password}".encode()).decode()
+        database = root + "/obsidian_backup_ci_" + uuid.uuid4().hex
+        secret = "disposable-backup-test"
+        salt = base64.b64encode(b"disposable-backup-test-salt").decode()
+        name = "Tests/Backup.md"
+        parts = ("Primera ", "segunda 🌍")
+        ids = ("h:+backupfirst", "h:+backupsecond")
+
+        def call(doc_id=None, method="GET", payload=None):
+            url = database + ("/" + quote(doc_id, safe="") if doc_id else "")
+            request = Request(url, method=method,
+                data=json.dumps(payload).encode("utf-8") if payload is not None else None,
+                headers={"Authorization": auth, "Content-Type": "application/json"})
+            with urlopen(request, timeout=8) as response:
+                return response.status, json.load(response)
+
+        created = False
+        try:
+            self.assertEqual(call(method="PUT")[0], 201)
+            created = True
+            metadata = encode_parent_metadata_fixture(
+                name, list(ids), secret, salt, ctime=100, mtime=200,
+                size=len("".join(parts).encode("utf-8")))
+            parent = {"_id": "backup-parent", "type": "plain", "path": metadata["path"],
+                      "children": [], "ctime": 0, "mtime": 0, "size": 0}
+            leaves = [{"_id": ident, "type": "leaf", "e_": True,
+                       "data": encrypt_hkdf_string(part, secret, salt)}
+                      for ident, part in zip(ids, parts)]
+            for document in [parent] + leaves:
+                self.assertEqual(call(document["_id"], "PUT", document)[0], 201)
+            _, stored_parent = call(parent["_id"])
+            stored_leaves = {ident: call(ident)[1] for ident in ids}
+            result = create_verified_snapshot(
+                stored_parent, stored_leaves, name, stored_parent["_rev"],
+                secret, salt, isolated_test=True)
+            self.assertEqual(result["verified_chunks"], 2)
+            status = preflight_restore_snapshot(
+                result["backup"], stored_parent, secret, salt, isolated_test=True)
+            self.assertFalse(status["restore_enabled"])
+            # A concurrently changed revision cannot use this backup as a write.
+            changed_parent = {**stored_parent, "_rev": "2-" + "a" * 32}
+            with self.assertRaises(BackupRejected):
+                preflight_restore_snapshot(
+                    result["backup"], changed_parent, secret, salt,
+                    isolated_test=True)
+        finally:
+            if created:
+                self.assertEqual(call(method="DELETE")[0], 200)
+
+
+    def test_signed_snapshot_restores_into_second_empty_disposable_couchdb(self):
+        self._check_signed_snapshot_restore(schema=2)
+
+    def test_legacy_signed_snapshot_restores_into_empty_disposable_couchdb(self):
+        self._check_signed_snapshot_restore(schema=1)
+
+    def _check_signed_snapshot_restore(self, schema):
+        """Restore a signed snapshot into a new disposable CouchDB database."""
+        import tempfile
+        from pathlib import Path
+        from livesync_crypto import encrypt_hkdf_string
+        from livesync_encrypted_metadata_fixture import encode_parent_metadata_fixture
+        from livesync_isolated_backup import BackupRejected, _checksum, create_verified_snapshot
+        from livesync_isolated_backup_store import store_signed_backup
+        from livesync_disposable_restore import restore_to_empty_disposable_database
+        from livesync_multichunk_audit import assemble_encrypted_chunks
+        root = os.environ["TEST_COUCHDB_URL"].rstrip("/")
+        self.assertIn(root, ("http://127.0.0.1:5984", "http://localhost:5984"))
+        user = os.environ.get("TEST_COUCHDB_USER", "")
+        password = os.environ.get("TEST_COUCHDB_PASSWORD", "")
+        self.assertTrue(user and password)
+        auth = "Basic " + base64.b64encode(f"{user}:{password}".encode()).decode()
+        names = ["obsidian_restore_src_ci_" + uuid.uuid4().hex,
+                 "obsidian_restore_dst_ci_" + uuid.uuid4().hex]
+        phrase = "disposable-only-restore-key"
+        salt = base64.b64encode(b"disposable-restore-ci-salt").decode()
+        note_path = "Tests/BackupRestore.md"
+        chunks = ("Texto ", "restaurado 🌍", "\\n")
+        leaf_ids = ["h:+restored" + str(i) for i in range(len(chunks))]
+        meta = encode_parent_metadata_fixture(
+            note_path, leaf_ids, phrase, salt, ctime=100, mtime=200,
+            size=len("".join(chunks).encode("utf-8")))
+        parent = {"_id": "synthetic-restored-parent", "type": "plain",
+                  "path": meta["path"], "children": [],
+                  "ctime": 0, "mtime": 0, "size": 0}
+        leaves = [
+            {"_id": ident, "type": "leaf", "e_": True,
+             "data": encrypt_hkdf_string(text, phrase, salt)}
+            for ident, text in zip(leaf_ids, chunks)]
+
+        def call(db_name, ident=None, method="GET", payload=None):
+            url = root + "/" + db_name
+            if ident is not None:
+                url += "/" + quote(ident, safe="")
+            req = Request(url, method=method,
+                          data=json.dumps(payload).encode("utf-8")
+                               if payload is not None else None,
+                          headers={"Authorization": auth,
+                                   "Content-Type": "application/json"})
+            with urlopen(req, timeout=8) as resp:
+                return resp.status, json.load(resp)
+
+        created = []
+        try:
+            for name in names:
+                self.assertEqual(call(name, method="PUT")[0], 201)
+                created.append(name)
+            for document in [parent] + leaves:
+                self.assertEqual(call(names[0], document["_id"], "PUT", document)[0], 201)
+            stored_parent = call(names[0], parent["_id"])[1]
+            stored_leaves = {ident: call(names[0], ident)[1] for ident in leaf_ids}
+            backup = create_verified_snapshot(
+                stored_parent, stored_leaves, note_path, stored_parent["_rev"],
+                phrase, salt, isolated_test=True)["backup"]
+            self.assertEqual(backup["schema"], 2)
+            if schema == 1:
+                # Recreate the original dev117 manifest before signing it.
+                backup["schema"] = 1
+                backup["snapshot"]["path"] = note_path
+                backup["sha256"] = _checksum(backup["snapshot"])
+            target = names[1]
+
+            def list_ids():
+                return [row["id"] for row in call(target, "_all_docs")[1]["rows"]]
+
+            def read_doc(ident):
+                try:
+                    return call(target, ident)[1]
+                except HTTPError as exc:
+                    if exc.code == 404:
+                        return None
+                    raise
+
+            def put_doc(doc):
+                try:
+                    return call(target, doc["_id"], "PUT", doc)
+                except HTTPError as exc:
+                    return exc.code, {"error": "conflict"}
+
+            with tempfile.TemporaryDirectory() as workdir:
+                backup_root = Path(workdir) / "backups"
+                key = bytes(range(32))
+                backup_id = store_signed_backup(
+                    backup_root, backup, key, isolated_test=True)["backup_id"]
+                stored_record = (backup_root / (backup_id + ".json")).read_text(
+                    encoding="utf-8")
+                saved_backup = json.loads(stored_record)["backup"]
+                self.assertEqual(saved_backup["schema"], schema)
+                if schema == 1:
+                    self.assertEqual(saved_backup["snapshot"]["path"], note_path)
+                else:
+                    self.assertNotIn(note_path, stored_record)
+                for text in chunks[:2]:
+                    self.assertNotIn(text, stored_record)
+                with self.assertRaisesRegex(BackupRejected, "backup_authentication_failed"):
+                    restore_to_empty_disposable_database(
+                        backup_root, backup_id, bytes(reversed(key)),
+                        list_ids, read_doc, put_doc, phrase, salt,
+                        isolated_test=True, disposable_database=True)
+                self.assertEqual(list_ids(), [])
+                result = restore_to_empty_disposable_database(
+                    backup_root, backup_id, key,
+                    list_ids, read_doc, put_doc, phrase, salt,
+                    isolated_test=True, disposable_database=True)
+            self.assertEqual(result["confirmed_leaves"], 3)
+            new_parent = read_doc(parent["_id"])
+            new_leaves = {ident: read_doc(ident) for ident in leaf_ids}
+            recovered = assemble_encrypted_chunks(
+                new_parent, new_leaves, note_path,
+                new_parent["_rev"], phrase, salt)
+            self.assertEqual(recovered["content"], "".join(chunks))
+            self.assertEqual(len(list_ids()), 4)
+            self.assertEqual(call(names[0], parent["_id"])[1]["_rev"],
+                             stored_parent["_rev"])
+        finally:
+            for name in reversed(created):
+                self.assertEqual(call(name, method="DELETE")[0], 200)
+
+
 if __name__ == "__main__":
     unittest.main()

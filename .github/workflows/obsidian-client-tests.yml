@@ -810,8 +810,9 @@ jobs:
                       obfuscated_settings["handleFilenameCaseSensitive"]=False
                       settings_path.write_text(json.dumps(obfuscated_settings))
                       obfuscated_note="Tests/official-obfuscated-id.md"
+                      obfuscated_text="# Obfuscated fixture\\n"
                       put=subprocess.run(["node",cli,obfuscated_cli,"put",obfuscated_note],
-                          input="# Obfuscated fixture\\n",capture_output=True,text=True,timeout=45)
+                          input=obfuscated_text,capture_output=True,text=True,timeout=45)
                       assert put.returncode==0,"CLI failed generating obfuscated fixture"
                       sync=subprocess.run(["node",cli,obfuscated_cli,"sync"],
                           capture_output=True,text=True,timeout=90)
@@ -937,6 +938,143 @@ jobs:
                           assert read.returncode==0 and read.stdout==updated_text, (
                               "Official CLI failed reading CAS-updated encrypted obfuscated parent")
                       print("Official CLI decoded obfuscated CAS update; stale revision rejected")
+                      # Restore a verified, encrypted multichunk backup into a second disposable DB.
+                      from livesync_isolated_backup import create_verified_snapshot
+                      from livesync_isolated_backup_store import store_signed_backup
+                      from livesync_disposable_restore import restore_to_empty_disposable_database
+                      def get_original(doc_id):
+                          req=urllib.request.Request(obfuscated_url+"/"+quote(doc_id,safe=""),headers={"Authorization":auth})
+                          with urllib.request.urlopen(req,timeout=10) as response:
+                              return json.load(response)
+                      restore_path="Tests/python-obfuscated-multichunk.md"
+                      fragments=("# Copia cifrada\n", "Segundo fragmento 🌍\n", "Fin del respaldo.\n")
+                      restore_text="".join(fragments)
+                      restore_phrase=obfuscated_config["livesync_e2ee_passphrase"]
+                      fragment_ids=[]
+                      for fragment in fragments:
+                          fragment_id="h:"+legacy_chunk_id(fragment,restore_phrase)
+                          leaf={"_id":fragment_id,"type":"leaf","e_":True,
+                                "data":encrypt_hkdf_string(fragment,restore_phrase,obfuscated_salt)}
+                          assert put_test_document(leaf)[0]==201
+                          fragment_ids.append(fragment_id)
+                      metadata=encode_parent_metadata_fixture(
+                          restore_path,fragment_ids,restore_phrase,obfuscated_salt,
+                          ctime=1730000000000,mtime=1730000001000,
+                          size=len(restore_text.encode("utf-8")))
+                      restore_parent={**python_parent,
+                          "_id":legacy_obfuscated_parent_id(restore_path,restore_phrase),
+                          "path":metadata["path"]}
+                      assert put_test_document(restore_parent)[0]==201
+                      def check_restored_note(restore_parent,fragment_ids,restore_path,restore_text,fixture):
+                          verified_parent=get_original(restore_parent["_id"])
+                          verified_leaves={ident:get_original(ident) for ident in fragment_ids}
+                          backup=create_verified_snapshot(
+                              verified_parent,verified_leaves,restore_path,verified_parent["_rev"],
+                              restore_phrase,obfuscated_salt,isolated_test=True)["backup"]
+                          restore_name=obfuscated_db_name+"_restored_"+fixture
+                          restore_url=root+"/"+restore_name
+                          with urllib.request.urlopen(urllib.request.Request(
+                              restore_url,method="PUT",headers={"Authorization":auth}),timeout=10) as response:
+                              assert response.status==201
+                          try:
+                              def target_get(doc_id):
+                                  req=urllib.request.Request(
+                                      restore_url+"/"+quote(doc_id,safe=""),headers={"Authorization":auth})
+                                  try:
+                                      with urllib.request.urlopen(req,timeout=10) as response:
+                                          return json.load(response)
+                                  except urllib.error.HTTPError as error:
+                                      if error.code==404:
+                                          return None
+                                      raise
+                              def target_ids():
+                                  req=urllib.request.Request(restore_url+"/_all_docs",headers={"Authorization":auth})
+                                  with urllib.request.urlopen(req,timeout=10) as response:
+                                      return [item["id"] for item in json.load(response)["rows"]]
+                              def target_put(doc):
+                                  req=urllib.request.Request(
+                                      restore_url+"/"+quote(doc["_id"],safe=""),method="PUT",
+                                      data=json.dumps(doc).encode(),headers={"Authorization":auth,
+                                                                              "Content-Type":"application/json"})
+                                  try:
+                                      with urllib.request.urlopen(req,timeout=10) as response:
+                                          return response.status,json.load(response)
+                                  except urllib.error.HTTPError as error:
+                                      return error.code,{"error":"conflict"}
+                              with tempfile.TemporaryDirectory() as backup_dir:
+                                  backup_root=pathlib.Path(backup_dir)/"records"
+                                  key=bytes(range(32))
+                                  save=store_signed_backup(backup_root,backup,key,isolated_test=True)
+                                  restored=restore_to_empty_disposable_database(
+                                      backup_root,save["backup_id"],key,target_ids,target_get,target_put,
+                                      restore_phrase,obfuscated_salt,
+                                      isolated_test=True,disposable_database=True)
+                              assert restored["confirmed_leaves"]==len(fragment_ids)
+                              assert restored["verified_bytes"]==len(restore_text.encode("utf-8"))
+                              assert set(target_ids())=={restore_parent["_id"],*fragment_ids}
+                              # A populated database needs the LiveSync version marker.
+                              # Seed it from the CLI fixture after testing the empty restore.
+                              version=get_original("obsydian_livesync_version")
+                              version.pop("_rev",None)
+                              assert target_put(version)[0]==201
+                              params_req=urllib.request.Request(
+                                  obfuscated_url+"/_local/obsidian_livesync_sync_parameters",
+                                  headers={"Authorization":auth})
+                              with urllib.request.urlopen(params_req,timeout=10) as response:
+                                  params=json.load(response)
+                              params.pop("_rev",None)
+                              req=urllib.request.Request(
+                                  restore_url+"/_local/obsidian_livesync_sync_parameters",
+                                  method="PUT",data=json.dumps(params).encode(),
+                                  headers={"Authorization":auth,"Content-Type":"application/json"})
+                              with urllib.request.urlopen(req,timeout=10) as response:
+                                  assert response.status==201
+                              target_config={**obfuscated_config,"couchdb_database":restore_name}
+                              with tempfile.TemporaryDirectory() as restored_cli:
+                                  install_official_cli_settings(target_config,restored_cli)
+                                  register_remote(cli,restored_cli,target_config)
+                                  settings_file=pathlib.Path(restored_cli)/".livesync"/"settings.json"
+                                  settings=json.loads(settings_file.read_text())
+                                  settings["usePathObfuscation"]=True
+                                  settings["handleFilenameCaseSensitive"]=False
+                                  settings_file.write_text(json.dumps(settings))
+                                  result=subprocess.run(["node",cli,restored_cli,"sync"],
+                                                        capture_output=True,text=True,timeout=90)
+                                  if result.returncode:
+                                      import re
+                                      diagnostics=result.stdout+"\n"+result.stderr
+                                      categories=re.findall(
+                                          r"\[HA_SYNC_STATUS\] status=[A-Za-z0-9_-]{1,64} reason=[A-Za-z0-9_-]{1,64}",
+                                          diagnostics)
+                                      failures=re.findall(
+                                          r"\[HA_FETCH_FAILURE\] type=[A-Za-z0-9_-]{1,40} code=[A-Za-z0-9_-]{1,40} detail=[A-Za-z0-9_-]{1,40} cause=[A-Za-z0-9_-]{1,40} origin=[A-Za-z0-9_-]{1,40}",
+                                          diagnostics)
+                                      print("Disposable restored CLI sync status tokens:",categories[-3:])
+                                      print("Disposable restored CLI failure tokens:",failures[-3:])
+                                      print("Disposable restored CLI diagnostic flags:",{
+                                          "encryption":bool(re.search("decrypt|encrypt|salt",diagnostics,re.I)),
+                                          "revision":bool(re.search("revision|conflict",diagnostics,re.I)),
+                                          "remote":bool(re.search("remote|replication",diagnostics,re.I)),
+                                          "network":bool(re.search("fetch failed|connection",diagnostics,re.I))})
+                                  assert result.returncode==0,"Official CLI failed syncing restored backup"
+                                  result=subprocess.run(["node",cli,restored_cli,"cat",restore_path],
+                                                        capture_output=True,timeout=45)
+                                  assert result.returncode==0 and result.stdout==restore_text.encode("utf-8"),(
+                                      "Official CLI did not decode restored encrypted fragments in order")
+                          finally:
+                              req=urllib.request.Request(restore_url,method="DELETE",headers={"Authorization":auth})
+                              with urllib.request.urlopen(req,timeout=10) as response:
+                                  assert response.status==200
+
+                      check_restored_note(restore_parent,fragment_ids,restore_path,restore_text,"multichunk")
+                      print("Official CLI decoded a three-fragment encrypted backup in second disposable database")
+                      official_parent=get_original(derived)
+                      official_metadata=decode_parent_metadata_fixture(
+                          official_parent["path"],restore_phrase,obfuscated_salt)
+                      check_restored_note(
+                          official_parent,official_metadata["children"],obfuscated_note,
+                          obfuscated_text,"official")
+                      print("Official CLI decoded an encrypted backup of its own note in a fresh database")
 
 
                   finally:
