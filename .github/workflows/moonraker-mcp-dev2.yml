@@ -685,6 +685,21 @@ jobs:
           assert r['verified'] + r['unverified'] == 11
           print('Alpine remote review evidence:', r['verified'], '/11')
           PY
+      - name: Retain 13 GNU Readline patches only after exact source SHA512
+        run: |
+          set -eu
+          python3 moonraker_mcp/readline_patch_integrity.py \
+            /tmp/release-aports/main/readline/APKBUILD \
+            /tmp/moonraker-release-sources/readline-remote-integrity.json \
+            --retain-dir /tmp/moonraker-release-sources/readline-patches
+          test "$(find /tmp/moonraker-release-sources/readline-patches -type f | wc -l)" -eq 13
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          r = json.loads(Path('/tmp/moonraker-release-sources/readline-remote-integrity.json').read_text())
+          assert r['verified_remote_sha512'] == 13
+          assert r['license_approved'] is False
+          PY
       - name: Record limits, create checksum and source-material tarball
         run: |
           set -eu
