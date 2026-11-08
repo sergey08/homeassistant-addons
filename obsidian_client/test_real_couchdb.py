@@ -425,6 +425,7 @@ class RealCouchDBIntegrationTests(unittest.TestCase):
         from livesync_isolated_backup_store import store_signed_backup
         from livesync_disposable_restore import restore_to_empty_disposable_database
         from livesync_multichunk_audit import assemble_encrypted_chunks
+        from livesync_write_preflight import UnsafeWrite
         root = os.environ["TEST_COUCHDB_URL"].rstrip("/")
         self.assertIn(root, ("http://127.0.0.1:5984", "http://localhost:5984"))
         user = os.environ.get("TEST_COUCHDB_USER", "")
@@ -519,6 +520,20 @@ class RealCouchDBIntegrationTests(unittest.TestCase):
                         list_ids, read_doc, put_doc, phrase, salt,
                         isolated_test=True, disposable_database=True)
                 self.assertEqual(list_ids(), [])
+
+                wrong_salt = base64.b64encode(b"other-disposable-restore-ci-salt").decode()
+                for case, candidate_phrase, candidate_salt in (
+                    ("passphrase", phrase + "-wrong", salt),
+                    ("salt", phrase, wrong_salt),
+                ):
+                    with self.subTest(schema=schema, wrong=case):
+                        with self.assertRaisesRegex(UnsafeWrite, "backup_ciphertext_not_verified"):
+                            restore_to_empty_disposable_database(
+                                backup_root, backup_id, key, list_ids, read_doc, put_doc,
+                                candidate_phrase, candidate_salt,
+                                isolated_test=True, disposable_database=True)
+                        self.assertEqual(list_ids(), [])
+
                 result = restore_to_empty_disposable_database(
                     backup_root, backup_id, key,
                     list_ids, read_doc, put_doc, phrase, salt,
