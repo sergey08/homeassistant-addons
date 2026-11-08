@@ -667,6 +667,24 @@ jobs:
           cp -a "$dir/main/." /tmp/moonraker-release-sources/alpine/
           printf '%s\n' "$APORTS_SHA" > /tmp/moonraker-release-sources/alpine/APORTS_COMMIT.txt
           python3 moonraker_mcp/alpine_source_integrity.py "$dir" /tmp/moonraker-release-sources/alpine-local-integrity.json
+      - name: Retain SHA512-verified Alpine external sources when available
+        run: |
+          set -eu
+          python3 moonraker_mcp/alpine_remote_bundle.py \
+            moonraker_mcp/alpine-external-sources-pending.json \
+            /tmp/moonraker-release-sources/alpine-remote
+          test -s /tmp/moonraker-release-sources/alpine-remote/MANIFEST.json
+          # This is evidence collection; missing remote files do not become PASS.
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          p = Path('/tmp/moonraker-release-sources/alpine-remote/MANIFEST.json')
+          r = json.loads(p.read_text())
+          assert r['corresponding_source_complete'] is False
+          assert r['license_approved'] is False
+          assert r['verified'] + r['unverified'] == 11
+          print('Alpine remote review evidence:', r['verified'], '/11')
+          PY
       - name: Record limits, create checksum and source-material tarball
         run: |
           set -eu
