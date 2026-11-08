@@ -43,7 +43,7 @@ def fetch_verified(item, directory, *, opener=urlopen):
                 request = Request(url, headers={"User-Agent": "MoonrakerMCP-SourceReview/0.1"})
                 with opener(request, timeout=90) as source:
                     redirected = urlparse(source.geturl())
-                    if redirected.scheme != "https" or redirected.hostname not in ALLOWED_HOSTS:
+                    if redirected.scheme != "https" or (redirected.hostname not in ALLOWED_HOSTS and not (parsed.hostname == "github.com" and redirected.hostname == "codeload.github.com")):
                         raise ValueError("Unapproved redirect")
                     while True:
                         block = source.read(CHUNK)
