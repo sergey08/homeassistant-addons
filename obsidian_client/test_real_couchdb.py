@@ -416,9 +416,12 @@ class RealCouchDBIntegrationTests(unittest.TestCase):
         self._check_signed_snapshot_restore(schema=1)
 
     def test_concurrent_leaf_creation_stops_disposable_restore(self):
-        self._check_signed_snapshot_restore(schema=2, concurrent_create=True)
+        self._check_signed_snapshot_restore(schema=2, fault="concurrent_create")
 
-    def _check_signed_snapshot_restore(self, schema, *, concurrent_create=False):
+    def test_lost_parent_ack_after_couchdb_create_does_not_retry(self):
+        self._check_signed_snapshot_restore(schema=2, fault="lost_parent_ack")
+
+    def _check_signed_snapshot_restore(self, schema, *, fault=None):
         """Restore a signed snapshot into a new disposable CouchDB database."""
         import tempfile
         from pathlib import Path
@@ -508,7 +511,7 @@ class RealCouchDBIntegrationTests(unittest.TestCase):
                 key = bytes(range(32))
                 backup_id = store_signed_backup(
                     backup_root, backup, key, isolated_test=True)["backup_id"]
-                if concurrent_create:
+                if fault == "concurrent_create":
                     leaf_id = leaf_ids[0]
                     competitor = {**leaves[0], "concurrent_writer": True}
                     attempts = []
@@ -534,6 +537,31 @@ class RealCouchDBIntegrationTests(unittest.TestCase):
                     self.assertEqual(list_ids(), [leaf_id])
                     self.assertEqual(read_doc(leaf_id), created_by_competitor)
                     self.assertIsNone(read_doc(parent["_id"]))
+                    return
+
+                if fault == "lost_parent_ack":
+                    parent_id = parent["_id"]
+                    attempts = []
+                    parent_ack = {}
+
+                    def put_then_drop_ack(doc):
+                        status, response = put_doc(doc)
+                        attempts.append((doc["_id"], status))
+                        if doc["_id"] == parent_id:
+                            parent_ack.update(response)
+                            raise TimeoutError("disposable-test-parent-ack-lost")
+                        return status, response
+
+                    with self.assertRaises(DisposableRestoreError) as error:
+                        restore_to_empty_disposable_database(
+                            backup_root, backup_id, key,
+                            list_ids, read_doc, put_then_drop_ack, phrase, salt,
+                            isolated_test=True, disposable_database=True)
+                    self.assertEqual(error.exception.phase, "parent_uncertain")
+                    self.assertIsInstance(error.exception.__cause__, TimeoutError)
+                    self.assertEqual(attempts, [(ident, 201) for ident in leaf_ids + [parent_id]])
+                    self.assertEqual(set(list_ids()), {parent_id, *leaf_ids})
+                    self.assertEqual(read_doc(parent_id), {**parent, "_rev": parent_ack["rev"]})
                     return
 
                 stored_record = (backup_root / (backup_id + ".json")).read_text(
