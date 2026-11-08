@@ -609,3 +609,87 @@ jobs:
           path: moonraker-mcp-audit/alpine-remote-source-integrity.json
           retention-days: 14
           if-no-files-found: error
+
+  # Explicit source-material collection for release review; does not run on normal pushes.
+  # This archive contains pinned upstream Go source, module cache, and Alpine
+  # APKBUILD recipes/patches. It does NOT claim to contain all Alpine upstream
+  # tarballs or constitute a complete GPL corresponding-source offer.
+  release-source-material:
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && contains(github.event.head_commit.message, '[source-bundle]'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.27.3'
+          cache: false
+      - name: Gather pinned upstream Go source and actual module dependency sources
+        run: |
+          set -eu
+          mkdir -p /tmp/moonraker-release-sources/go /tmp/moonraker-release-sources/alpine
+          for spec in \
+              'mcp-raker|https://github.com/lexfrei/mcp-raker.git|f01636bec21a21cfc5f9ee84dc68dad7d44d6dd9' \
+              'tunnel-client|https://github.com/openai/tunnel-client.git|c2144b0904980bcbae2636cdca4f4167e9818e0b'; do
+            name="${spec%%|*}"
+            rest="${spec#*|}"
+            url="${rest%%|*}"
+            sha="${rest##*|}"
+            dir="/tmp/moonraker-release-sources/go/$name"
+            mkdir -p "$dir"
+            git -C "$dir" init -q
+            git -C "$dir" remote add origin "$url"
+            git -C "$dir" fetch -q --depth=1 origin "$sha"
+            git -C "$dir" checkout -q --detach FETCH_HEAD
+            test "$(git -C "$dir" rev-parse HEAD)" = "$sha"
+            (cd "$dir" && go get golang.org/x/net@v0.62.0 && go mod download && go mod verify && go list -m all > MODULES.txt && git diff -- go.mod go.sum > SECURITY_DEPENDENCY_CHANGES.patch)
+            printf '%s\n' "$url" "$sha" > "$dir/UPSTREAM_REVISION.txt"
+            rm -rf "$dir/.git"
+          done
+          mkdir -p /tmp/moonraker-release-sources/go-module-downloads
+          cp -a "$(go env GOPATH)/pkg/mod/cache/download/." /tmp/moonraker-release-sources/go-module-downloads/
+          test -s /tmp/moonraker-release-sources/go/mcp-raker/MODULES.txt
+          test -s /tmp/moonraker-release-sources/go/tunnel-client/MODULES.txt
+      - name: Gather pinned Alpine build recipes and local source patches
+        run: |
+          set -eu
+          APORTS_SHA=2235ae248c31ea48a9df764becdfecc2a85b4f31
+          dir=/tmp/release-aports
+          git init -q "$dir"
+          git -C "$dir" remote add origin https://github.com/alpinelinux/aports.git
+          git -C "$dir" -c protocol.version=2 fetch --depth=1 --filter=blob:none origin "$APORTS_SHA"
+          git -C "$dir" sparse-checkout init --cone
+          git -C "$dir" sparse-checkout set \
+            main/alpine-baselayout main/apk-tools main/busybox main/ca-certificates \
+            main/gdbm main/gcc main/musl main/readline main/pax-utils main/xz
+          git -C "$dir" checkout -q --detach FETCH_HEAD
+          test "$(git -C "$dir" rev-parse HEAD)" = "$APORTS_SHA"
+          cp -a "$dir/main/." /tmp/moonraker-release-sources/alpine/
+          printf '%s\n' "$APORTS_SHA" > /tmp/moonraker-release-sources/alpine/APORTS_COMMIT.txt
+          python3 moonraker_mcp/alpine_source_integrity.py "$dir" /tmp/moonraker-release-sources/alpine-local-integrity.json
+      - name: Record limits, create checksum and source-material tarball
+        run: |
+          set -eu
+          cp moonraker_mcp/THIRD_PARTY_NOTICES_EN_ES.md /tmp/moonraker-release-sources/
+          cp moonraker_mcp/THIRD_PARTY_SOURCE_ACCESS_EN_ES.md /tmp/moonraker-release-sources/
+          cat > /tmp/moonraker-release-sources/README_INCOMPLETE_SOURCE_MATERIAL.txt <<'EOF'
+          RELEASE REVIEW SOURCE MATERIAL — NOT A COMPLETE CORRESPONDING-SOURCE OFFER.
+          Contains pinned mcp-raker / tunnel-client source trees after documented
+          Go dependency updates, downloaded Go module cache, and Alpine APKBUILD
+          files plus local patches for ten prioritized source families.
+          This archive DOES NOT include all original Alpine upstream tarballs,
+          all installed Alpine package sources, or a complete license compliance
+          determination. Do not present it as complete for GPL/LGPL/MPL.
+          No user credentials or Home Assistant runtime data are included.
+          EOF
+          mkdir -p moonraker-mcp-source-review
+          tar -C /tmp -czf moonraker-mcp-source-review/source-material-rc1.tar.gz moonraker-release-sources
+          (cd moonraker-mcp-source-review && sha256sum source-material-rc1.tar.gz > SHA256SUMS)
+          test -s moonraker-mcp-source-review/source-material-rc1.tar.gz
+      - name: Retain review bundle (not a release)
+        uses: actions/upload-artifact@v4
+        with:
+          name: moonraker-mcp-rc1-source-material-INCOMPLETE
+          path: moonraker-mcp-source-review/
+          retention-days: 14
+          if-no-files-found: error
