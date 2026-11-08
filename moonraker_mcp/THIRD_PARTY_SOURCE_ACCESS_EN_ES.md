@@ -30,7 +30,7 @@ Las siguientes son **referencias a recetas de compilación, parches y procedenci
 
 El listado abarca únicamente las **diez familias priorizadas** del inventario legal; otros paquetes y módulos Go también tienen requisitos de atribución y licencia. El detalle se consulta en el SBOM (`moonraker-mcp-dev12-cyclonedx-sbom`) y el inventario de binarios de la CI del commit final. El árbol `aports` fijado conserva las recetas y archivos de parche de Alpine; puede que el código fuente de origen resida en los servidores indicados por cada receta.
 
-**Estado verificado:** 164/166 entradas del inventario de fuentes auxiliares han superado SHA-512 en verificaciones anteriores. Dos archivos de origen, `apk-tools-v2.14.13.tar.gz` y `ca-certificates-20261020.tar.bz2`, devolvieron error HTTP y **no** quedaron acreditados mediante descarga. Esta observación no determina por sí sola el cumplimiento de las licencias.
+**Estado verificado (08/11/2026):** la ejecución [42524883335](https://github.com/sergey08/homeassistant-addons/actions/runs/42524883335) verificó mediante SHA-512 **166/166 entradas** correspondientes exclusivamente a las diez familias Alpine prioritarias: 142 archivos locales, 11 fuentes externas y 13 parches de GNU Readline. Incluye los archivos anteriormente fallidos de `apk-tools` y `ca-certificates`. El artefacto de fuentes sigue marcado **INCOMPLETE**: este resultado no demuestra cobertura de todos los componentes de la imagen ni acredita el cumplimiento de licencias, avisos o entrega del código fuente correspondiente.
 
 ## Pendiente antes de publicar / Outstanding before release
 
