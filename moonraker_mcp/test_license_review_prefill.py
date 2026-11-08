@@ -32,6 +32,23 @@ class ReviewHintsTests(unittest.TestCase):
         self.assertEqual(evidence["components"][1]["alpine_metadata"][0]["declared_expression"], "GPL-2.0-only")
         self.assertEqual(evidence["components"][2]["go_source_files"], [])
 
+    def test_percent_encoded_apk_name_matches_exact_package(self):
+        self.pending["reviews"].append({
+            "bom_ref": "pkg:apk/alpine/libstdc%2B%2B@14.2.0-r6?arch=x86_64",
+            "status": "PENDING"
+        })
+        apk = [
+            {"package": "libstdc++", "version": "14.2.0-r6",
+             "license_expression": "GPL-2.0-or-later AND LGPL-2.1-or-later",
+             "review_category": "COPYLEFT_OR_RECIPROCAL_REVIEW"},
+            {"package": "stdc", "version": "14.2.0-r6",
+             "license_expression": "MIT",
+             "review_category": "STANDARD_PERMISSIVE_CANDIDATE"}
+        ]
+        hints = reconcile(self.pending, [], apk)["components"][-1]["alpine_metadata"]
+        self.assertEqual(len(hints), 1)
+        self.assertEqual(hints[0]["package"], "libstdc++")
+
     def test_preapproved_or_duplicate_inputs_fail_closed(self):
         self.pending["reviews"][0]["status"] = "REVIEWED"
         with self.assertRaises(ValueError):
