@@ -20,6 +20,10 @@ Las recetas verificadas se pueden reproducir desde [aports 2235ae24](https://git
 
 **Comprobación final mínima, todavía pendiente:** determinar y documentar el cumplimiento de avisos y obligaciones GPL/LGPL/MPL de la imagen efectivamente publicada. En particular, aclarar ubicación de los textos legales Alpine y el acceso a fuentes correspondientes para receptores. Los cuatro textos upstream ya incluidos no cubren automáticamente todos los componentes de la imagen.
 
+## Acceso público a referencias de fuentes / Source references
+
+El [documento de acceso a fuentes de terceros](./THIRD_PARTY_SOURCE_ACCESS_EN_ES.md) identifica las revisiones exactas de los dos binarios Go y las diez familias prioritarias Alpine con enlaces a recetas y parches fijados. **No constituye por sí solo una oferta de código fuente correspondiente ni una aprobación de redistribución**: antes de publicar todavía debe confirmarse cómo se cumplen las obligaciones aplicables de licencias, avisos y fuentes de la imagen completa.
+
 ## Usuarios / Users
 
 - La instalación de usuario solo requiere configurar Home Assistant y Moonraker; **no** descargan manualmente estos archivos legales ni crean scripts de auditoría.
