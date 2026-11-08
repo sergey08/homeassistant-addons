@@ -10,6 +10,8 @@
 
 **Installation / Instalación:** consulta [INSTALLATION_EN_ES.md](./INSTALLATION_EN_ES.md). Cada usuario nuevo configura el endpoint Moonraker, un token MCP propio y, solo si quiere conectar ChatGPT, su propio túnel y clave restringida mediante la interfaz Home Assistant; no hace falta instalar binarios manualmente. **Los usuarios actuales DEV no deben desinstalar ni migrar automáticamente**: el catálogo estable podría tener otro identificador de Supervisor.
 
+**Licencias y procedencia / Third-party notices:** [Avisos y fuentes de terceros / Third-party sources and notices](./THIRD_PARTY_NOTICES_EN_ES.md). La imagen ya incluye LICENSE/NOTICE de los dos binarios principales, pero está pendiente cerrar los requisitos de redistribución de los paquetes Alpine; no asumir aprobación jurídica.
+
 **Release gate:** siguen pendientes la revisión concreta de obligaciones LICENSE/NOTICE/fuentes correspondientes, la CI del commit candidato final y la autorización expresa del mantenedor. Rotación/revocación de credenciales y restauración cifrada no se han probado de extremo a extremo: **NO VERIFICADAS**, no se exige crear credenciales nuevas al usuario actual.
 
 ---
