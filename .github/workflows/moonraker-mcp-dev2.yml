@@ -92,6 +92,9 @@ jobs:
           docker build --pull -t moonraker-mcp:ci ./moonraker_mcp
           test "$(docker image inspect moonraker-mcp:ci --format '{{.Config.User}}')" = root
           echo "Image starts as root for Supervisor options; services drop privileges."
+          # Recipients of the image also receive attribution and source-access guidance.
+          docker run --rm --network none --entrypoint sh moonraker-mcp:ci -c \
+            'test -s /usr/share/doc/moonraker-mcp/THIRD_PARTY_NOTICES_EN_ES.md && test -s /usr/share/doc/moonraker-mcp/THIRD_PARTY_SOURCE_ACCESS_EN_ES.md && test -s /usr/share/doc/moonraker-mcp/licenses/tunnel-client-NOTICE.txt'
 
       - name: Inventory packaged binaries and Go module build metadata
         run: |
