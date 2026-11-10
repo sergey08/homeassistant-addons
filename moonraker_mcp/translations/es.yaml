@@ -77,3 +77,8 @@ configuration:
       Permite consultar moonraker_power_status para conocer el estado
       de los dispositivos de alimentación configurados en Moonraker.
       Solo lectura: NO enciende ni apaga la impresora ni los enchufes.
+
+  enable_u1_status:
+    name: "Acceso adicional: impresión y filamentos T0-T3"
+    description: >-
+      Activa dos consultas de solo lectura para el progreso de impresión y las cuatro posiciones de filamento. Muestra material, fabricante, color y cabezal activo. Oculta identificadores NFC, no inventa asociaciones de bobinas Spoolman ni tiempos restantes y no controla la impresión.
