@@ -1,8 +1,78 @@
 configuration:
+  moonraker_url:
+    name: "Dirección de la API Moonraker"
+    description: >-
+      URL completa de la API de la impresora, normalmente
+      http://printer.local:7125 o http://IP_IMPRESORA:7125.
+      No tiene por qué coincidir con la web de Fluidd.
+  moonraker_api_key:
+    name: "Clave API de Moonraker (si se necesita)"
+    description: >-
+      Clave actual de Moonraker, solo si la impresora la exige.
+      Un cliente autorizado puede consultarla mediante GET /access/api_key,
+      sin regenerarla. Es diferente del token MCP y de la clave de OpenAI.
   mcp_http_token:
     name: "Token de seguridad MCP (obligatorio)"
     description: >-
-      Crea una contraseña aleatoria de al menos 32 caracteres, exclusiva
-      para este MCP. Protege el acceso al servidor MCP. No utilices la
-      API Key de Moonraker ni la clave de OpenAI. Guarda el token antes
-      de iniciar el complemento y no lo compartas.
+      Crea una contraseña secreta y aleatoria de 32 caracteres o más,
+      exclusiva para este servidor MCP. Es obligatoria para arrancar.
+      No reutilices ni compartas claves de Moonraker o OpenAI.
+  enable_tunnel:
+    name: "Activar túnel privado de ChatGPT"
+    description: >-
+      Inicia el túnel seguro saliente de OpenAI para conectar ChatGPT.
+      Necesita tu ID de túnel y una clave API restringida de OpenAI Platform.
+      No requiere abrir puertos del router. Déjalo apagado para uso local.
+  tunnel_id:
+    name: "Identificador del túnel OpenAI"
+    description: >-
+      Identificador creado en OpenAI Platform (normalmente comienza por
+      tunnel_). No es una contraseña. No ejecutes DEV y estable
+      simultáneamente con el mismo túnel.
+  openai_tunnel_api_key:
+    name: "Clave API restringida del túnel OpenAI"
+    description: >-
+      Clave Restricted de OpenAI Platform con permisos Tunnels Read y Use
+      para este túnel. Introdúcela solo aquí; nunca en registros o incidencias.
+  enable_jobqueue:
+    name: "Acceso adicional: cola de impresión"
+    description: >-
+      Permite consultar con moonraker_jobqueue_status la cola de trabajos
+      y su estado si Moonraker lo admite. Solo lectura: no inicia,
+      cancela ni reordena impresiones. Puede revelar actividad de impresión.
+  enable_files:
+    name: "Acceso adicional: archivos G-code"
+    description: >-
+      Permite listar G-code, consultar metadatos y previsualizar hasta
+      16 KiB del comienzo de un archivo. Puede revelar nombres y parámetros.
+      No permite subir, modificar ni eliminar archivos.
+  enable_objects:
+    name: "Acceso adicional: objetos de Klipper"
+    description: >-
+      Permite listar y consultar objetos de Klipper y su estado actual.
+      Puede mostrar información técnica detallada de la impresora.
+      Solo lectura: no modifica objetos ni ejecuta órdenes.
+  enable_history:
+    name: "Acceso adicional: historial"
+    description: >-
+      Permite consultar historial de impresiones, detalles de trabajos
+      y estadísticas acumuladas cuando Moonraker los ofrece.
+      Puede revelar archivos, fechas y duración de impresiones anteriores.
+  enable_sensors:
+    name: "Acceso adicional: sensores"
+    description: >-
+      Permite consultar listas, información y medidas de sensores
+      adicionales al historial térmico básico. Los valores dependen
+      de la impresora y de los componentes disponibles en Moonraker.
+  enable_spoolman:
+    name: "Acceso adicional: filamentos Spoolman"
+    description: >-
+      Permite consultar estado de Spoolman y datos de bobinas si la
+      integración está configurada en Moonraker. Puede mostrar el
+      inventario de filamento, pero no modificarlo.
+  enable_power:
+    name: "Acceso adicional: estado eléctrico"
+    description: >-
+      Permite consultar moonraker_power_status para conocer el estado
+      de los dispositivos de alimentación configurados en Moonraker.
+      Solo lectura: NO enciende ni apaga la impresora ni los enchufes.
