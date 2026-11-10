@@ -91,7 +91,21 @@ These are the **13 options in config.yaml**. Values shown are the initial defaul
 | **enable_spoolman** | false | Enables optional **Spoolman filament/inventory-related** functionality where available |
 | **enable_power** | false | Enables optional **power-related** information/capabilities; review tool permissions before enabling |
 
-**Security model:** the first five MCP tools are read-only. Other profiles expand the tool surface and may expose additional printer data or actions; enable them only after checking the exposed tools and their permissions. The original add-on policy keeps Moonraker administration disabled. Never assume a profile is read-only solely because its name sounds informational.
+**Security model:** the seven optional profiles in this version are restricted by an explicit allowlist to **read-only tools**. They expand the information visible to your MCP client, but do not authorize starting/stopping jobs, deleting files, sending G-code or switching power. They may disclose filenames, print history, spool information, sensor values and printer configuration; enable only the profiles you actually want to share.
+
+**Example questions with optional profiles enabled:**
+
+| Profile | Enabled tools (when supported by the Moonraker server) | Example question |
+| --- | --- | --- |
+| **Job queue** | `moonraker_jobqueue_status` | “Are there any jobs waiting in the queue?” |
+| **G-code files** | `moonraker_files_list`, `moonraker_files_metadata`, `moonraker_files_preview` | “List my G-code files and show the metadata of one model.” |
+| **Klipper objects** | `moonraker_objects_list`, `moonraker_objects_query` | “What Klipper objects are available, and what is the current state?” |
+| **History** | `moonraker_history_list`, `moonraker_history_job`, `moonraker_history_totals` | “Show recent print jobs and the available history totals.” |
+| **Sensors** | `moonraker_sensors_info`, `moonraker_sensors_list`, `moonraker_sensors_measurements` | “Which additional sensors report measurements?” |
+| **Spoolman** | `moonraker_spoolman_status`, `moonraker_spoolman_get_spool` | “Is Spoolman connected? Show the details of a spool.” |
+| **Power status** | `moonraker_power_status` | “What is the current state of Moonraker-managed power devices?” |
+
+An enabled profile **does not guarantee the tools exist** in your Moonraker server: the gateway only exposes tools implemented by the configured upstream. The power profile checks status; **it cannot turn anything on or off**.
 
 **Network:** Home Assistant lists **8765/tcp**, but it is **unpublished by default**. Keep it that way unless you deliberately configure private, authenticated local access. Never forward it on your router.
 
@@ -225,7 +239,21 @@ Estas son las **13 opciones reales de config.yaml**:
 | **enable_spoolman** | false | Habilita la funcionalidad opcional de **bobinas, filamentos e inventario Spoolman**, cuando está disponible |
 | **enable_power** | false | Habilita el perfil opcional relativo a **energía/alimentación**; comprueba los permisos concretos antes de activarlo |
 
-**Seguridad:** las cinco herramientas predeterminadas son de lectura. Las opciones adicionales amplían el acceso a datos y posiblemente a operaciones: comprueba qué herramientas se exponen y sus permisos antes de activarlas. La administración Moonraker está deshabilitada por defecto.
+**Seguridad:** los siete perfiles opcionales de esta versión están limitados mediante una lista explícita a herramientas **de solo lectura**. Amplían la información que ChatGPT puede consultar, pero no permiten iniciar o detener trabajos, borrar archivos, ejecutar G-code ni activar enchufes. Pueden mostrar nombres de ficheros, historial, bobinas, sensores y datos técnicos de la impresora; activa solo los perfiles cuya información quieras compartir.
+
+**Ejemplos de preguntas con las opciones adicionales activadas:**
+
+| Perfil | Herramientas habilitadas (si Moonraker las ofrece) | Ejemplo de pregunta |
+| --- | --- | --- |
+| **Cola de impresión** | `moonraker_jobqueue_status` | «¿Tengo impresiones pendientes en la cola?» |
+| **Archivos G-code** | `moonraker_files_list`, `moonraker_files_metadata`, `moonraker_files_preview` | «Enséñame los archivos G-code y los metadatos de uno de ellos» |
+| **Objetos Klipper** | `moonraker_objects_list`, `moonraker_objects_query` | «¿Qué objetos Klipper hay disponibles y cuál es su estado?» |
+| **Historial** | `moonraker_history_list`, `moonraker_history_job`, `moonraker_history_totals` | «Muéstrame las últimas impresiones y las estadísticas del historial» |
+| **Sensores** | `moonraker_sensors_info`, `moonraker_sensors_list`, `moonraker_sensors_measurements` | «¿Qué sensores adicionales tiene la impresora?» |
+| **Spoolman** | `moonraker_spoolman_status`, `moonraker_spoolman_get_spool` | «¿Está conectado Spoolman? Consulta los datos de una bobina» |
+| **Estado eléctrico** | `moonraker_power_status` | «¿Qué estado tienen los dispositivos de alimentación de Moonraker?» |
+
+Que un perfil esté activado **no garantiza que esas herramientas existan** en el servidor Moonraker: solo aparecerán las implementadas por la conexión real. El perfil eléctrico consulta el estado; **no puede encender ni apagar dispositivos**.
 
 **Red:** el puerto **8765/tcp** figura en el complemento, pero **no se publica inicialmente**. No lo abras al exterior ni lo redirijas en el router.
 
