@@ -90,7 +90,8 @@ jobs:
           assert cfg["schema"]["openai_tunnel_api_key"] == "password?"
           assert cfg["options"]["openai_tunnel_api_key"] == ""
           for name in ("enable_jobqueue", "enable_files", "enable_objects",
-                       "enable_history", "enable_sensors", "enable_spoolman", "enable_power"):
+                       "enable_history", "enable_sensors", "enable_spoolman", "enable_power",
+                       "enable_u1_status"):
               assert cfg["options"][name] is False, name
           assert "USER root" in (root / "Dockerfile").read_text()
           assert 'ENTRYPOINT ["/run.sh"]' in (root / "Dockerfile").read_text()
