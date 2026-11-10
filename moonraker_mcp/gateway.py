@@ -13,6 +13,7 @@ import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from moonraker_files import FileAccessError, list_gcodes, gcode_metadata, gcode_preview
 from moonraker_spoolman import SpoolmanReadError, list_spoolman_inventory
+from moonraker_snapshot import SnapshotError, print_snapshot, filament_slots
 from moonraker_status import connection_status, public_printer_info, public_server_info, public_temperature_store
 from tool_policy import PolicyError, authorize_call, extend_allowed, filter_tools, load_allowed
 
@@ -60,6 +61,20 @@ LOCAL_SPOOLMAN_DEFINITION = {
                     "read-only proxy. Includes material, vendor, color and remaining "
                     "weight. Only available when Spoolman profile is enabled."),
     "inputSchema": {"type": "object", "properties": {}, "additionalProperties": False},
+}
+LOCAL_U1_TOOLS = {
+    "moonraker_print_snapshot": {
+        "name": "moonraker_print_snapshot",
+        "description": ("Read filtered live print state, layers, active tool, duration "
+                        "and two distinct progress measures; no speculative ETA. Read-only."),
+        "inputSchema": {"type": "object", "properties": {}, "additionalProperties": False},
+    },
+    "moonraker_filament_slots": {
+        "name": "moonraker_filament_slots",
+        "description": ("Read filtered filament material and color for T0-T3 "
+                        "without revealing NFC identifiers. Does not assert Spoolman mapping. Read-only."),
+        "inputSchema": {"type": "object", "properties": {}, "additionalProperties": False},
+    },
 }
 SAFE_HEADER_VALUE = re.compile(r"^[A-Za-z0-9._-]{1,128}$")
 SUPPORTED_PROTOCOL_VERSIONS = frozenset(("2025-03-26", "2025-06-18"))
@@ -186,9 +201,10 @@ def check_message(message, allowed):
             raise PolicyError("Tool arguments too large")
         authorize_call(params.get("name"), allowed)
         name = params.get("name")
-        if name in LOCAL_FILE_TOOLS or name in (LOCAL_STATUS_TOOL, LOCAL_SPOOLMAN_TOOL):
+        if name in LOCAL_FILE_TOOLS or name in LOCAL_U1_TOOLS or name in (LOCAL_STATUS_TOOL, LOCAL_SPOOLMAN_TOOL):
             schema = (LOCAL_STATUS_DEFINITION if name == LOCAL_STATUS_TOOL
                       else LOCAL_SPOOLMAN_DEFINITION if name == LOCAL_SPOOLMAN_TOOL
+                      else LOCAL_U1_TOOLS[name] if name in LOCAL_U1_TOOLS
                       else LOCAL_FILE_TOOLS[name])["inputSchema"]
             required = set(schema.get("required", []))
             permitted = set(schema.get("properties", {}))
@@ -297,12 +313,13 @@ def filter_reply(method, response, allowed, cursor=None):
     # forward calls to them. This also supports upstreams with matching names.
     local_tools = (([LOCAL_STATUS_DEFINITION] if LOCAL_STATUS_TOOL in allowed else []) +
                    [tool for name, tool in LOCAL_FILE_TOOLS.items() if name in allowed] +
-                   ([LOCAL_SPOOLMAN_DEFINITION] if LOCAL_SPOOLMAN_TOOL in allowed else [])
+                   ([LOCAL_SPOOLMAN_DEFINITION] if LOCAL_SPOOLMAN_TOOL in allowed else []) +
+                   [tool for name, tool in LOCAL_U1_TOOLS.items() if name in allowed]
                    if cursor is None else [])
     safe_result = {key: value for key, value in result.items()
                    if key in ("tools", "nextCursor")}
     response["result"] = dict(safe_result, tools=[tool for tool in filter_tools(result.get("tools"), allowed)
-                                                        if tool["name"] not in LOCAL_FILE_TOOLS and tool["name"] not in (LOCAL_STATUS_TOOL, LOCAL_SPOOLMAN_TOOL)] + local_tools)
+                                                        if tool["name"] not in LOCAL_FILE_TOOLS and tool["name"] not in LOCAL_U1_TOOLS and tool["name"] not in (LOCAL_STATUS_TOOL, LOCAL_SPOOLMAN_TOOL)] + local_tools)
     for tool in response["result"]["tools"]:
         if tool["name"] == PRIVACY_SAFE_PRINTER_INFO:
             tool["description"] = ("Read printer state and software version only. "
@@ -532,6 +549,16 @@ class Handler(BaseHTTPRequestHandler):
                     response_result["resultType"] = "complete"
                 return self.reply(200, {"jsonrpc": "2.0", "id": message["id"],
                                         "result": response_result})
+            if method == "tools/call" and message["params"]["name"] in LOCAL_U1_TOOLS:
+                name = message["params"]["name"]
+                result = (print_snapshot if name == "moonraker_print_snapshot" else filament_slots)(
+                    os.environ["MOONRAKER_URL"], os.environ.get("MOONRAKER_API_KEY", ""))
+                tool_result = {"content": [{"type": "text",
+                                           "text": json.dumps(result, ensure_ascii=False)}],
+                               "isError": False}
+                if is_modern:
+                    tool_result["resultType"] = "complete"
+                return self.reply(200, {"jsonrpc": "2.0", "id": message["id"], "result": tool_result})
             if method == "tools/call" and message["params"]["name"] == LOCAL_SPOOLMAN_TOOL:
                 result = list_spoolman_inventory(os.environ["MOONRAKER_URL"],
                                                  os.environ.get("MOONRAKER_API_KEY", ""))
@@ -656,7 +683,7 @@ class Handler(BaseHTTPRequestHandler):
             return self.reply(502, {"error": "Moonraker file service unavailable"})
         except (urllib.error.URLError, TimeoutError):
             return self.reply(502, {"error": "Moonraker file service unavailable"})
-        except (PolicyError, FileAccessError, SpoolmanReadError, ValueError, TypeError, UnicodeError) as exc:
+        except (PolicyError, FileAccessError, SpoolmanReadError, SnapshotError, ValueError, TypeError, UnicodeError) as exc:
             return self.reply(403, {"error": str(exc)})
         except Exception:
             self.log_error("MCP upstream communication failed")
