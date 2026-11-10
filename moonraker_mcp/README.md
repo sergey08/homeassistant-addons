@@ -1,6 +1,6 @@
 # Moonraker MCP for Home Assistant
 
-**Version 0.1.1 · AMD64 and ARM64 · Read-only MCP bridge by default**
+**Version 0.1.2 · AMD64 and ARM64 · Read-only MCP bridge by default**
 
 Moonraker MCP connects an OpenAI-compatible MCP client (optionally ChatGPT through a **Secure MCP Tunnel**) to a 3D printer's **Moonraker API**. The app runs in Home Assistant OS / Supervised, but connects **directly to Moonraker**, not through Home Assistant printer entities. The initial installation builds the container locally from pinned sources.
 
@@ -320,7 +320,7 @@ The repository's original code is MIT-licensed; third-party components retain th
 
 ---
 
-### Planned 0.1.2 — live Snapmaker U1 status (development branch only)
+### New in 0.1.2 — live Snapmaker U1 status (candidate)
 
 **English:** The development branch adds an **opt-in, read-only** `enable_u1_status` option with `moonraker_print_snapshot` and `moonraker_filament_slots`. It queries fixed Klipper objects via Moonraker (not Home Assistant entities). Print data includes state, job filename, current/total layers, active tool T0–T3, durations and **separate** UI/file progress values; no speculative ETA is returned. The filament snapshot reports sanitized material, vendor and color per T0–T3. NFC UID and other private tag fields are never returned. Moonraker's single active Spoolman spool ID is **not** assumed to correspond to four separate slot IDs.
 
@@ -329,7 +329,7 @@ The repository's original code is MIT-licensed; third-party components retain th
 **Write permissions / Permisos de escritura:** pause/resume, start/cancel, file changes and power controls are **not implemented in this stage**. Each future action must be separately authorized and reviewed against safe printer states; all write profiles will default to off. No printing commands are used by this development work.
 
 
-### Planned 0.1.2 — separately controlled print actions (DEV only)
+### New in 0.1.2 — separately controlled print actions (candidate)
 
 **English:** Four independent opt-in flags, all **false** by default: `allow_print_pause`, `allow_print_resume`, `allow_print_cancel` and `allow_print_start`. Each exposes exactly one MCP action. All actions require explicit human approval in the client and a literal `CONFIRM_*` argument. Immediately before any write request, the gateway checks Klipper is ready and checks the live print state. Cancel also checks the exact current G-code filename; start validates the filename and refuses to start if another job is active. Only the official Moonraker print endpoints are used. No raw G-code, arbitrary URLs, file uploads, deletions, or power control are authorized. An API acceptance is **not** proof that the physical action completed; check the read-only status again. These functions have **not yet been used on a real printer**.
 
