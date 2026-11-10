@@ -28,6 +28,7 @@ options:
   enable_spoolman: false
   enable_power: false
   enable_u1_status: false
+  enable_write_actions: false
   allow_print_pause: false
   allow_print_resume: false
   allow_print_cancel: false
@@ -47,6 +48,7 @@ schema:
   enable_spoolman: bool
   enable_power: bool
   enable_u1_status: bool
+  enable_write_actions: bool
   allow_print_pause: bool
   allow_print_resume: bool
   allow_print_cancel: bool
