@@ -65,9 +65,10 @@ configuration:
   enable_spoolman:
     name: "Extra access: Spoolman filament"
     description: >-
-      Allow read-only Spoolman status and spool lookup tools, if Moonraker's
-      Spoolman integration is configured. Can reveal filament inventory
-      and spool details. Does not change inventory.
+      Allow read-only Spoolman status, individual spool lookup and full inventory
+      summary (up to 100 spools), when Moonraker's [spoolman] integration is
+      configured. Shows material, brand, color and remaining grams.
+      Does not update spool inventory or filament consumption.
   enable_power:
     name: "Extra access: power status"
     description: >-
