@@ -13,7 +13,8 @@ OPTIONAL_PROFILES = {
     "objects": frozenset(("moonraker_objects_list", "moonraker_objects_query")),
     "history": frozenset(("moonraker_history_list", "moonraker_history_job", "moonraker_history_totals")),
     "sensors": frozenset(("moonraker_sensors_info", "moonraker_sensors_list", "moonraker_sensors_measurements")),
-    "spoolman": frozenset(("moonraker_spoolman_status", "moonraker_spoolman_get_spool")),
+    "spoolman": frozenset(("moonraker_spoolman_status", "moonraker_spoolman_get_spool",
+                           "moonraker_spoolman_inventory")),
     "power": frozenset(("moonraker_power_status",)),
 }
 
