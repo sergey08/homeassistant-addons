@@ -316,3 +316,14 @@ Documentación oficial: [OpenAI Secure MCP Tunnel](https://developers.openai.com
 - [v0.1.0 release notes / Notas de versión](./RELEASE_NOTES_0.1.0_EN_ES.md)
 
 The repository's original code is MIT-licensed; third-party components retain their own licenses. / El código original del repositorio es MIT; los componentes externos conservan sus licencias.
+
+
+---
+
+### Planned 0.1.2 — live Snapmaker U1 status (development branch only)
+
+**English:** The development branch adds an **opt-in, read-only** `enable_u1_status` option with `moonraker_print_snapshot` and `moonraker_filament_slots`. It queries fixed Klipper objects via Moonraker (not Home Assistant entities). Print data includes state, job filename, current/total layers, active tool T0–T3, durations and **separate** UI/file progress values; no speculative ETA is returned. The filament snapshot reports sanitized material, vendor and color per T0–T3. NFC UID and other private tag fields are never returned. Moonraker's single active Spoolman spool ID is **not** assumed to correspond to four separate slot IDs.
+
+**Español:** La rama de desarrollo incorpora la opción **de solo lectura y desactivada por defecto** `enable_u1_status`, con las herramientas `moonraker_print_snapshot` y `moonraker_filament_slots`. Consulta objetos Klipper directamente mediante Moonraker, sin depender de entidades de Home Assistant. Informa de estado, archivo, capas, cabezal T0–T3, duraciones y **dos porcentajes de progreso diferenciados**; no inventa una hora de finalización. Para cada posición T0–T3, devuelve material, fabricante y color, eliminando identificadores NFC privados. El identificador único de bobina activa de Spoolman **no equivale** a un mapa demostrado de las cuatro posiciones.
+
+**Write permissions / Permisos de escritura:** pause/resume, start/cancel, file changes and power controls are **not implemented in this stage**. Each future action must be separately authorized and reviewed against safe printer states; all write profiles will default to off. No printing commands are used by this development work.
