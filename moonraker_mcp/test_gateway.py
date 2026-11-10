@@ -355,6 +355,33 @@ class GatewayTests(unittest.TestCase):
                                "params": {"name": "moonraker_spoolman_inventory",
                                           "arguments": arguments}}, enabled)
 
+    def test_u1_status_tools_opt_in_and_no_arbitrary_arguments(self):
+        from gateway import LOCAL_U1_TOOLS
+        self.assertEqual(set(LOCAL_U1_TOOLS),
+                         {"moonraker_print_snapshot", "moonraker_filament_slots"})
+        selected = extend_allowed(self.allowed, ["u1_status"])
+        upstream = {"result": {"tools": [
+            {"name": "moonraker_print_snapshot", "inputSchema": {"type": "object"}}]}}
+        base_names = [tool["name"] for tool in
+                      filter_reply("tools/list", upstream, self.allowed)["result"]["tools"]]
+        self.assertNotIn("moonraker_print_snapshot", base_names)
+        shown = [tool["name"] for tool in
+                 filter_reply("tools/list", upstream, selected)["result"]["tools"]]
+        self.assertEqual(shown.count("moonraker_print_snapshot"), 1)
+        self.assertEqual(shown.count("moonraker_filament_slots"), 1)
+        for name in LOCAL_U1_TOOLS:
+            valid = {"jsonrpc": "2.0", "id": 9, "method": "tools/call",
+                     "params": {"name": name, "arguments": {}}}
+            self.assertEqual(check_message(valid, selected), "tools/call")
+            with self.assertRaises(PolicyError):
+                check_message(valid, self.allowed)
+            for arguments in ({"objects": {"configfile": []}},
+                              {"script": "M112"}, {"filename": "../../private"}):
+                with self.subTest(name=name, arguments=arguments), self.assertRaises(PolicyError):
+                    check_message({"jsonrpc": "2.0", "id": 9, "method": "tools/call",
+                                   "params": {"name": name, "arguments": arguments}},
+                                  selected)
+
     def test_session_header_validation(self):
         self.assertEqual(validate_mcp_header("session_123-abc.def"), "session_123-abc.def")
         self.assertEqual(validate_mcp_header("2025-06-18"), "2025-06-18")
