@@ -331,6 +331,30 @@ class GatewayTests(unittest.TestCase):
             with self.subTest(invalid=invalid), self.assertRaises(PolicyError):
                 extend_allowed(self.allowed, invalid)
 
+    def test_spoolman_inventory_is_hidden_until_opted_in(self):
+        upstream = {"result": {"tools": [
+            {"name": "moonraker_spoolman_inventory", "inputSchema": {"type": "object"}},
+            {"name": "moonraker_mcp_version", "inputSchema": {"type": "object"}},
+        ]}}
+        baseline = filter_reply("tools/list", upstream, self.allowed)
+        self.assertNotIn("moonraker_spoolman_inventory",
+                         [tool["name"] for tool in baseline["result"]["tools"]])
+        enabled = extend_allowed(self.allowed, ["spoolman"])
+        listed = filter_reply("tools/list", upstream, enabled)
+        names = [tool["name"] for tool in listed["result"]["tools"]]
+        self.assertEqual(names.count("moonraker_spoolman_inventory"), 1)
+        valid = {"jsonrpc": "2.0", "id": 1, "method": "tools/call",
+                 "params": {"name": "moonraker_spoolman_inventory", "arguments": {}}}
+        self.assertEqual(check_message(valid, enabled), "tools/call")
+        with self.assertRaises(PolicyError):
+            check_message(valid, self.allowed)
+        for arguments in ({"path": "/v1/filament"}, {"request_method": "DELETE"},
+                          {"spool_id": 1}):
+            with self.subTest(arguments=arguments), self.assertRaises(PolicyError):
+                check_message({"jsonrpc": "2.0", "id": 2, "method": "tools/call",
+                               "params": {"name": "moonraker_spoolman_inventory",
+                                          "arguments": arguments}}, enabled)
+
     def test_session_header_validation(self):
         self.assertEqual(validate_mcp_header("session_123-abc.def"), "session_123-abc.def")
         self.assertEqual(validate_mcp_header("2025-06-18"), "2025-06-18")
