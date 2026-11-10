@@ -99,3 +99,8 @@ configuration:
     name: "Permitir iniciar impresión"
     description: >-
       Autoriza iniciar la impresión de un archivo G-code existente. Puede calentar y mover la impresora; requiere aprobación expresa, confirmación y nombre de archivo validado. DESACTIVADO por defecto; solo en reposo.
+
+  enable_write_actions:
+    name: "Interruptor general de escritura en la impresora"
+    description: >-
+      Protección adicional para todas las acciones físicas de impresión. DESACTIVADO por defecto. Pausar, reanudar, cancelar e iniciar también requieren sus permisos independientes y aprobación expresa. Si este interruptor está apagado, no se exponen herramientas de control aunque algún permiso individual esté activado.
