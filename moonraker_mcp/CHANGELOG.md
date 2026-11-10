@@ -5,6 +5,62 @@ Las actualizaciones se describen primero en inglés y después en español.
 
 ---
 
+## 0.1.2 — 2026-11-10
+
+### English
+
+**New read-only Snapmaker U1 diagnostics**
+
+- Added the opt-in `moonraker_print_snapshot` tool for current print state, file name, active tool (T0–T3), layer counts, elapsed durations, and independently labelled display/file progress percentages.
+- Added the opt-in `moonraker_filament_slots` tool to read four filament positions, their materials, manufacturers and colors directly from Klipper's `filament_detect` object, without Home Assistant entities.
+- The four-slot view excludes NFC tag identifiers and secret fields. It does **not** claim a verified Spoolman spool ID per slot.
+- Deliberately omits a guessed finish time because the reported progress sources can disagree.
+- Both tools use the new `enable_u1_status` setting, which is **OFF by default**.
+
+**New individually authorized print actions**
+
+- Four separate, initially **OFF**, settings: `allow_print_pause`, `allow_print_resume`, `allow_print_cancel`, and `allow_print_start`.
+- Each exposes only its matching tool. Print operations are checked against the current Klipper ready state and print state before being sent to fixed Moonraker endpoints.
+- Cancel requires the exact currently printing G-code filename. Start validates the G-code filename and checks that a nonempty file exists before requesting a print.
+- Every write tool requires an action-specific confirmation argument; the ChatGPT client must also obtain **explicit human approval** for the operation. A confirmation string alone does not prove consent.
+- No arbitrary G-code, file modification/deletion, Spoolman changes, or power switching is enabled.
+- Added simulated tests for safe/unsafe states, unexpected arguments, confirmation, missing G-code files, privacy filtering and independent permissions. No physical printer operations were used in automated tests.
+
+**Requirements and compatibility**
+
+- Home Assistant OS/Supervised, AMD64 or ARM64, with Moonraker and Klippy accessible.
+- Existing configuration and tunnel credentials should be retained during a normal add-on update; new permissions remain off unless deliberately enabled.
+- MCP clients may need a refreshed tool catalog and a new conversation to discover new tools.
+- Physical print-control behavior must be reviewed on the specific printer before enabling write permissions; HTTP acceptance does not guarantee completion.
+
+### Español
+
+**Nuevas consultas de diagnóstico para Snapmaker U1**
+
+- Incorporada la herramienta opcional `moonraker_print_snapshot` para consultar estado, archivo, cabezal activo (T0–T3), capas, tiempos transcurridos y porcentajes de progreso diferenciados de la pantalla y del archivo.
+- Incorporada `moonraker_filament_slots` para consultar directamente los cuatro filamentos, materiales, fabricantes y colores mediante el objeto Klipper `filament_detect`, sin depender de entidades de Home Assistant.
+- La vista de filamentos no muestra identificadores NFC ni campos privados. **No atribuye** un ID de bobina Spoolman a cada posición sin haber verificado esa asociación.
+- No inventa una hora de finalización, porque las distintas fuentes de progreso pueden discrepar.
+- Ambas consultas se habilitan con la nueva opción `enable_u1_status`, **desactivada por defecto**.
+
+**Nuevos controles de impresión con permisos individuales**
+
+- Cuatro ajustes separados, inicialmente **desactivados**: `allow_print_pause`, `allow_print_resume`, `allow_print_cancel` y `allow_print_start`.
+- Cada ajuste habilita exclusivamente su herramienta correspondiente. Antes de ordenar una operación se comprueban el estado actual de Klipper y de la impresión y solo se utilizan endpoints fijos de Moonraker.
+- Cancelar exige el nombre exacto del G-code que se está imprimiendo. Iniciar verifica el nombre y la existencia de un archivo G-code no vacío antes de solicitar la impresión.
+- Las operaciones de escritura requieren un argumento de confirmación específico; además, el cliente ChatGPT debe obtener **aprobación humana explícita**. Un texto de confirmación no demuestra por sí solo que exista consentimiento.
+- No se habilitan G-code arbitrario, edición o borrado de archivos, modificaciones de Spoolman ni conmutación eléctrica.
+- Incorporadas pruebas simuladas de estados permitidos y rechazados, parámetros imprevistos, confirmaciones, archivos inexistentes, privacidad y separación de permisos. Las pruebas automáticas no han enviado órdenes físicas a la impresora.
+
+**Requisitos y compatibilidad**
+
+- Home Assistant OS/Supervised en AMD64 o ARM64, con Moonraker y Klippy accesibles.
+- La actualización normal debería conservar la configuración y las credenciales del túnel; los permisos nuevos permanecerán apagados hasta activarlos expresamente.
+- Puede ser necesario actualizar el catálogo de herramientas MCP en ChatGPT y abrir otra conversación para descubrirlas.
+- Debe comprobarse el comportamiento de los controles sobre cada impresora antes de habilitar escritura; una respuesta HTTP aceptada no garantiza la finalización de una acción física.
+
+---
+
 ## 0.1.1 — 2026-11-10
 
 ### English
