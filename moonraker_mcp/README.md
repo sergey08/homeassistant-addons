@@ -1,6 +1,6 @@
 # Moonraker MCP for Home Assistant
 
-**Version 0.1.0 · AMD64 and ARM64 · Read-only MCP bridge by default**
+**Version 0.1.1 · AMD64 and ARM64 · Read-only MCP bridge by default**
 
 Moonraker MCP connects an OpenAI-compatible MCP client (optionally ChatGPT through a **Secure MCP Tunnel**) to a 3D printer's **Moonraker API**. The app runs in Home Assistant OS / Supervised, but connects **directly to Moonraker**, not through Home Assistant printer entities. The initial installation builds the container locally from pinned sources.
 
@@ -105,7 +105,7 @@ These are the **13 options in config.yaml**. Values shown are the initial defaul
 | **Spoolman** | `moonraker_spoolman_status`, `moonraker_spoolman_get_spool`, `moonraker_spoolman_inventory` (v0.1.1 candidate) | “List my filament spools and show the remaining grams of PLA.” |
 | **Power status** | `moonraker_power_status` | “What is the current state of Moonraker-managed power devices?” |
 
-**Spoolman inventory (planned for v0.1.1):** the new `moonraker_spoolman_inventory` tool uses Moonraker's fixed, read-only Spoolman proxy to list up to 100 spools. It returns sanitized spool ID, manufacturer, material, color, archived state, and remaining/used weight when available. It does not modify filament stock or use arbitrary proxy requests. **Moonraker must have a working [spoolman] integration**; having a separate Spoolman app in Home Assistant alone is not enough. The 0.1.0 stable add-on does not include this new inventory tool yet.
+**Spoolman inventory (v0.1.1):** the new `moonraker_spoolman_inventory` tool uses Moonraker's fixed, read-only Spoolman proxy to list up to 100 spools. It returns sanitized spool ID, manufacturer, material, color, archived state, and remaining/used weight when available. It does not modify filament stock or use arbitrary proxy requests. **Moonraker must have a working [spoolman] integration**; having a separate Spoolman app in Home Assistant alone is not enough. Upgrade the Home Assistant add-on to v0.1.1 to use this inventory tool.
 
 An enabled profile **does not guarantee the tools exist** in your Moonraker server: the gateway only exposes tools implemented by the configured upstream. The power profile checks status; **it cannot turn anything on or off**.
 
@@ -255,7 +255,7 @@ Estas son las **13 opciones reales de config.yaml**:
 | **Spoolman** | `moonraker_spoolman_status`, `moonraker_spoolman_get_spool`, `moonraker_spoolman_inventory` (candidata 0.1.1) | «¿Qué bobinas tengo y cuántos gramos de PLA me quedan?» |
 | **Estado eléctrico** | `moonraker_power_status` | «¿Qué estado tienen los dispositivos de alimentación de Moonraker?» |
 
-**Inventario Spoolman (previsto para la 0.1.1):** la nueva herramienta `moonraker_spoolman_inventory` usa el proxy de Spoolman de Moonraker con una operación interna **GET de solo lectura**, sin permitir llamadas arbitrarias. Consulta hasta 100 bobinas y devuelve identificador, marca, material, color, si están archivadas y gramos restantes/consumidos cuando existan. No modifica inventario ni consumo. **Moonraker debe tener configurada y funcionando su integración [spoolman]**; tener únicamente el complemento Spoolman instalado en Home Assistant no garantiza el acceso desde Moonraker. La estable 0.1.0 aún no incluye esta nueva herramienta.
+**Inventario Spoolman (0.1.1):** la nueva herramienta `moonraker_spoolman_inventory` usa el proxy de Spoolman de Moonraker con una operación interna **GET de solo lectura**, sin permitir llamadas arbitrarias. Consulta hasta 100 bobinas y devuelve identificador, marca, material, color, si están archivadas y gramos restantes/consumidos cuando existan. No modifica inventario ni consumo. **Moonraker debe tener configurada y funcionando su integración [spoolman]**; tener únicamente el complemento Spoolman instalado en Home Assistant no garantiza el acceso desde Moonraker. Actualiza el complemento Home Assistant a la 0.1.1 para usar esta herramienta.
 
 Que un perfil esté activado **no garantiza que esas herramientas existan** en el servidor Moonraker: solo aparecerán las implementadas por la conexión real. El perfil eléctrico consulta el estado; **no puede encender ni apagar dispositivos**.
 
