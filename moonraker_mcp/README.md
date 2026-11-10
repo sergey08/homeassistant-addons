@@ -1,8 +1,8 @@
 # Moonraker MCP for Home Assistant
 
-## v0.1.0 — Candidato estable / Stable release candidate
+## v0.1.0 — Distribución desde el catálogo estable / Stable source distribution
 
-**Estado / Status:** preparado en la rama `release/moonraker-mcp-0.1.0-rc1`; **NO publicado, NO fusionado a main**. La edición de la ficha `name: Moonraker MCP` y `version: 0.1.0` se aplica solamente al candidato; la instalación DEV del usuario y su repositorio quedan intactos.
+**Estado / Status:** integrado en `main` mediante PR #125. El código fuente de la versión `0.1.0` está disponible en el catálogo estable de Home Assistant, que construye la imagen localmente desde el `Dockerfile`. No equivale a una GitHub Release etiquetada ni a una imagen GHCR publicada. Las instalaciones DEV existentes permanecen separadas.
 
 **ES — Funciones principales.** Complemento Home Assistant OS para AMD64 y ARM64 que conecta directamente con la API Moonraker de la impresora. Ofrece cinco herramientas de consulta MCP por defecto, con listado cerrado y tratamiento de privacidad de datos del equipo. Las siete categorías de funciones adicionales permanecen desactivadas inicialmente. Incluye un cliente de túnel seguro saliente de OpenAI, opcional y desactivado por defecto, compilado desde código fuente fijado; **no es un ZIP oficial de OpenAI**. El puerto 8765 no se publica por defecto.
 
@@ -14,7 +14,7 @@
 
 **Licencias y procedencia / Third-party notices:** [Avisos y fuentes de terceros / Third-party sources and notices](./THIRD_PARTY_NOTICES_EN_ES.md). La imagen ya incluye LICENSE/NOTICE de los dos binarios principales, pero está pendiente cerrar los requisitos de redistribución de los paquetes Alpine; no asumir aprobación jurídica.
 
-**Release gate:** siguen pendientes la revisión concreta de obligaciones LICENSE/NOTICE/fuentes correspondientes, la CI del commit candidato final y la autorización expresa del mantenedor. Rotación/revocación de credenciales y restauración cifrada no se han probado de extremo a extremo: **NO VERIFICADAS**, no se exige crear credenciales nuevas al usuario actual.
+**Limitaciones / Limitations:** la primera distribución está limitada al código fuente, sin imágenes GHCR propias. La redistribución futura de imágenes binarias mantiene pendiente la revisión completa de obligaciones LICENSE/NOTICE/fuentes correspondientes. La rotación/revocación de credenciales y la restauración cifrada no se han probado de extremo a extremo: **NO VERIFICADAS**. No se debe migrar automáticamente desde DEV.
 
 ---
 
