@@ -382,6 +382,38 @@ class GatewayTests(unittest.TestCase):
                                    "params": {"name": name, "arguments": arguments}},
                                   selected)
 
+    def test_write_tools_are_hidden_and_confirmation_is_mandatory(self):
+        from gateway import LOCAL_PRINT_WRITE_TOOLS
+        mapping = {"print_pause": "moonraker_safe_print_pause",
+                   "print_resume": "moonraker_safe_print_resume",
+                   "print_cancel": "moonraker_safe_print_cancel",
+                   "print_start": "moonraker_safe_print_start"}
+        self.assertEqual(set(LOCAL_PRINT_WRITE_TOOLS), set(mapping.values()))
+        base = filter_reply("tools/list", {"result": {"tools": []}}, self.allowed)
+        self.assertFalse(set(mapping.values()) & {t["name"] for t in base["result"]["tools"]})
+        for profile, tool in mapping.items():
+            selected = extend_allowed(self.allowed, [profile])
+            listed = filter_reply("tools/list", {"result": {"tools": []}}, selected)
+            listed_names = [t["name"] for t in listed["result"]["tools"]]
+            self.assertEqual(set(listed_names) & set(mapping.values()), {tool})
+            args = {"confirmation": "CONFIRM_" + profile.rsplit("_", 1)[-1].upper()}
+            if profile == "print_cancel":
+                args["expected_filename"] = "model.gcode"
+            if profile == "print_start":
+                args["filename"] = "model.gcode"
+            request = {"jsonrpc": "2.0", "id": 10, "method": "tools/call",
+                       "params": {"name": tool, "arguments": args}}
+            self.assertEqual(check_message(request, selected), "tools/call")
+            with self.assertRaises(PolicyError):
+                check_message(request, self.allowed)
+            for unsafe in ({**args, "confirmation": "NO"},
+                           {**args, "script": "M112"},
+                           {**args, "url": "https://unsafe.example"}):
+                with self.subTest(tool=tool, unsafe=unsafe), self.assertRaises(PolicyError):
+                    check_message({"jsonrpc": "2.0", "id": 10, "method": "tools/call",
+                                   "params": {"name": tool, "arguments": unsafe}},
+                                  selected)
+
     def test_session_header_validation(self):
         self.assertEqual(validate_mcp_header("session_123-abc.def"), "session_123-abc.def")
         self.assertEqual(validate_mcp_header("2025-06-18"), "2025-06-18")
