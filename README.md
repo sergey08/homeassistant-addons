@@ -39,11 +39,11 @@ https://github.com/sergey08/homeassistant-addons
 
 [App source](./obsidian_client/) · [Documentation (EN/ES)](./obsidian_client/DOCS.md)
 
-**Moonraker MCP — v0.1.0 (release candidate; pending publication)**
+**Moonraker MCP — v0.1.0 (source-build distribution)**
 
 - Dedicated MCP bridge for Moonraker-based 3D printers with **five read-only tools enabled by default**.
 - Runs on AMD64 and ARM64 Home Assistant OS; optional outbound OpenAI Secure MCP Tunnel without exposing local ports.
-- **Not yet released:** the stable catalog entry is part of draft PR #125. DEV installations are separate; do not uninstall or migrate automatically.
+- Source-build add-on: Home Assistant builds locally from this repository; no project GHCR image is distributed. DEV installations are separate; do not uninstall or migrate automatically.
 
 [Moonraker source](./moonraker_mcp/) · [Quick start EN/ES](./moonraker_mcp/QUICK_START_EN_ES.md) · [Third-party notices](./moonraker_mcp/THIRD_PARTY_NOTICES_EN_ES.md)
 
@@ -89,11 +89,11 @@ https://github.com/sergey08/homeassistant-addons
 
 [Código de la aplicación](./obsidian_client/) · [Documentación (EN/ES)](./obsidian_client/DOCS.md)
 
-**Moonraker MCP — v0.1.0 (candidato pendiente de publicación)**
+**Moonraker MCP — v0.1.0 (distribución compilada desde fuentes)**
 
 - Conexión MCP con impresoras 3D mediante Moonraker y **cinco herramientas de solo lectura activas por defecto**.
 - Funciona en Home Assistant OS AMD64 y ARM64; túnel privado saliente de OpenAI opcional, sin abrir puertos al exterior.
-- **Todavía sin publicar:** la entrada al catálogo estable está en la PR #125 (borrador). No desinstales ni migres automáticamente el complemento DEV.
+- Complemento compilado localmente por Home Assistant desde este repositorio, sin imagen GHCR propia. No desinstales ni migres automáticamente el complemento DEV.
 
 [Código Moonraker](./moonraker_mcp/) · [Guía rápida ES/EN](./moonraker_mcp/QUICK_START_EN_ES.md) · [Avisos de terceros](./moonraker_mcp/THIRD_PARTY_NOTICES_EN_ES.md)
 
