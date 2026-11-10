@@ -1,37 +1,27 @@
-# Moonraker MCP v0.1.0 — Inicio rápido / Quick start
+# Moonraker MCP v0.1.0 — Quick start / Inicio rápido
 
-**Disponible en el catálogo estable de Home Assistant / Available in the stable Home Assistant catalog.** La versión 0.1.0 se distribuye como código fuente y Home Assistant construye su contenedor localmente. No modifica automáticamente ninguna instalación DEV existente.
-
-## Requisitos / Requirements
-
-- **Obligatorio:** Home Assistant OS o Supervised (AMD64/ARM64), una API Moonraker accesible desde Home Assistant (habitualmente puerto 7125) y un token exclusivo en **mcp_http_token** (recomendados 32+ caracteres).
-- **Según la configuración de Moonraker:** su API key, si la exige.
-- **Durante la instalación:** Internet para compilar localmente y descargar fuentes/dependencias.
-- **Solo para ChatGPT:** acceso a MCP personalizado/túnel según la cuenta, identificador de túnel propio y clave restringida de OpenAI Platform.
-- **No hace falta:** Fluidd, abrir el puerto 8765 al exterior, instalar manualmente el cliente de túnel ni utilizar la instalación DEV.
-
-**EN:** Requires HA OS/Supervised on AMD64/ARM64, reachable Moonraker API (usually port 7125), a unique strong MCP HTTP token, a Moonraker API key only if required, and internet access for the local build. ChatGPT/tunnel access and restricted OpenAI credentials are optional. Do not expose port 8765 publicly.
-
-## Español
-
-1. Añade el catálogo `https://github.com/sergey08/homeassistant-addons` en **Ajustes → Aplicaciones → Tienda de aplicaciones → ⋮ → Repositorios**. Instala **Moonraker MCP**. La app 0.1.0 ya aparece en el catálogo estable.
-2. Abre **Configuración** del complemento: indica la URL de la API Moonraker (habitualmente `http://impresora:7125`), la clave Moonraker solo si tu servidor la requiere y un token MCP exclusivo en `mcp_http_token`. No compartas ninguna clave en incidencias.
-3. Deja `enable_tunnel: false` si solo necesitas acceso MCP local. Para conectar ChatGPT, utiliza **tu propio** identificador de túnel y clave restringida de OpenAI en los campos `tunnel_id` y `openai_tunnel_api_key`, y activa `enable_tunnel`. La disponibilidad del túnel depende de la cuenta y del espacio de trabajo; no es necesario instalar clientes binarios manualmente.
-4. Inicia la aplicación y consulta sus registros si hay un problema. El puerto TCP `8765` queda sin publicar por defecto. No publiques este puerto en Internet; los cinco métodos predeterminados son de lectura. Mantén desactivadas las opciones `enable_*` que no necesites.
-
-**Usuarios DEV:** NO desinstalar ni sustituir la instalación funcional automáticamente. La identidad Supervisor del catálogo DEV puede ser diferente de la estable y no se garantiza migración directa, copia de opciones ni secretos. Planificar una migración antes de tocar el servicio existente; no reutilizar simultáneamente un mismo identificador de túnel en dos aplicaciones.
-
-**Limitaciones conocidas:** pruebas de recuperación cifrada y revocación/rotación real de la clave del túnel **NO VERIFICADAS**. Tampoco se debe interpretar el estado del candidato como revisión completa de redistribución de terceros.
+**Available now in the stable Home Assistant app catalog.** This app is source-built locally by Supervisor. It is separate from the DEV installation.
 
 ## English
 
-1. Add `https://github.com/sergey08/homeassistant-addons` in **Settings → Apps → App Store → ⋮ → Repositories** and install **Moonraker MCP**. Version 0.1.0 is already available in the stable catalog.
-2. In the add-on **Configuration** panel, specify your Moonraker API URL (typically `http://printer:7125`), Moonraker API key if needed, and a unique MCP bearer token under `mcp_http_token`.
-3. Leave `enable_tunnel: false` for local-only use. To connect ChatGPT, enter your own OpenAI tunnel ID and restricted OpenAI tunnel API key, then enable `enable_tunnel`. No manual binary installation is required.
-4. Start the app and inspect logs if needed. TCP `8765` is unpublished by default. Never expose it directly to the Internet. The five default MCP tools are read-only; leave optional `enable_*` profiles off unless required.
+1. **Requirements:** Home Assistant OS/Supervised on AMD64 or ARM64 and a reachable Moonraker API (usually on port 7125). An internet connection is needed while the app builds. A unique `mcp_http_token` is always required.
+2. **Moonraker key:** Retrieve your current key from `GET http://PRINTER_IP:7125/access/api_key` on a trusted/authorized client, if your Moonraker deployment requires it. **Do not POST** to that endpoint; it regenerates the key. If Moonraker trusts Home Assistant without a key, leave `moonraker_api_key` blank.
+3. **Install:** Home Assistant → Settings → Apps → App Store → ⋮ → Repositories → add `https://github.com/sergey08/homeassistant-addons`. Install **Moonraker MCP** (not DEV).
+4. **Configure:** Set `moonraker_url` (for example `http://printer.local:7125`), optional `moonraker_api_key`, and unique mandatory `mcp_http_token`; start with `enable_tunnel: false`.
+5. **Optional ChatGPT tunnel:** Create/select a tunnel in [OpenAI Platform](https://platform.openai.com/settings/organization/tunnels) and a restricted runtime key in [API Keys](https://platform.openai.com/settings/organization/api-keys). Enter `tunnel_id`, `openai_tunnel_api_key`, enable the tunnel, save/restart and add a custom MCP server with **Tunnel** connection in ChatGPT. Creating a tunnel requires **Tunnels Read + Manage**; using one requires **Tunnels Read + Use**.
+6. **Safety:** Do not expose port 8765 publicly; all seven extra `enable_*` options are off initially. Don't share a tunnel ID between the DEV and stable apps running together.
 
-**Existing DEV users:** keep the working instance intact. The DEV and stable catalogs may have different Supervisor identities; automatic migration and secret restoration are not guaranteed. Do not run two copies with the same tunnel ID.
+**[Full guide (all 13 options, steps and troubleshooting)](./README.md)**
 
-**Not verified:** real encrypted backup restoration and tunnel token revocation/rotation. Third-party redistribution obligations require separate release review.
+## Español
 
-For technical details / Para más detalles: [INSTALLATION_EN_ES.md](./INSTALLATION_EN_ES.md). For release controls / Controles de publicación: [STABLE_RELEASE_MINIMUM_ES.md](./STABLE_RELEASE_MINIMUM_ES.md).
+1. **Requisitos:** Home Assistant OS/Supervised AMD64 o ARM64 y API Moonraker accesible (normalmente puerto 7125). Internet durante la compilación. El `mcp_http_token` exclusivo siempre es obligatorio.
+2. **Clave Moonraker:** desde un equipo autorizado, consulta la clave actual con `GET http://IP_IMPRESORA:7125/access/api_key`, si se requiere. **No utilices POST**: regeneraría la clave. Si Moonraker acepta Home Assistant sin clave, deja `moonraker_api_key` vacío.
+3. **Instalar:** Home Assistant → Ajustes → Aplicaciones → Tienda de aplicaciones → ⋮ → Repositorios → añade `https://github.com/sergey08/homeassistant-addons`. Instala **Moonraker MCP** (sin DEV).
+4. **Configurar:** introduce `moonraker_url` (por ejemplo `http://printer.local:7125`), la clave Moonraker cuando proceda y el `mcp_http_token` obligatorio. Deja `enable_tunnel: false` al principio.
+5. **Túnel ChatGPT opcional:** crea/selecciona un túnel desde [OpenAI Platform](https://platform.openai.com/settings/organization/tunnels) y una clave restringida desde [Claves API](https://platform.openai.com/settings/organization/api-keys). Introduce `tunnel_id` y `openai_tunnel_api_key`, activa el túnel, guarda/reinicia y registra un MCP por **Túnel** en ChatGPT. Crear exige **Tunnels Read + Manage**; utilizar, **Tunnels Read + Use**.
+6. **Seguridad:** no abras el puerto 8765 a Internet; las siete opciones extra `enable_*` empiezan desactivadas. No compartas un mismo túnel entre DEV y estable ejecutándose a la vez.
+
+**[Manual completo (las 13 opciones, instrucciones y problemas frecuentes)](./README.md)**
+
+Real encrypted backup restoration and tunnel-key revocation are not fully verified; do not assume DEV-to-stable automatic migration. / La restauración cifrada real y la revocación de claves no están completamente verificadas. No se garantiza migración automática desde DEV.
