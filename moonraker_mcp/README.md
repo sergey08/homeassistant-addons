@@ -4,7 +4,9 @@
 
 Moonraker MCP connects an OpenAI-compatible MCP client (optionally ChatGPT through a **Secure MCP Tunnel**) to a 3D printer's **Moonraker API**. The app runs in Home Assistant OS / Supervised, but connects **directly to Moonraker**, not through Home Assistant printer entities. The initial installation builds the container locally from pinned sources.
 
-> **Language:** Full English guide first; complete Spanish instructions follow below.
+**Language / Idioma:** [English](#english) · [Español](#español)
+
+> English guide first, followed by the full Spanish translation. / Guía en inglés primero, seguida de la versión completa en español.
 
 ## English
 
@@ -122,6 +124,8 @@ Official reference: [OpenAI Secure MCP Tunnel guide](https://developers.openai.c
 ---
 
 ## Español
+
+Moonraker MCP conecta un cliente MCP compatible con OpenAI (opcionalmente ChatGPT mediante un **túnel MCP seguro —Secure MCP Tunnel—**) con la **API Moonraker** de una impresora 3D. El complemento se ejecuta en Home Assistant OS o Supervised, pero se conecta **directamente a Moonraker**, sin utilizar entidades de la impresora en Home Assistant. Durante la instalación inicial, Home Assistant compila el contenedor localmente a partir de código fuente y dependencias con versiones fijadas.
 
 ### 1. Requisitos
 
