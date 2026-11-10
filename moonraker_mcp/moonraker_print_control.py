@@ -83,6 +83,17 @@ def execute_print_action(moonraker_url, moonraker_api_key, action, confirmation,
         raise PrintControlError("Printer state does not allow requested action")
     if action == "cancel" and stats.get("filename") != expected_filename:
         raise PrintControlError("Current print does not match expected filename")
+    # Verify that the exact requested G-code exists *before* starting; an
+    # arbitrary filename supplied by an MCP client is never enough.
+    if action == "start":
+        try:
+            metadata_url = base + "/server/files/metadata?" + urllib.parse.urlencode({"filename": filename})
+            metadata = _read_json(metadata_url, moonraker_api_key, opener)
+        except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError,
+                FileAccessError, ValueError, UnicodeError) as exc:
+            raise PrintControlError("Requested G-code could not be verified") from exc
+        if not isinstance(metadata, dict) or not isinstance(metadata.get("size"), (int, float)) or metadata["size"] <= 0:
+            raise PrintControlError("G-code metadata missing or empty")
     endpoint = ACTIONS[action]["endpoint"]
     if action == "start":
         endpoint += "?" + urllib.parse.urlencode({"filename": filename})
