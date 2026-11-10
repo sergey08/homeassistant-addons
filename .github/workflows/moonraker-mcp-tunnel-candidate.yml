@@ -1,0 +1,76 @@
+name: Moonraker DEV12 tunnel source candidate (no deployment)
+on:
+  push:
+    branches:
+      - dev/moonraker-mcp-dev2
+    paths:
+      - 'moonraker_mcp/Dockerfile.tunnel-candidate'
+      - 'moonraker_mcp/security_release_gate.py'
+      - '.github/workflows/moonraker-mcp-tunnel-candidate.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  source-tunnel:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    strategy:
+      fail-fast: false
+      matrix:
+        architecture: [amd64, arm64]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - name: Build exact source revision with fixed Go dependency (isolated)
+        run: |
+          docker buildx build --platform linux/${{ matrix.architecture }} --load \
+            -f moonraker_mcp/Dockerfile.tunnel-candidate \
+            -t moonraker-tunnel-source:${{ matrix.architecture }} ./moonraker_mcp
+      - name: Check embedded Go dependencies and binary runtime
+        run: |
+          set -eu
+          image=moonraker-tunnel-source:${{ matrix.architecture }}
+          test "$(docker image inspect "$image" --format '{{.Architecture}}')" = "${{ matrix.architecture }}"
+          cid="$(docker create "$image")"
+          trap 'docker rm -f "$cid" >/dev/null 2>&1 || true; rm -f /tmp/tunnel-source-client /tmp/mcp-raker-source' EXIT
+          docker cp "$cid:/opt/moonraker-mcp/vendor/tunnel-client" /tmp/tunnel-source-client
+          docker cp "$cid:/usr/local/bin/mcp-raker" /tmp/mcp-raker-source
+          go version -m /tmp/tunnel-source-client > /tmp/tunnel-source-modules
+          go version -m /tmp/mcp-raker-source > /tmp/mcp-raker-source-modules
+          echo "Tunnel client embedded dependencies:"
+          cat /tmp/tunnel-source-modules
+          echo "MCP server embedded dependencies:"
+          cat /tmp/mcp-raker-source-modules
+          grep -Eq 'golang.org/x/net[[:space:]]+v0.62.0' /tmp/tunnel-source-modules
+          # A module which is absent from a final binary is not a failure.
+          # If present, it must not use the previously vulnerable version.
+          if grep -Eq 'golang.org/x/net[[:space:]]+' /tmp/mcp-raker-source-modules; then
+            grep -Eq 'golang.org/x/net[[:space:]]+v0.62.0' /tmp/mcp-raker-source-modules
+          fi
+          ! grep -Eq 'golang.org/x/net[[:space:]]+v0.60.0' /tmp/tunnel-source-modules
+          docker run --rm --platform linux/${{ matrix.architecture }} --network none \
+            --entrypoint /opt/moonraker-mcp/vendor/tunnel-client "$image" --version
+          docker run --rm --platform linux/${{ matrix.architecture }} --network none \
+            --entrypoint /usr/local/bin/mcp-raker "$image" --version
+          echo "Exact-source private candidate binaries pass architecture/version smoke checks."
+      - name: Scan candidate image (results are not release approval)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25
+        with:
+          image-ref: moonraker-tunnel-source:${{ matrix.architecture }}
+          scanners: vuln,license
+          severity: UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL
+          format: json
+          output: tunnel-candidate-${{ matrix.architecture }}-trivy.json
+          exit-code: '0'
+      - name: Enforce HIGH/CRITICAL vulnerability threshold
+        run: |
+          python3 moonraker_mcp/security_release_gate.py tunnel-candidate-${{ matrix.architecture }}-trivy.json
+      - name: Archive evidence without redistributing unapproved binaries
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tunnel-source-${{ matrix.architecture }}-scan
+          path: tunnel-candidate-${{ matrix.architecture }}-trivy.json
+          retention-days: 14
+          if-no-files-found: ignore

@@ -1,0 +1,8 @@
+configuration:
+  mcp_http_token:
+    name: "Token de seguridad MCP (obligatorio)"
+    description: >-
+      Crea una contraseña aleatoria de al menos 32 caracteres, exclusiva
+      para este MCP. Protege el acceso al servidor MCP. No utilices la
+      API Key de Moonraker ni la clave de OpenAI. Guarda el token antes
+      de iniciar el complemento y no lo compartas.

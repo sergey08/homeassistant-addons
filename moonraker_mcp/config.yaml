@@ -1,0 +1,43 @@
+name: "Moonraker MCP"
+version: "0.1.0"
+slug: "moonraker_mcp"
+description: "MCP bridge to Moonraker / Puente MCP para Moonraker"
+url: "https://github.com/sergey08/homeassistant-addons"
+arch:
+  - amd64
+  - aarch64
+startup: services
+boot: manual
+init: false
+ports:
+  8765/tcp: null
+ports_description:
+  8765/tcp: "MCP HTTP (configure only on trusted networks)"
+options:
+  moonraker_url: "http://printer.local:7125"
+  moonraker_api_key: ""
+  mcp_http_token: ""
+  enable_tunnel: false
+  tunnel_id: ""
+  openai_tunnel_api_key: ""
+  enable_jobqueue: false
+  enable_files: false
+  enable_objects: false
+  enable_history: false
+  enable_sensors: false
+  enable_spoolman: false
+  enable_power: false
+schema:
+  moonraker_url: url
+  moonraker_api_key: "password?"
+  mcp_http_token: password
+  enable_tunnel: bool
+  tunnel_id: str
+  openai_tunnel_api_key: "password?"
+  enable_jobqueue: bool
+  enable_files: bool
+  enable_objects: bool
+  enable_history: bool
+  enable_sensors: bool
+  enable_spoolman: bool
+  enable_power: bool
