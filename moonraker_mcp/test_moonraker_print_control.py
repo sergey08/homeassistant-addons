@@ -17,6 +17,8 @@ class PrintControlTests(unittest.TestCase):
         def opener(req, timeout):
             calls.append((req.get_method(), req.full_url))
             self.assertEqual(timeout, 10)
+            if req.get_method() == "GET" and "/server/files/metadata?" in req.full_url:
+                return Reply({"result": {"size": 12345}})
             if req.get_method() == "GET":
                 return Reply({"result": {"status": {
                     "webhooks": {"state": klippy},
@@ -58,7 +60,7 @@ class PrintControlTests(unittest.TestCase):
 
     def test_start_only_from_idle_with_safe_filename(self):
         calls, result = self.run_fake("start", "standby", filename="folder/model.gcode")
-        self.assertEqual(calls[-1][0], "POST")
+        self.assertEqual([item[0] for item in calls], ["GET", "GET", "POST"])
         self.assertIn("folder%2Fmodel.gcode", calls[-1][1])
         self.assertTrue(result["accepted"])
         calls, result = self.run_fake("start", "printing", filename="model.gcode")
@@ -67,6 +69,20 @@ class PrintControlTests(unittest.TestCase):
         calls, result = self.run_fake("start", "standby", filename="../private.cfg")
         self.assertEqual(calls, [])
         self.assertIsNone(result)
+
+    def test_start_rejects_missing_file_metadata_before_post(self):
+        def opener(req, timeout):
+            if "/printer/objects/query?" in req.full_url:
+                return Reply({"result": {"status": {
+                    "webhooks": {"state": "ready"},
+                    "print_stats": {"state": "standby"},
+                }}})
+            if "/server/files/metadata?" in req.full_url:
+                return Reply({"result": {"size": 0}})
+            self.fail("Print POST must never be reached")
+        with self.assertRaises(PrintControlError):
+            execute_print_action("http://printer.local:7125", "", "start",
+                                 "CONFIRM_START", filename="model.gcode", opener=opener)
 
     def test_confirmation_required_before_any_network_access(self):
         calls, result = self.run_fake("pause", "printing", confirmation="NO")
