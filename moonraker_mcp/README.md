@@ -10,6 +10,23 @@ Moonraker MCP connects an OpenAI-compatible MCP client (optionally ChatGPT throu
 
 ## English
 
+### What can you do with Moonraker MCP?
+
+Once connected to ChatGPT (or another compatible MCP client), you can ask natural-language questions about your 3D printer instead of opening separate technical screens. **Examples supported by the five default read-only tools:**
+
+| Example question | What the MCP can check |
+| --- | --- |
+| **“Is my 3D printer online?”** | Whether the Moonraker API is reachable and Klippy appears ready |
+| **“Is Klipper ready, or is there a connection problem?”** | Filtered Klippy and Moonraker connection/readiness states |
+| **“Which Moonraker and Klipper versions are running?”** | Available software/firmware version information |
+| **“What are the latest recorded nozzle and bed temperatures?”** | Available sensor history, including measured and target values |
+| **“Can you review the recent temperature readings and tell me if they look stable?”** | Up to 120 stored samples per sensor series; any assessment depends on the actual data returned |
+| **“What version of the Moonraker MCP server am I using?”** | MCP server version |
+
+**Optional extended profiles** can expose additional information such as G-code file names/metadata, job history, Klipper objects, other sensors, Spoolman inventory or power-related data. Those questions **only work when the corresponding profile is enabled and its tool is actually available**.
+
+**Not supported by the default profile:** starting/stopping prints, sending G-code, deleting files, turning the printer on/off, or directly commanding the machine. Also, **“offline” does not prove it is powered off**—it may be a network problem. The default tools do not provide reliable current print progress, a live camera image or a finished-print notification.
+
 ### 1. Requirements
 
 | Requirement | Mandatory? | Details |
@@ -126,6 +143,23 @@ Official reference: [OpenAI Secure MCP Tunnel guide](https://developers.openai.c
 ## Español
 
 Moonraker MCP conecta un cliente MCP compatible con OpenAI (opcionalmente ChatGPT mediante un **túnel MCP seguro —Secure MCP Tunnel—**) con la **API Moonraker** de una impresora 3D. El complemento se ejecuta en Home Assistant OS o Supervised, pero se conecta **directamente a Moonraker**, sin utilizar entidades de la impresora en Home Assistant. Durante la instalación inicial, Home Assistant compila el contenedor localmente a partir de código fuente y dependencias con versiones fijadas.
+
+### ¿Qué puedes hacer con Moonraker MCP?
+
+Una vez conectado a ChatGPT (o a otro cliente MCP compatible), puedes hacer preguntas en lenguaje natural sobre tu impresora 3D sin consultar varias pantallas técnicas. **Ejemplos compatibles con las cinco herramientas de lectura activadas por defecto:**
+
+| Ejemplo de pregunta | Qué puede comprobar el MCP |
+| --- | --- |
+| **«¿Está conectada mi impresora 3D?»** | Si la API Moonraker responde y Klippy está preparado |
+| **«¿Está Klipper listo o hay algún problema de conexión?»** | Estados filtrados de conexión y disponibilidad de Klippy/Moonraker |
+| **«¿Qué versiones de Moonraker y Klipper tengo instaladas?»** | Versiones de software y firmware disponibles |
+| **«¿Cuáles son las últimas temperaturas registradas del extrusor y de la cama?»** | Historial disponible de sensores, valores reales y objetivos |
+| **«Analiza las últimas temperaturas y dime si parecen estables»** | Hasta 120 muestras almacenadas por serie; la valoración depende de los datos reales |
+| **«¿Qué versión del servidor Moonraker MCP estoy utilizando?»** | Versión del servidor MCP |
+
+Las **funciones ampliadas opcionales** pueden dar acceso a nombres y metadatos de archivos G-code, historial de trabajos, objetos Klipper, otros sensores, inventario Spoolman o información de energía. Esas preguntas **solo funcionarán si se activa el perfil correspondiente y la herramienta está realmente disponible**.
+
+**El perfil inicial no permite** iniciar o detener impresiones, enviar G-code, borrar archivos, encender/apagar la impresora ni ejecutar órdenes directas. Además, **que aparezca «sin conexión» no demuestra que esté apagada**: también puede fallar la red. Las herramientas básicas no ofrecen por sí solas el progreso actual de una impresión, vídeo de cámara en directo ni notificaciones de fin de impresión.
 
 ### 1. Requisitos
 
