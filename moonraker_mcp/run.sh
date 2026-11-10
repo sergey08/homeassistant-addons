@@ -18,7 +18,7 @@ if [ -z "$MCP_HTTP_TOKEN" ]; then
   echo "Configure a nonempty MCP HTTP token" >&2
   exit 1
 fi
-MCP_ALLOWED_PROFILES="$(jq -ecr '[["jobqueue", .enable_jobqueue], ["files", .enable_files], ["objects", .enable_objects], ["history", .enable_history], ["sensors", .enable_sensors], ["spoolman", .enable_spoolman], ["power", .enable_power]] | if all(.[]; .[1] == null or (.[1] | type) == "boolean") then map(select(.[1] == true) | .[0]) else error("Optional MCP profiles must be boolean") end' "$OPTIONS")"
+MCP_ALLOWED_PROFILES="$(jq -ecr '[["jobqueue", .enable_jobqueue], ["files", .enable_files], ["objects", .enable_objects], ["history", .enable_history], ["sensors", .enable_sensors], ["spoolman", .enable_spoolman], ["power", .enable_power], ["u1_status", .enable_u1_status], ["print_pause", .allow_print_pause], ["print_resume", .allow_print_resume], ["print_cancel", .allow_print_cancel], ["print_start", .allow_print_start]] | if all(.[]; .[1] == null or (.[1] | type) == "boolean") then map(select(.[1] == true) | .[0]) else error("Optional MCP profiles must be boolean") end' "$OPTIONS")"
 export MCP_ALLOWED_PROFILES
 # Fail before starting the gateway if the optional tunnel cannot authenticate.
 # The tunnel process runs as UID 65534; do not loosen private key permissions.

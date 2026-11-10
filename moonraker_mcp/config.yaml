@@ -1,5 +1,5 @@
 name: "Moonraker MCP"
-version: "0.1.1"
+version: "0.1.2"
 slug: "moonraker_mcp"
 description: "MCP bridge to Moonraker / Puente MCP para Moonraker"
 url: "https://github.com/sergey08/homeassistant-addons"
@@ -27,6 +27,11 @@ options:
   enable_sensors: false
   enable_spoolman: false
   enable_power: false
+  enable_u1_status: false
+  allow_print_pause: false
+  allow_print_resume: false
+  allow_print_cancel: false
+  allow_print_start: false
 schema:
   moonraker_url: url
   moonraker_api_key: "password?"
@@ -41,3 +46,8 @@ schema:
   enable_sensors: bool
   enable_spoolman: bool
   enable_power: bool
+  enable_u1_status: bool
+  allow_print_pause: bool
+  allow_print_resume: bool
+  allow_print_cancel: bool
+  allow_print_start: bool

@@ -54,7 +54,7 @@ jobs:
           root = pathlib.Path("moonraker_mcp")
           cfg = yaml.safe_load((root / "config.yaml").read_text())
           assert cfg["slug"] == "moonraker_mcp"
-          assert cfg["version"] == "0.1.1"
+          assert cfg["version"] == "0.1.2"
           # Gateway discovery and upstream legacy handshake must identify the
           # same add-on version; avoid stale dev7/dev11 claims in MCP clients.
           import ast
@@ -90,7 +90,9 @@ jobs:
           assert cfg["schema"]["openai_tunnel_api_key"] == "password?"
           assert cfg["options"]["openai_tunnel_api_key"] == ""
           for name in ("enable_jobqueue", "enable_files", "enable_objects",
-                       "enable_history", "enable_sensors", "enable_spoolman", "enable_power"):
+                       "enable_history", "enable_sensors", "enable_spoolman", "enable_power",
+                       "enable_u1_status", "allow_print_pause", "allow_print_resume",
+                       "allow_print_cancel", "allow_print_start"):
               assert cfg["options"][name] is False, name
           assert "USER root" in (root / "Dockerfile").read_text()
           assert 'ENTRYPOINT ["/run.sh"]' in (root / "Dockerfile").read_text()

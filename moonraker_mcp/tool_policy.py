@@ -16,6 +16,11 @@ OPTIONAL_PROFILES = {
     "spoolman": frozenset(("moonraker_spoolman_status", "moonraker_spoolman_get_spool",
                            "moonraker_spoolman_inventory")),
     "power": frozenset(("moonraker_power_status",)),
+    "u1_status": frozenset(("moonraker_print_snapshot", "moonraker_filament_slots")),
+    "print_pause": frozenset(("moonraker_safe_print_pause",)),
+    "print_resume": frozenset(("moonraker_safe_print_resume",)),
+    "print_cancel": frozenset(("moonraker_safe_print_cancel",)),
+    "print_start": frozenset(("moonraker_safe_print_start",)),
 }
 
 

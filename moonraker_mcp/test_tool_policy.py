@@ -31,6 +31,34 @@ class ToolPolicyTests(unittest.TestCase):
         self.assertFalse("moonraker_spoolman_set_spool" in allowed)
         self.assertFalse("moonraker_spoolman_proxy" in allowed)
 
+    def test_u1_status_is_explicitly_opt_in_and_read_only(self):
+        for name in ("moonraker_print_snapshot", "moonraker_filament_slots"):
+            with self.assertRaises(policy.PolicyError):
+                policy.authorize_call(name, self.allowed)
+        opted_in = policy.extend_allowed(self.allowed, ["u1_status"])
+        self.assertEqual(len(opted_in), len(self.allowed) + 2)
+        for name in ("moonraker_print_snapshot", "moonraker_filament_slots"):
+            self.assertTrue(policy.authorize_call(name, opted_in))
+        for name in ("moonraker_print_start", "moonraker_print_cancel",
+                     "moonraker_gcode_script", "moonraker_power_on"):
+            self.assertNotIn(name, opted_in)
+
+    def test_each_print_write_tool_requires_individual_opt_in(self):
+        mappings = {
+            "print_pause": "moonraker_safe_print_pause",
+            "print_resume": "moonraker_safe_print_resume",
+            "print_cancel": "moonraker_safe_print_cancel",
+            "print_start": "moonraker_safe_print_start",
+        }
+        for profile, tool in mappings.items():
+            with self.subTest(profile=profile):
+                selected = policy.extend_allowed(self.allowed, [profile])
+                self.assertIn(tool, selected)
+                for other in set(mappings.values()) - {tool}:
+                    self.assertNotIn(other, selected)
+                self.assertNotIn("moonraker_gcode_script", selected)
+                self.assertNotIn("moonraker_power_on", selected)
+
     def test_blocks_control_even_when_admin_disabled(self):
         for name in (
             "moonraker_gcode_script", "moonraker_print_start",

@@ -77,3 +77,25 @@ configuration:
       Permite consultar moonraker_power_status para conocer el estado
       de los dispositivos de alimentación configurados en Moonraker.
       Solo lectura: NO enciende ni apaga la impresora ni los enchufes.
+
+  enable_u1_status:
+    name: "Acceso adicional: impresión y filamentos T0-T3"
+    description: >-
+      Activa dos consultas de solo lectura para el progreso de impresión y las cuatro posiciones de filamento. Muestra material, fabricante, color y cabezal activo. Oculta identificadores NFC, no inventa asociaciones de bobinas Spoolman ni tiempos restantes y no controla la impresión.
+
+  allow_print_pause:
+    name: "Permitir pausar impresión"
+    description: >-
+      Autoriza solicitar la pausa de una impresión activa. Cambia el estado de la impresora; requiere tu aprobación expresa y confirmación. DESACTIVADO por defecto. Solo mientras imprime.
+  allow_print_resume:
+    name: "Permitir reanudar impresión"
+    description: >-
+      Autoriza solicitar la continuación de una impresión pausada. Cambia el estado de la impresora; requiere tu aprobación expresa y confirmación. DESACTIVADO por defecto. Solo en pausa.
+  allow_print_cancel:
+    name: "Permitir cancelar impresión"
+    description: >-
+      Autoriza cancelar una impresión activa. Es irreversible y requiere aprobación expresa, confirmación y coincidencia exacta del archivo G-code en curso. DESACTIVADO por defecto.
+  allow_print_start:
+    name: "Permitir iniciar impresión"
+    description: >-
+      Autoriza iniciar la impresión de un archivo G-code existente. Puede calentar y mover la impresora; requiere aprobación expresa, confirmación y nombre de archivo validado. DESACTIVADO por defecto; solo en reposo.

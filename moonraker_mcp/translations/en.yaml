@@ -75,3 +75,25 @@ configuration:
       Allow the read-only moonraker_power_status tool to check configured
       Moonraker power-device status. Does NOT turn power outlets or the
       printer on/off; do not confuse this with power control.
+
+  enable_u1_status:
+    name: "Extra access: print and T0-T3 filament status"
+    description: >-
+      Enable two read-only tools for live print progress and four physical filament slots. Reports material, manufacturer, color and active tool. Filters NFC identifiers, does not guess per-slot Spoolman IDs or remaining time, and never controls printing.
+
+  allow_print_pause:
+    name: "Allow pause print"
+    description: >-
+      Allow ChatGPT to request pausing an active print. Changes printer state; requires your explicit approval and confirmation. Default OFF. Only allowed while printing.
+  allow_print_resume:
+    name: "Allow resume print"
+    description: >-
+      Allow ChatGPT to request resuming a paused print. Changes printer state; requires your explicit approval and confirmation. Default OFF. Only allowed while paused.
+  allow_print_cancel:
+    name: "Allow cancel print"
+    description: >-
+      Allow ChatGPT to cancel an active print. Irreversible; requires your explicit approval, confirmation and exact current G-code filename. Default OFF. Only while printing or paused.
+  allow_print_start:
+    name: "Allow start print"
+    description: >-
+      Allow ChatGPT to start a specific existing G-code file. Can heat and move the printer; requires your explicit approval, confirmation and a validated filename. Default OFF. Only when idle.

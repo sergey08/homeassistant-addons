@@ -10,10 +10,10 @@ class GatewayTests(unittest.TestCase):
 
     def test_modern_discovery_reports_current_addon_version(self):
         from gateway import modern_discovery, ADDON_VERSION
-        self.assertEqual(ADDON_VERSION, "0.1.1")
+        self.assertEqual(ADDON_VERSION, "0.1.2")
         request = {"jsonrpc": "2.0", "id": 123}
         response = modern_discovery(request)
-        self.assertEqual(response["result"]["_meta"]["io.modelcontextprotocol/serverInfo"]["version"], "0.1.1")
+        self.assertEqual(response["result"]["_meta"]["io.modelcontextprotocol/serverInfo"]["version"], "0.1.2")
         self.assertEqual(response["id"], 123)
 
     def test_legacy_mcp_client_identity_matches_gateway(self):
@@ -22,7 +22,7 @@ class GatewayTests(unittest.TestCase):
         source = (Path(__file__).parent / "gateway.py").read_text(encoding="utf-8")
         self.assertIn('"version": ADDON_VERSION', source)
         self.assertNotIn('"version": "0.1.0-dev7"', source)
-        self.assertEqual(ADDON_VERSION, "0.1.1")
+        self.assertEqual(ADDON_VERSION, "0.1.2")
 
     def test_upstream_redirect_does_not_forward_bearer_token(self):
         import urllib.error
@@ -354,6 +354,65 @@ class GatewayTests(unittest.TestCase):
                 check_message({"jsonrpc": "2.0", "id": 2, "method": "tools/call",
                                "params": {"name": "moonraker_spoolman_inventory",
                                           "arguments": arguments}}, enabled)
+
+    def test_u1_status_tools_opt_in_and_no_arbitrary_arguments(self):
+        from gateway import LOCAL_U1_TOOLS
+        self.assertEqual(set(LOCAL_U1_TOOLS),
+                         {"moonraker_print_snapshot", "moonraker_filament_slots"})
+        selected = extend_allowed(self.allowed, ["u1_status"])
+        upstream = {"result": {"tools": [
+            {"name": "moonraker_print_snapshot", "inputSchema": {"type": "object"}}]}}
+        base_names = [tool["name"] for tool in
+                      filter_reply("tools/list", upstream, self.allowed)["result"]["tools"]]
+        self.assertNotIn("moonraker_print_snapshot", base_names)
+        shown = [tool["name"] for tool in
+                 filter_reply("tools/list", upstream, selected)["result"]["tools"]]
+        self.assertEqual(shown.count("moonraker_print_snapshot"), 1)
+        self.assertEqual(shown.count("moonraker_filament_slots"), 1)
+        for name in LOCAL_U1_TOOLS:
+            valid = {"jsonrpc": "2.0", "id": 9, "method": "tools/call",
+                     "params": {"name": name, "arguments": {}}}
+            self.assertEqual(check_message(valid, selected), "tools/call")
+            with self.assertRaises(PolicyError):
+                check_message(valid, self.allowed)
+            for arguments in ({"objects": {"configfile": []}},
+                              {"script": "M112"}, {"filename": "../../private"}):
+                with self.subTest(name=name, arguments=arguments), self.assertRaises(PolicyError):
+                    check_message({"jsonrpc": "2.0", "id": 9, "method": "tools/call",
+                                   "params": {"name": name, "arguments": arguments}},
+                                  selected)
+
+    def test_write_tools_are_hidden_and_confirmation_is_mandatory(self):
+        from gateway import LOCAL_PRINT_WRITE_TOOLS
+        mapping = {"print_pause": "moonraker_safe_print_pause",
+                   "print_resume": "moonraker_safe_print_resume",
+                   "print_cancel": "moonraker_safe_print_cancel",
+                   "print_start": "moonraker_safe_print_start"}
+        self.assertEqual(set(LOCAL_PRINT_WRITE_TOOLS), set(mapping.values()))
+        base = filter_reply("tools/list", {"result": {"tools": []}}, self.allowed)
+        self.assertFalse(set(mapping.values()) & {t["name"] for t in base["result"]["tools"]})
+        for profile, tool in mapping.items():
+            selected = extend_allowed(self.allowed, [profile])
+            listed = filter_reply("tools/list", {"result": {"tools": []}}, selected)
+            listed_names = [t["name"] for t in listed["result"]["tools"]]
+            self.assertEqual(set(listed_names) & set(mapping.values()), {tool})
+            args = {"confirmation": "CONFIRM_" + profile.rsplit("_", 1)[-1].upper()}
+            if profile == "print_cancel":
+                args["expected_filename"] = "model.gcode"
+            if profile == "print_start":
+                args["filename"] = "model.gcode"
+            request = {"jsonrpc": "2.0", "id": 10, "method": "tools/call",
+                       "params": {"name": tool, "arguments": args}}
+            self.assertEqual(check_message(request, selected), "tools/call")
+            with self.assertRaises(PolicyError):
+                check_message(request, self.allowed)
+            for unsafe in ({**args, "confirmation": "NO"},
+                           {**args, "script": "M112"},
+                           {**args, "url": "https://unsafe.example"}):
+                with self.subTest(tool=tool, unsafe=unsafe), self.assertRaises(PolicyError):
+                    check_message({"jsonrpc": "2.0", "id": 10, "method": "tools/call",
+                                   "params": {"name": tool, "arguments": unsafe}},
+                                  selected)
 
     def test_session_header_validation(self):
         self.assertEqual(validate_mcp_header("session_123-abc.def"), "session_123-abc.def")
