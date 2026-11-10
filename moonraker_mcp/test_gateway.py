@@ -324,8 +324,9 @@ class GatewayTests(unittest.TestCase):
         self.assertNotIn("moonraker_spoolman_status", history)
         all_profiles = extend_allowed(
             self.allowed, ["history", "sensors", "spoolman", "power"])
-        self.assertEqual(len(all_profiles), 14)
-        self.assertEqual(len(extend_allowed(self.allowed, ["jobqueue", "objects", "history", "sensors", "spoolman", "power"])), 17)
+        self.assertEqual(len(all_profiles), 15)
+        self.assertIn("moonraker_spoolman_inventory", all_profiles)
+        self.assertEqual(len(extend_allowed(self.allowed, ["jobqueue", "objects", "history", "sensors", "spoolman", "power"])), 18)
         for invalid in (["admin"], ["history", "admin"], "history", [None]):
             with self.subTest(invalid=invalid), self.assertRaises(PolicyError):
                 extend_allowed(self.allowed, invalid)
