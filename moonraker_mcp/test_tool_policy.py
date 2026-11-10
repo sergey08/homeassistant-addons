@@ -43,6 +43,22 @@ class ToolPolicyTests(unittest.TestCase):
                      "moonraker_gcode_script", "moonraker_power_on"):
             self.assertNotIn(name, opted_in)
 
+    def test_each_print_write_tool_requires_individual_opt_in(self):
+        mappings = {
+            "print_pause": "moonraker_safe_print_pause",
+            "print_resume": "moonraker_safe_print_resume",
+            "print_cancel": "moonraker_safe_print_cancel",
+            "print_start": "moonraker_safe_print_start",
+        }
+        for profile, tool in mappings.items():
+            with self.subTest(profile=profile):
+                selected = policy.extend_allowed(self.allowed, [profile])
+                self.assertIn(tool, selected)
+                for other in set(mappings.values()) - {tool}:
+                    self.assertNotIn(other, selected)
+                self.assertNotIn("moonraker_gcode_script", selected)
+                self.assertNotIn("moonraker_power_on", selected)
+
     def test_blocks_control_even_when_admin_disabled(self):
         for name in (
             "moonraker_gcode_script", "moonraker_print_start",
