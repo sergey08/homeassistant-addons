@@ -10,10 +10,10 @@ class GatewayTests(unittest.TestCase):
 
     def test_modern_discovery_reports_current_addon_version(self):
         from gateway import modern_discovery, ADDON_VERSION
-        self.assertEqual(ADDON_VERSION, "0.1.0")
+        self.assertEqual(ADDON_VERSION, "0.1.1")
         request = {"jsonrpc": "2.0", "id": 123}
         response = modern_discovery(request)
-        self.assertEqual(response["result"]["_meta"]["io.modelcontextprotocol/serverInfo"]["version"], "0.1.0")
+        self.assertEqual(response["result"]["_meta"]["io.modelcontextprotocol/serverInfo"]["version"], "0.1.1")
         self.assertEqual(response["id"], 123)
 
     def test_legacy_mcp_client_identity_matches_gateway(self):
@@ -22,7 +22,7 @@ class GatewayTests(unittest.TestCase):
         source = (Path(__file__).parent / "gateway.py").read_text(encoding="utf-8")
         self.assertIn('"version": ADDON_VERSION', source)
         self.assertNotIn('"version": "0.1.0-dev7"', source)
-        self.assertEqual(ADDON_VERSION, "0.1.0")
+        self.assertEqual(ADDON_VERSION, "0.1.1")
 
     def test_upstream_redirect_does_not_forward_bearer_token(self):
         import urllib.error
@@ -324,11 +324,36 @@ class GatewayTests(unittest.TestCase):
         self.assertNotIn("moonraker_spoolman_status", history)
         all_profiles = extend_allowed(
             self.allowed, ["history", "sensors", "spoolman", "power"])
-        self.assertEqual(len(all_profiles), 14)
-        self.assertEqual(len(extend_allowed(self.allowed, ["jobqueue", "objects", "history", "sensors", "spoolman", "power"])), 17)
+        self.assertEqual(len(all_profiles), 15)
+        self.assertIn("moonraker_spoolman_inventory", all_profiles)
+        self.assertEqual(len(extend_allowed(self.allowed, ["jobqueue", "objects", "history", "sensors", "spoolman", "power"])), 18)
         for invalid in (["admin"], ["history", "admin"], "history", [None]):
             with self.subTest(invalid=invalid), self.assertRaises(PolicyError):
                 extend_allowed(self.allowed, invalid)
+
+    def test_spoolman_inventory_is_hidden_until_opted_in(self):
+        upstream = {"result": {"tools": [
+            {"name": "moonraker_spoolman_inventory", "inputSchema": {"type": "object"}},
+            {"name": "moonraker_mcp_version", "inputSchema": {"type": "object"}},
+        ]}}
+        baseline = filter_reply("tools/list", upstream, self.allowed)
+        self.assertNotIn("moonraker_spoolman_inventory",
+                         [tool["name"] for tool in baseline["result"]["tools"]])
+        enabled = extend_allowed(self.allowed, ["spoolman"])
+        listed = filter_reply("tools/list", upstream, enabled)
+        names = [tool["name"] for tool in listed["result"]["tools"]]
+        self.assertEqual(names.count("moonraker_spoolman_inventory"), 1)
+        valid = {"jsonrpc": "2.0", "id": 1, "method": "tools/call",
+                 "params": {"name": "moonraker_spoolman_inventory", "arguments": {}}}
+        self.assertEqual(check_message(valid, enabled), "tools/call")
+        with self.assertRaises(PolicyError):
+            check_message(valid, self.allowed)
+        for arguments in ({"path": "/v1/filament"}, {"request_method": "DELETE"},
+                          {"spool_id": 1}):
+            with self.subTest(arguments=arguments), self.assertRaises(PolicyError):
+                check_message({"jsonrpc": "2.0", "id": 2, "method": "tools/call",
+                               "params": {"name": "moonraker_spoolman_inventory",
+                                          "arguments": arguments}}, enabled)
 
     def test_session_header_validation(self):
         self.assertEqual(validate_mcp_header("session_123-abc.def"), "session_123-abc.def")

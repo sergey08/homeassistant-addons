@@ -67,9 +67,10 @@ configuration:
   enable_spoolman:
     name: "Acceso adicional: filamentos Spoolman"
     description: >-
-      Permite consultar estado de Spoolman y datos de bobinas si la
-      integración está configurada en Moonraker. Puede mostrar el
-      inventario de filamento, pero no modificarlo.
+      Permite consultar estado de Spoolman, bobinas individuales y el inventario
+      completo (hasta 100 bobinas) si Moonraker tiene configurada la
+      integración [spoolman]. Muestra material, marca, color y gramos
+      restantes. No modifica existencias ni consumo.
   enable_power:
     name: "Acceso adicional: estado eléctrico"
     description: >-

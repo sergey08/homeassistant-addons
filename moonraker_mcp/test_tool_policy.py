@@ -23,6 +23,14 @@ class ToolPolicyTests(unittest.TestCase):
         self.assertTrue(policy.authorize_call("moonraker_jobqueue_status", opted_in))
         self.assertEqual(len(opted_in), len(self.allowed) + 1)
 
+    def test_spoolman_inventory_requires_opt_in_and_remains_read_only(self):
+        with self.assertRaises(policy.PolicyError):
+            policy.authorize_call("moonraker_spoolman_inventory", self.allowed)
+        allowed = policy.extend_allowed(self.allowed, ["spoolman"])
+        self.assertTrue(policy.authorize_call("moonraker_spoolman_inventory", allowed))
+        self.assertFalse("moonraker_spoolman_set_spool" in allowed)
+        self.assertFalse("moonraker_spoolman_proxy" in allowed)
+
     def test_blocks_control_even_when_admin_disabled(self):
         for name in (
             "moonraker_gcode_script", "moonraker_print_start",
