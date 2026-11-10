@@ -28,3 +28,13 @@ El objetivo es dejar de ampliar la auditoría y publicar una primera versión es
 4. Registrar riesgos conscientemente no ensayados y pedir aprobación concreta para merge/tag/release.
 
 **Este checklist es una simplificación del proceso, no un dictamen jurídico.**
+
+## Modalidad de la primera distribución: código fuente
+
+**Alcance revisado:** `config.yaml` no declara `image:`. Al añadir este catálogo, Home Assistant construye el complemento en el equipo del usuario desde el `Dockerfile` y descarga directamente los proyectos y paquetes de terceros que necesita. El repositorio no entrega una imagen GHCR propia ni los binarios compilados de Moonraker MCP. El código original del complemento se distribuye bajo la licencia MIT del repositorio y los archivos LICENSE/NOTICE upstream incluidos se mantienen con sus atribuciones y procedencia.
+
+**Distinción jurídica y operativa:** esta revisión corresponde exclusivamente al código fuente distribuido en GitHub, no certifica una imagen Docker redistribuida por el mantenedor. Los 129 registros PENDING del SBOM siguen siendo válidos como límite a una eventual publicación de imágenes binarias y **no** se marcan aprobados. La compilación local puede tardar más y depende de la disponibilidad de repositorios externos. Los usuarios que redistribuyan imágenes deberán revisar sus propias obligaciones de licencias, avisos y fuentes correspondientes.
+
+**Riesgo residual aceptado para la primera distribución:** las pruebas reales de restauración cifrada y revocación de credenciales no se han ejecutado. No se garantizan recuperación automática ni migración DEV→estable. La instalación inicial debe hacerse con credenciales propias, token MCP único, puerto 8765 no publicado y perfiles de escritura desactivados. No se deben reutilizar IDs de túneles entre DEV y estable.
+
+**Publicación efectiva:** esta delimitación no constituye una certificación jurídica exhaustiva; únicamente aclara que el paquete fuente y la imagen binaria tienen alcances de redistribución distintos. Confirmar CI final y autorización del mantenedor para integrar en `main` antes de publicar.
