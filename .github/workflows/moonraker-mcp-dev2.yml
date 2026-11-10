@@ -70,12 +70,12 @@ jobs:
           # Home Assistant update dialog, in English AND Spanish.
           changelog = (root / "CHANGELOG.md").read_text(encoding="utf-8")
           import re
-          sections = re.split(r"(?m)^##\\s+", changelog)
+          sections = re.split(r"(?m)^##\s+", changelog)
           assert len(sections) >= 2, "Missing bilingual app changelog sections"
           latest = sections[1]
           assert latest.startswith(cfg["version"] + " "), "Changelog newest entry must match app version"
-          assert re.search(r"(?m)^### English\\s*$", latest), "Changelog latest version missing English"
-          assert re.search(r"(?m)^### Español\\s*$", latest), "Changelog latest version missing Spanish"
+          assert re.search(r"(?m)^### English\s*$", latest), "Changelog latest version missing English"
+          assert re.search(r"(?m)^### Español\s*$", latest), "Changelog latest version missing Spanish"
           en = latest.split("### English", 1)[1].split("### Español", 1)[0]
           es = latest.split("### Español", 1)[1]
           assert len(en.strip()) >= 150 and len(es.strip()) >= 150, "Changelog entries must be detailed"
