@@ -75,3 +75,8 @@ configuration:
       Allow the read-only moonraker_power_status tool to check configured
       Moonraker power-device status. Does NOT turn power outlets or the
       printer on/off; do not confuse this with power control.
+
+  enable_u1_status:
+    name: "Extra access: print and T0-T3 filament status"
+    description: >-
+      Enable two read-only tools for live print progress and four physical filament slots. Reports material, manufacturer, color and active tool. Filters NFC identifiers, does not guess per-slot Spoolman IDs or remaining time, and never controls printing.
