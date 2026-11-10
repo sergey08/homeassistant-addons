@@ -27,6 +27,7 @@ options:
   enable_sensors: false
   enable_spoolman: false
   enable_power: false
+  enable_u1_status: false
 schema:
   moonraker_url: url
   moonraker_api_key: "password?"
@@ -41,3 +42,4 @@ schema:
   enable_sensors: bool
   enable_spoolman: bool
   enable_power: bool
+  enable_u1_status: bool
