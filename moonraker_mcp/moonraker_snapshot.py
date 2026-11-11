@@ -88,8 +88,15 @@ def normalize_filament_slots(status):
     for index, item in enumerate(info):
         raw_state = (states[index] if isinstance(states, list) and len(states) == 4
                      and type(states[index]) is int else None)
+        motion = status.get(f"filament_motion_sensor e{index}_filament")
+        motion = motion if isinstance(motion, dict) else {}
+        # A missing/unavailable sensor must never be interpreted as no filament.
+        detected = motion.get("filament_detected")
+        enabled = motion.get("enabled")
         slots.append({
             "slot": f"T{index}",
+            "filament_detected": detected if type(detected) is bool else None,
+            "filament_sensor_enabled": enabled if type(enabled) is bool else None,
             "material": _label(item.get("MAIN_TYPE"), 50),
             "subtype": _label(item.get("SUB_TYPE"), 50),
             "manufacturer": _label(item.get("MANUFACTURER"), 80),
@@ -112,7 +119,9 @@ def read_status(moonraker_url, moonraker_api_key="", opener=None):
     except FileAccessError as exc:
         raise SnapshotError("Invalid Moonraker URL") from exc
     # Fixed object names, no client-controlled requests or arbitrary fields.
-    names = ("print_stats", "virtual_sdcard", "display_status", "toolhead", "filament_detect")
+    names = ("print_stats", "virtual_sdcard", "display_status", "toolhead", "filament_detect",
+             "filament_motion_sensor e0_filament", "filament_motion_sensor e1_filament",
+             "filament_motion_sensor e2_filament", "filament_motion_sensor e3_filament")
     url = base + "/printer/objects/query?" + "&".join(urllib.parse.quote(name, safe="") for name in names)
     data = _read_json(url, moonraker_api_key, opener)
     if not isinstance(data, dict) or not isinstance(data.get("status"), dict):
