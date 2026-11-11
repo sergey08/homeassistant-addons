@@ -1,6 +1,6 @@
 # Moonraker MCP for Home Assistant
 
-**Version 0.1.3 · AMD64 and ARM64 · Read-only MCP bridge by default**
+**Version 0.1.4 · AMD64 and ARM64 · Read-only MCP bridge by default**
 
 Moonraker MCP connects an OpenAI-compatible MCP client (optionally ChatGPT through a **Secure MCP Tunnel**) to a 3D printer's **Moonraker API**. The app runs in Home Assistant OS / Supervised, but connects **directly to Moonraker**, not through Home Assistant printer entities. The initial installation builds the container locally from pinned sources.
 
@@ -345,7 +345,7 @@ The repository's original code is MIT-licensed; third-party components retain th
 **Español:** Se incorpora un interruptor general `enable_write_actions`, **desactivado por defecto**. Los cuatro permisos individuales de control físico siguen apagados inicialmente, y para exponer cualquier herramienta de escritura deben estar activados **tanto el permiso general como el específico**. Aunque se active accidentalmente un permiso individual, el MCP no permitirá acciones físicas mientras el interruptor general permanezca apagado. Esta barrera de configuración **no sustituye la aprobación humana expresa** antes de operar la impresora. La estable 0.1.2 instalada no se modifica hasta que se valide y apruebe una nueva versión.
 
 
-### Development: filament presence and cautious runout diagnostics
+### Version 0.1.4: filament presence and cautious runout diagnostics
 
 **English:** The next read-only update extends `moonraker_filament_slots` with `filament_detected` and `filament_sensor_enabled` for each T0–T3 position. It uses the Klipper `filament_motion_sensor e0_filament` through `e3_filament` objects; an unavailable sensor is reported as `null`, **not** as missing filament. `moonraker_print_snapshot` adds a `filament_alert` on the active tool. A paused job with an enabled sensor reporting no filament is labelled **possible filament runout**, **not a confirmed pause cause**. The user's real U1 automatically paused after running out of T0 filament, but this does not establish that all future pauses have the same cause. No automatic resume, spool change, G-code or power action is added.
 
