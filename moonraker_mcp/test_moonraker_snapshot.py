@@ -38,6 +38,54 @@ class SnapshotTests(unittest.TestCase):
         self.assertNotIn("CARD_UID", str(result))
         self.assertNotIn("RSA_KEY", str(result))
 
+    def test_filament_sensor_readings_are_optional_and_true_false_are_distinct(self):
+        status = {
+            "filament_detect": {"info": [{"MAIN_TYPE": "PLA"}] * 4},
+            "filament_motion_sensor e0_filament": {
+                "enabled": True, "filament_detected": False, "secret": "hidden"},
+            "filament_motion_sensor e1_filament": {
+                "enabled": True, "filament_detected": True},
+        }
+        result = normalize_filament_slots(status)
+        self.assertIs(result["slots"][0]["filament_detected"], False)
+        self.assertIs(result["slots"][1]["filament_detected"], True)
+        self.assertIsNone(result["slots"][2]["filament_detected"])
+        self.assertIsNone(result["slots"][3]["filament_sensor_enabled"])
+        self.assertNotIn("hidden", str(result))
+
+    def test_paused_active_tool_without_filament_is_only_suspected_runout(self):
+        status = {
+            "print_stats": {"state": "paused"},
+            "virtual_sdcard": {},
+            "display_status": {},
+            "toolhead": {"extruder": "extruder"},
+            "filament_motion_sensor e0_filament": {
+                "enabled": True, "filament_detected": False},
+        }
+        result = normalize_print_status(status)
+        self.assertTrue(result["filament_alert"]["possible_runout"])
+        self.assertFalse(result["filament_alert"]["cause_confirmed"])
+        self.assertEqual(result["filament_alert"]["assessment"],
+                         "possible_filament_runout")
+        status["print_stats"]["state"] = "printing"
+        result = normalize_print_status(status)
+        self.assertFalse(result["filament_alert"]["possible_runout"])
+        self.assertEqual(result["filament_alert"]["assessment"],
+                         "no_filament_detected")
+
+    def test_disabled_or_unavailable_sensor_does_not_claim_runout(self):
+        status = {
+            "print_stats": {"state": "paused"},
+            "virtual_sdcard": {},
+            "display_status": {},
+            "toolhead": {"extruder": "extruder"},
+            "filament_motion_sensor e0_filament": {
+                "enabled": False, "filament_detected": False},
+        }
+        self.assertFalse(normalize_print_status(status)["filament_alert"]["possible_runout"])
+        status.pop("filament_motion_sensor e0_filament")
+        self.assertIsNone(normalize_print_status(status)["filament_alert"]["active_tool_filament_detected"])
+
     def test_unknown_material_is_not_fabricated(self):
         result = normalize_filament_slots({"filament_detect": {
             "info": [{"MAIN_TYPE": "UNKNOWN"}] * 4,
@@ -81,6 +129,8 @@ class SnapshotTests(unittest.TestCase):
             self.assertEqual(timeout, 10)
             self.assertIn("/printer/objects/query?", req.full_url)
             self.assertIn("filament_detect", req.full_url)
+            self.assertIn("filament_motion_sensor%20e0_filament", req.full_url)
+            self.assertIn("filament_motion_sensor%20e3_filament", req.full_url)
             self.assertNotIn("script=", req.full_url)
             return Resp()
         result = read_status("http://printer.local:7125", opener=opener)

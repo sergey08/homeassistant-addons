@@ -5,6 +5,50 @@ Las actualizaciones se describen primero en inglés y después en español.
 
 ---
 
+## 0.1.4 — 2026-11-11
+
+### English
+
+**Improved read-only filament presence and runout diagnostics for four-tool printers**
+
+- Enhanced `moonraker_filament_slots` with the physical filament motion sensor readings for T0, T1, T2 and T3, obtained directly from the Moonraker/Klipper objects `filament_motion_sensor e0_filament` through `e3_filament`.
+- Each filament position now reports `filament_detected` and `filament_sensor_enabled`, in addition to its existing material, manufacturer and color details. Missing sensors are explicitly represented as `null`; they are never mistaken for an empty spool.
+- Enhanced `moonraker_print_snapshot` with `filament_alert`, correlating the active print tool, paused state and enabled motion sensor.
+- A paused print with an enabled active-tool sensor reporting no filament is classified as **possible_filament_runout**, not a confirmed cause. A missing or disabled sensor does not trigger a runout warning.
+- Based on a real Snapmaker U1 automatic pause after the T0 filament ran out. The classification is intentionally conservative and does not imply all printer pauses have the same cause.
+- Added regression tests for four-slot detection, unavailable sensors, printing versus paused states, diagnostic wording and the privacy-filtered result.
+- Updated English and Spanish configuration guidance and README to explain the new information and its limitations.
+
+**Security, upgrade and compatibility**
+
+- All changes are **read-only**: no automatic filament loading, print resuming, G-code execution, file modification or power switching.
+- The `enable_u1_status` read-only option continues to control these tools; the independent write permissions and the `enable_write_actions` master switch remain **OFF by default**.
+- A normal update preserves existing Moonraker/Spoolman settings and secure tunnel credentials. No new keys are needed.
+- Supported on Home Assistant OS/Supervised for AMD64 and ARM64.
+- ChatGPT may need to refresh the Moonraker MCP tool catalog and start a new conversation to discover the updated tool definitions.
+
+### Español
+
+**Mejora de detección de filamento y diagnóstico de agotamiento en impresoras de cuatro cabezales**
+
+- Ampliada la herramienta `moonraker_filament_slots` con los datos de los sensores físicos de movimiento de filamento de T0, T1, T2 y T3, consultados directamente en los objetos de Moonraker/Klipper `filament_motion_sensor e0_filament` a `e3_filament`.
+- Cada posición devuelve ahora `filament_detected` (filamento detectado) y `filament_sensor_enabled` (sensor habilitado), además de material, fabricante y color. Los sensores ausentes se muestran como `null`; no se interpretan como una bobina vacía.
+- Ampliada `moonraker_print_snapshot` con `filament_alert`, que relaciona el cabezal activo, el estado de pausa y el sensor habilitado.
+- Si la impresión está pausada y el sensor habilitado del cabezal activo no detecta filamento, se indica **possible_filament_runout** (posible agotamiento), no una causa confirmada. Un sensor ausente o desactivado no genera falsamente este aviso.
+- La mejora parte de un caso real de pausa automática de una Snapmaker U1 al agotarse el filamento de T0. La clasificación es prudente: no presupone que todas las pausas se deban al filamento.
+- Incorporadas pruebas de regresión para los cuatro cabezales, sensores no disponibles, estados de pausa e impresión, mensajes de diagnóstico y protección de datos privados.
+- Actualizadas las instrucciones de configuración y el README en inglés y español para explicar los nuevos datos y sus limitaciones.
+
+**Seguridad, actualización y compatibilidad**
+
+- Todos los cambios son **exclusivamente de lectura**: no se carga filamento, no se reanuda ninguna impresión, no se ejecuta G-code, no se modifican archivos y no se conmuta la alimentación.
+- La opción de consulta `enable_u1_status` sigue regulando las herramientas. El interruptor general `enable_write_actions` y todos los permisos de escritura individuales permanecen **desactivados por defecto**.
+- Una actualización normal conserva la configuración de Moonraker/Spoolman y las credenciales del túnel seguro. No requiere claves nuevas.
+- Compatible con Home Assistant OS/Supervised en AMD64 y ARM64.
+- Puede ser necesario actualizar el catálogo de herramientas de Moonraker MCP en ChatGPT y abrir una conversación nueva para descubrir las definiciones actualizadas.
+
+---
+
 ## 0.1.3 — 2026-11-11
 
 ### English

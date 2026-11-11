@@ -79,7 +79,7 @@ configuration:
   enable_u1_status:
     name: "Extra access: print and T0-T3 filament status"
     description: >-
-      Enable two read-only tools for live print progress and four physical filament slots. Reports material, manufacturer, color and active tool. Filters NFC identifiers, does not guess per-slot Spoolman IDs or remaining time, and never controls printing.
+      Enable two read-only tools for live print progress, active-tool filament presence, and four physical filament slots. Reports material, manufacturer, color and active tool. Filters NFC identifiers, does not guess per-slot Spoolman IDs or remaining time, and never controls printing.
 
   allow_print_pause:
     name: "Allow pause print"

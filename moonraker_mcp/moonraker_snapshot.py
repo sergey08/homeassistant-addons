@@ -56,8 +56,26 @@ def normalize_print_status(status):
     active_tool = head.get("extruder")
     if active_tool not in ("extruder", "extruder1", "extruder2", "extruder3"):
         active_tool = None
+    tool_index = {"extruder": 0, "extruder1": 1, "extruder2": 2, "extruder3": 3}.get(active_tool)
+    sensor = status.get(f"filament_motion_sensor e{tool_index}_filament") if tool_index is not None else None
+    sensor = sensor if isinstance(sensor, dict) else {}
+    sensor_enabled = sensor.get("enabled")
+    sensor_detected = sensor.get("filament_detected")
+    missing_filament_signal = (sensor_enabled is True and sensor_detected is False)
+    possible_runout = (state == "paused" and missing_filament_signal)
     return {
         "state": state,
+        "filament_alert": {
+            "possible_runout": possible_runout,
+            "active_tool_sensor_enabled": sensor_enabled if type(sensor_enabled) is bool else None,
+            "active_tool_filament_detected": sensor_detected if type(sensor_detected) is bool else None,
+            "assessment": ("possible_filament_runout" if possible_runout
+                           else "no_filament_detected" if missing_filament_signal
+                           else "no_confirmed_runout"),
+            "cause_confirmed": False,
+            "note": ("A paused print plus an active-tool sensor reporting no filament "
+                     "suggests runout; this does not prove why Klipper paused."),
+        },
         "filename": _label(ps.get("filename")),
         "active_tool": {"extruder": "T0", "extruder1": "T1",
                         "extruder2": "T2", "extruder3": "T3"}.get(active_tool),
@@ -88,8 +106,15 @@ def normalize_filament_slots(status):
     for index, item in enumerate(info):
         raw_state = (states[index] if isinstance(states, list) and len(states) == 4
                      and type(states[index]) is int else None)
+        motion = status.get(f"filament_motion_sensor e{index}_filament")
+        motion = motion if isinstance(motion, dict) else {}
+        # A missing/unavailable sensor must never be interpreted as no filament.
+        detected = motion.get("filament_detected")
+        enabled = motion.get("enabled")
         slots.append({
             "slot": f"T{index}",
+            "filament_detected": detected if type(detected) is bool else None,
+            "filament_sensor_enabled": enabled if type(enabled) is bool else None,
             "material": _label(item.get("MAIN_TYPE"), 50),
             "subtype": _label(item.get("SUB_TYPE"), 50),
             "manufacturer": _label(item.get("MANUFACTURER"), 80),
@@ -112,7 +137,9 @@ def read_status(moonraker_url, moonraker_api_key="", opener=None):
     except FileAccessError as exc:
         raise SnapshotError("Invalid Moonraker URL") from exc
     # Fixed object names, no client-controlled requests or arbitrary fields.
-    names = ("print_stats", "virtual_sdcard", "display_status", "toolhead", "filament_detect")
+    names = ("print_stats", "virtual_sdcard", "display_status", "toolhead", "filament_detect",
+             "filament_motion_sensor e0_filament", "filament_motion_sensor e1_filament",
+             "filament_motion_sensor e2_filament", "filament_motion_sensor e3_filament")
     url = base + "/printer/objects/query?" + "&".join(urllib.parse.quote(name, safe="") for name in names)
     data = _read_json(url, moonraker_api_key, opener)
     if not isinstance(data, dict) or not isinstance(data.get("status"), dict):
