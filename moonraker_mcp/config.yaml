@@ -1,5 +1,5 @@
 name: "Moonraker MCP"
-version: "0.1.3"
+version: "0.1.4"
 slug: "moonraker_mcp"
 description: "MCP bridge to Moonraker / Puente MCP para Moonraker"
 url: "https://github.com/sergey08/homeassistant-addons"
