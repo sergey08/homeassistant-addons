@@ -97,3 +97,8 @@ configuration:
     name: "Allow start print"
     description: >-
       Allow ChatGPT to start a specific existing G-code file. Can heat and move the printer; requires your explicit approval, confirmation and a validated filename. Default OFF. Only when idle.
+
+  enable_write_actions:
+    name: "Master switch: enable printer write actions"
+    description: >-
+      Extra safety gate for all physical print controls. OFF by default. Each of pause, resume, cancel and start also requires its own separate permission and explicit user approval. If this master switch is OFF, no print-control tools are exposed even when an individual permission is ON.

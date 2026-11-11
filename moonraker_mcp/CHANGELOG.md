@@ -5,6 +5,48 @@ Las actualizaciones se describen primero en inglés y después en español.
 
 ---
 
+## 0.1.3 — 2026-11-11
+
+### English
+
+**Security improvement: master permission for printer write actions**
+
+- Added `enable_write_actions`, a new **master switch** for physical print controls. It is **OFF by default**, including after upgrading from 0.1.2.
+- The four existing, independent permissions (`allow_print_pause`, `allow_print_resume`, `allow_print_cancel`, `allow_print_start`) remain **OFF by default**. A write tool is exposed only if **both** the master switch and its corresponding action switch are explicitly enabled.
+- With the master switch off, even if one or all individual write permissions are accidentally enabled, the MCP gateway does not expose or authorize their print-control tools.
+- The add-on launcher strictly validates that the master switch is a boolean. Invalid values stop initialization instead of weakening authorization.
+- Added tests exercising the actual launcher permission filter for all-individual-on/master-off, master-on/one-permission, absent master and invalid option values.
+- Improved the English and Spanish option descriptions and README security instructions.
+
+**Safety, upgrade and compatibility**
+
+- Normal upgrades preserve existing Moonraker and OpenAI Secure MCP Tunnel settings; **no new tokens or keys** are required.
+- Read-only capabilities, including Spoolman inventory, printer snapshot and T0–T3 filament information, are unaffected by the master write switch.
+- Compatible with AMD64 and ARM64 Home Assistant OS/Supervised.
+- No printer movement, heating, pause, resume, cancel, file modification, or other physical command is necessary for this update.
+- The master gate protects against configuration mistakes but **does not prove human approval**. Always request explicit human authorization before triggering any write tool. Do not enable write actions until you are ready to test them on your specific printer.
+
+### Español
+
+**Mejora de seguridad: permiso general para acciones de escritura en la impresora**
+
+- Incorporada la nueva opción `enable_write_actions`, un **interruptor general** para las operaciones físicas de impresión. Está **desactivada por defecto**, también al actualizar desde la versión 0.1.2.
+- Los cuatro permisos independientes existentes (`allow_print_pause`, `allow_print_resume`, `allow_print_cancel` y `allow_print_start`) siguen **desactivados por defecto**. Una herramienta de escritura solo aparece si se activan expresamente **tanto el permiso general como el de la acción concreta**.
+- Con el interruptor general apagado, incluso si se activan por error uno o todos los permisos individuales, el MCP no expone ni autoriza sus controles de impresión.
+- El arranque valida estrictamente que el permiso general sea booleano. Los valores incorrectos impiden la inicialización, en vez de rebajar la protección.
+- Añadidas pruebas del filtro de permisos real del complemento: todos los permisos individuales encendidos y general apagado, general encendido con un permiso específico, general ausente y valores de configuración incorrectos.
+- Mejoradas las descripciones de las opciones y las instrucciones de seguridad del README en inglés y español.
+
+**Seguridad, actualización y compatibilidad**
+
+- Una actualización normal conserva la conexión con Moonraker y la configuración del túnel seguro de OpenAI; **no requiere nuevas claves ni tokens**.
+- Las consultas de solo lectura, incluido el inventario de Spoolman, el estado de impresión y los filamentos T0–T3, no se ven afectadas por el interruptor general.
+- Compatible con Home Assistant OS/Supervised en AMD64 y ARM64.
+- La actualización no exige mover o calentar la impresora, pausar, reanudar, cancelar, modificar archivos ni ejecutar otras órdenes físicas.
+- El interruptor general protege frente a errores de configuración, pero **no demuestra autorización humana**. Es obligatorio pedir aprobación expresa antes de cualquier herramienta de escritura. No actives estos permisos hasta que quieras probarlos de forma controlada en tu impresora.
+
+---
+
 ## 0.1.2 — 2026-11-10
 
 ### English

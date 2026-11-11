@@ -1,6 +1,6 @@
 # Moonraker MCP for Home Assistant
 
-**Version 0.1.2 · AMD64 and ARM64 · Read-only MCP bridge by default**
+**Version 0.1.3 · AMD64 and ARM64 · Read-only MCP bridge by default**
 
 Moonraker MCP connects an OpenAI-compatible MCP client (optionally ChatGPT through a **Secure MCP Tunnel**) to a 3D printer's **Moonraker API**. The app runs in Home Assistant OS / Supervised, but connects **directly to Moonraker**, not through Home Assistant printer entities. The initial installation builds the container locally from pinned sources.
 
@@ -336,3 +336,10 @@ The repository's original code is MIT-licensed; third-party components retain th
 **Español:** Cuatro permisos independientes, **desactivados por defecto**: `allow_print_pause`, `allow_print_resume`, `allow_print_cancel` y `allow_print_start`. Cada permiso habilita una sola herramienta MCP. Toda operación necesita aprobación expresa de la persona desde el cliente y el argumento `CONFIRM_*`. Antes de enviar una orden se verifica que Klipper esté preparado y que el estado actual de impresión permita esa operación. La cancelación exige que coincida exactamente el nombre del G-code en curso; el inicio comprueba el archivo y rechaza comenzar si ya se está imprimiendo. Solo se utilizan los endpoints oficiales de Moonraker; no se concede acceso a G-code arbitrario, URLs, borrado o subida de archivos ni alimentación eléctrica. Que Moonraker acepte la petición **no garantiza** que el movimiento físico haya terminado: hay que volver a consultar el estado. Estas funciones **aún no se han probado con órdenes reales sobre una impresora**.
 
 **Release gate / Requisito de publicación:** pass CI and a dedicated security review before merging; never enable write flags in an update automatically. / Superar la CI y la revisión de seguridad antes de fusionar; no activar nunca automáticamente los permisos de escritura.
+
+
+### Version 0.1.3 — master write safety switch
+
+**English:** A new top-level `enable_write_actions` master switch defaults to **OFF**. All four physical print-control permissions remain separately OFF by default and **both** the master switch and the relevant per-action switch must be ON before the MCP gateway exposes a write tool. With the master switch OFF, even an accidentally enabled individual permission cannot expose physical controls. This is an authorization *configuration safeguard*, not proof of human approval for any operation. No changes are made to the currently installed v0.1.2 until a separate release is validated and approved.
+
+**Español:** Se incorpora un interruptor general `enable_write_actions`, **desactivado por defecto**. Los cuatro permisos individuales de control físico siguen apagados inicialmente, y para exponer cualquier herramienta de escritura deben estar activados **tanto el permiso general como el específico**. Aunque se active accidentalmente un permiso individual, el MCP no permitirá acciones físicas mientras el interruptor general permanezca apagado. Esta barrera de configuración **no sustituye la aprobación humana expresa** antes de operar la impresora. La estable 0.1.2 instalada no se modifica hasta que se valide y apruebe una nueva versión.
