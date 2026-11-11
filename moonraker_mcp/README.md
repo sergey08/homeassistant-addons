@@ -1,6 +1,6 @@
 # Moonraker MCP for Home Assistant
 
-**Version 0.1.2 · AMD64 and ARM64 · Read-only MCP bridge by default**
+**Version 0.1.3 · AMD64 and ARM64 · Read-only MCP bridge by default**
 
 Moonraker MCP connects an OpenAI-compatible MCP client (optionally ChatGPT through a **Secure MCP Tunnel**) to a 3D printer's **Moonraker API**. The app runs in Home Assistant OS / Supervised, but connects **directly to Moonraker**, not through Home Assistant printer entities. The initial installation builds the container locally from pinned sources.
 
@@ -338,7 +338,7 @@ The repository's original code is MIT-licensed; third-party components retain th
 **Release gate / Requisito de publicación:** pass CI and a dedicated security review before merging; never enable write flags in an update automatically. / Superar la CI y la revisión de seguridad antes de fusionar; no activar nunca automáticamente los permisos de escritura.
 
 
-### Planned security hardening for the next release (DEV only)
+### Version 0.1.3 — master write safety switch
 
 **English:** A new top-level `enable_write_actions` master switch defaults to **OFF**. All four physical print-control permissions remain separately OFF by default and **both** the master switch and the relevant per-action switch must be ON before the MCP gateway exposes a write tool. With the master switch OFF, even an accidentally enabled individual permission cannot expose physical controls. This is an authorization *configuration safeguard*, not proof of human approval for any operation. No changes are made to the currently installed v0.1.2 until a separate release is validated and approved.
 
