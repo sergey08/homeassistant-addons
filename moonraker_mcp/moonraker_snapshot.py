@@ -56,8 +56,26 @@ def normalize_print_status(status):
     active_tool = head.get("extruder")
     if active_tool not in ("extruder", "extruder1", "extruder2", "extruder3"):
         active_tool = None
+    tool_index = {"extruder": 0, "extruder1": 1, "extruder2": 2, "extruder3": 3}.get(active_tool)
+    sensor = status.get(f"filament_motion_sensor e{tool_index}_filament") if tool_index is not None else None
+    sensor = sensor if isinstance(sensor, dict) else {}
+    sensor_enabled = sensor.get("enabled")
+    sensor_detected = sensor.get("filament_detected")
+    missing_filament_signal = (sensor_enabled is True and sensor_detected is False)
+    possible_runout = (state == "paused" and missing_filament_signal)
     return {
         "state": state,
+        "filament_alert": {
+            "possible_runout": possible_runout,
+            "active_tool_sensor_enabled": sensor_enabled if type(sensor_enabled) is bool else None,
+            "active_tool_filament_detected": sensor_detected if type(sensor_detected) is bool else None,
+            "assessment": ("possible_filament_runout" if possible_runout
+                           else "no_filament_detected" if missing_filament_signal
+                           else "no_confirmed_runout"),
+            "cause_confirmed": False,
+            "note": ("A paused print plus an active-tool sensor reporting no filament "
+                     "suggests runout; this does not prove why Klipper paused."),
+        },
         "filename": _label(ps.get("filename")),
         "active_tool": {"extruder": "T0", "extruder1": "T1",
                         "extruder2": "T2", "extruder3": "T3"}.get(active_tool),
