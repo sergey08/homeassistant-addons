@@ -984,6 +984,28 @@ def remote_format():
     return jsonify(status="ok", inspected=len(rows), shapes=shapes, read_only=True)
 
 
+def _encrypted_couchdb_base(config):
+    """Return a validated root for read-only encrypted note requests."""
+    url = (config.get("couchdb_url") or "").rstrip("/")
+    database = config.get("couchdb_database") or ""
+    if not re.fullmatch(r"[A-Za-z0-9_.-]+", database) or database in (".", ".."):
+        return None
+    if url == "http://db21ed7f-obsidian-syncserver-ssl:5984":
+        return url + "/" + quote(database, safe="")
+    if any(character.isspace() or ord(character) < 32 for character in url) or "\\" in url:
+        return None
+    try:
+        parsed = urlsplit(url)
+        parsed.port
+    except ValueError:
+        return None
+    if (parsed.scheme != "https" or not parsed.hostname or parsed.path
+            or parsed.username is not None or parsed.password is not None
+            or parsed.query or parsed.fragment):
+        return None
+    return url + "/" + quote(database, safe="")
+
+
 def encrypted_note_paths():
     """Read-only, bounded LiveSync index; no decrypted note content fetched."""
     from livesync_crypto import decrypt_hkdf_string, UnsupportedEncryption
@@ -991,16 +1013,14 @@ def encrypted_note_paths():
     o = options()
     if not (o.get("livesync_encryption_enabled") and o.get("livesync_e2ee_passphrase")):
         return None, "encryption_not_configured"
-    url = (o.get("couchdb_url") or "").rstrip("/")
-    db = o.get("couchdb_database") or ""
-    if url != "http://db21ed7f-obsidian-syncserver-ssl:5984" or not re.fullmatch(r"[A-Za-z0-9_.-]+", db):
+    base = _encrypted_couchdb_base(o)
+    if base is None:
         return None, "unsupported_connection"
     headers = {"Accept": "application/json"}
     user = o.get("couchdb_username") or ""
     if user:
         headers["Authorization"] = "Basic " + base64.b64encode(
             (user + ":" + (o.get("couchdb_password") or "")).encode()).decode()
-    base = url + "/" + quote(db, safe="")
     class NoRedirect(HTTPRedirectHandler):
         def redirect_request(self, req, fp, code, msg, headers, newurl):
             return None
@@ -1220,9 +1240,8 @@ def read_encrypted_note(requested, *, verify_revision=False):
         return None,"invalid_path"
     if not cfg.get("livesync_encryption_enabled") or not cfg.get("livesync_e2ee_passphrase"):
         return None,"encryption_not_configured"
-    url=(cfg.get("couchdb_url") or "").rstrip("/")
-    db=cfg.get("couchdb_database") or ""
-    if url!="http://db21ed7f-obsidian-syncserver-ssl:5984" or not re.fullmatch(r"[A-Za-z0-9_.-]+",db):
+    base = _encrypted_couchdb_base(cfg)
+    if base is None:
         return None,"unsupported_connection"
     headers={"Accept":"application/json"}
     user=cfg.get("couchdb_username") or ""
@@ -1232,7 +1251,6 @@ def read_encrypted_note(requested, *, verify_revision=False):
         def redirect_request(self, req, fp, code, msg, headers, newurl):
             return None
     opener=build_opener(NoRedirect())
-    base=url+"/"+quote(db,safe="")
     def fetch(suffix,limit):
         with opener.open(Request(base+suffix,headers=headers),timeout=12) as resp:
             raw=resp.read(limit+1)
@@ -1348,9 +1366,8 @@ def remote_parent_revision(_requested_path=None):
     cfg=options()
     if not cfg.get("livesync_encryption_enabled") or not cfg.get("livesync_e2ee_passphrase"):
         return jsonify(error="encryption_not_configured"),409
-    endpoint=(cfg.get("couchdb_url") or "").rstrip("/")
-    database=cfg.get("couchdb_database") or ""
-    if endpoint!="http://db21ed7f-obsidian-syncserver-ssl:5984" or not re.fullmatch(r"[A-Za-z0-9_.-]+",database):
+    base = _encrypted_couchdb_base(cfg)
+    if base is None:
         return jsonify(error="unsupported_connection"),403
     user=cfg.get("couchdb_username") or ""
     headers={"Accept":"application/json"}
@@ -1361,7 +1378,6 @@ def remote_parent_revision(_requested_path=None):
         def redirect_request(self,req,fp,code,msg,headers,newurl):
             return None
     opener=build_opener(NoRedirect())
-    base=endpoint+"/"+quote(database,safe="")
     def fetch(suffix,limit):
         with opener.open(Request(base+suffix,headers=headers),timeout=12) as response:
             raw=response.read(limit+1)
