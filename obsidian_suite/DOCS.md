@@ -14,12 +14,15 @@ The app builds for **AMD64 (`amd64`) and ARM64 (`aarch64`)** on Home Assistant i
 
 The default configuration starts with **LiveSync selected but disabled**, and the **ChatGPT tunnel disabled**. This is intentional: a new installation should not require credentials before its first start.
 
-**Local Markdown mode (no CouchDB needed):**
+| Storage mode | How to set it up | Where the notes are stored |
+| --- | --- | --- |
+| `livesync` | Enable **Enable LiveSync** and use your existing Self-hosted LiveSync settings and CouchDB server. Fill in **LiveSync shared vault path** only if you already use a shared vault under `/share`. | The existing LiveSync vault, synchronized with CouchDB. |
+| **Local - default** | Leave both path fields empty. Save and restart. The app creates the vault with `Bienvenida.md` the first time. | `/config/local-vault` inside the app. It is included when Home Assistant backs up the app and is accessible through Samba at `app_configs/<app-id>/local-vault`. |
+| **Local - Personal folder path** | Enter the full path of an existing folder under `/share` in **Local - Personal folder path**. Save and restart. | Your chosen Markdown folder. Include `share` in your Home Assistant backup to back up these notes. |
 
-1. Create an existing Markdown directory under Home Assistant's `/share`, e.g. `/share/notes`.
-2. In **Configuration**, set `storage_mode: local`, `vault_path: /share/notes`, `enable_livesync: false`, and initially `enable_tunnel: false`.
-3. Start the add-on. The MCP HTTP service runs internally; it is not exposed publicly. The private tunnel can be configured and enabled separately after its credentials and binary are provisioned.
-4. Verify access and test only disposable notes first. Enabling the tunnel allows authorized ChatGPT users to edit files inside this folder.
+Both local modes work without CouchDB. Changing modes leaves notes in their original locations. If you previously saved `local`, select **Local - Personal folder path** when updating and keep the path you already use.
+
+To use the MCP from ChatGPT, configure and enable the private tunnel separately.
 
 **LiveSync mode (your Obsidian vault via CouchDB):**
 
@@ -30,6 +33,18 @@ The default configuration starts with **LiveSync selected but disabled**, and th
 5. Configure the OpenAI tunnel separately, with its own authorized tunnel ID, runtime key and client executable, then enable `enable_tunnel`.
 
 **Important:** Switching modes does not copy or migrate notes. Never share a tunnel ID across concurrently running add-ons, or use multiple LiveSync writers against the same vault. A fresh-start container check is not the same as a full bidirectional synchronization test; that validation remains tracked in [issue #8](https://github.com/sergey08/homeassistant-addons/issues/8).
+
+## Modos de almacenamiento en Home Assistant
+
+Abre la pestaña **Configuración** y elige un modo en **Storage mode**.
+
+| Storage mode | Cómo se configura | Dónde quedan las notas |
+| --- | --- | --- |
+| `livesync` | Activa **Enable LiveSync** y utiliza tu configuración de Self-hosted LiveSync y tu servidor CouchDB. Rellena **LiveSync shared vault path** solo si ya usas una bóveda compartida bajo `/share`. | En la bóveda existente de LiveSync, sincronizada con CouchDB. |
+| **Local - default** | Deja vacíos los dos campos de ruta. Guarda y reinicia. La aplicación crea la bóveda con `Bienvenida.md` la primera vez. | En `/config/local-vault` dentro de la aplicación. Se incluye al respaldar la aplicación en Home Assistant y está accesible por Samba en `app_configs/<id-de-la-app>/local-vault`. |
+| **Local - Personal folder path** | Introduce en **Local - Personal folder path** la ruta completa a una carpeta existente bajo `/share`. Guarda y reinicia. | En la carpeta Markdown que elijas. Incluye `share` en la copia de Home Assistant para respaldar estas notas. |
+
+Ambos modos locales funcionan sin CouchDB. Al cambiar de modo, las notas permanecen en su ubicación original. Si tenías guardado `local`, al actualizar selecciona **Local - Personal folder path** y conserva tu ruta actual.
 
 ## Recommended Home Assistant Obsidian server
 

@@ -87,7 +87,7 @@ jobs:
           set -eu
           mkdir -p "$RUNNER_TEMP/obsidian-smoke/data" "$RUNNER_TEMP/obsidian-smoke/share/new-vault"
           printf '# Existing note\n' > "$RUNNER_TEMP/obsidian-smoke/share/new-vault/Existing.md"
-          printf '%s\n' '{"storage_mode":"local","vault_path":"/share/new-vault","enable_livesync":false,"enable_tunnel":false,"livesync_interval":60,"tunnel_id":""}' > "$RUNNER_TEMP/obsidian-smoke/data/options.json"
+          printf '%s\n' '{"storage_mode":"Local - Personal folder path","vault_path":"/share/new-vault","enable_livesync":false,"enable_tunnel":false,"livesync_interval":60,"tunnel_id":""}' > "$RUNNER_TEMP/obsidian-smoke/data/options.json"
           docker run -d --name obsidian-smoke -p 127.0.0.1:18765:8765 -v "$RUNNER_TEMP/obsidian-smoke/data:/data" -v "$RUNNER_TEMP/obsidian-smoke/share:/share" obsidian-mcp-smoke
           ready=0
           for i in $(seq 1 60); do
@@ -103,6 +103,27 @@ jobs:
           test ! -e "$RUNNER_TEMP/obsidian-smoke/data/settings/livesync-operativo.json"
           test ! -e "$RUNNER_TEMP/obsidian-smoke/data/tunnel/api-key"
           echo 'Fresh Local-mode container startup validated'
+      - name: Create the default vault in the public app folder
+        run: |
+          set -eu
+          data="$RUNNER_TEMP/obsidian-smoke/default-local-data"
+          config="$RUNNER_TEMP/obsidian-smoke/default-local-config"
+          mkdir -p "$data" "$config"
+          printf '%s\n' '{"storage_mode":"Local - default","vault_path":"/share/unused","enable_livesync":true,"enable_tunnel":false}' > "$data/options.json"
+          docker run -d --name obsidian-default-local -p 127.0.0.1:18767:8765 \
+            -v "$data:/data" -v "$config:/config" obsidian-mcp-smoke
+          ready=0
+          for i in $(seq 1 40); do
+            if curl -fsS --max-time 3 http://127.0.0.1:18767/mcp -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' --data '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"ci-smoke","version":"1.0"}}}' | grep -q 'serverInfo'; then ready=1; break; fi
+            if ! docker ps --format '{{.Names}}' | grep -qx obsidian-default-local; then docker logs obsidian-default-local; exit 1; fi
+            sleep 2
+          done
+          test "$ready" -eq 1
+          test -s "$config/local-vault/Bienvenida.md"
+          test ! -e "$data/local-vault"
+          test ! -e "$data/vault"
+          docker logs obsidian-default-local 2>&1 | grep -q 'Using persistent vault at /config/local-vault'
+          docker rm -f obsidian-default-local
       - name: Verify staged fresh LiveSync boot without CouchDB credentials
         run: |
           set -eu
@@ -165,7 +186,7 @@ jobs:
       - name: Logs and cleanup
         if: always()
         run: |
-          for container in obsidian-smoke obsidian-livesync-smoke obsidian-missing-sync obsidian-replication obsidian-couchdb; do
+          for container in obsidian-smoke obsidian-default-local obsidian-livesync-smoke obsidian-missing-sync obsidian-replication obsidian-couchdb; do
             docker logs "$container" 2>&1 | tail -100 || true
             docker rm -f "$container" || true
           done

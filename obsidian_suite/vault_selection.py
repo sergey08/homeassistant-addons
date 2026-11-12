@@ -1,4 +1,5 @@
-"""Select only a preexisting Markdown vault in the mounted /share tree."""
+"""Select Markdown vaults and initialize the default local vault."""
+from contextlib import suppress
 from pathlib import Path
 
 
@@ -22,15 +23,51 @@ def select_vault(configured_vault: str, default_vault: Path, shared_root: Path =
     return resolved
 
 
-def select_storage(options: dict, default_vault: Path, shared_root: Path = Path("/share")) -> tuple[str, Path, bool]:
+def initialize_local_vault(vault: Path) -> None:
+    try:
+        vault.mkdir()
+    except FileExistsError:
+        if vault.is_symlink() or not vault.is_dir():
+            raise ValueError(f"Default local vault must be a real directory: {vault}")
+        return
+
+    welcome = vault / "Bienvenida.md"
+    try:
+        with welcome.open("x", encoding="utf-8") as note:
+            try:
+                note.write(
+                    "# Welcome / Bienvenida\n\n"
+                    "Your local vault is ready. Create Markdown notes in this folder.\n\n"
+                    "Tu bóveda local está lista. Crea tus notas Markdown en esta carpeta.\n"
+                )
+                note.flush()
+            except OSError:
+                with suppress(OSError):
+                    welcome.unlink()
+                raise
+    except OSError:
+        with suppress(OSError):
+            vault.rmdir()
+        raise
+
+
+def select_storage(options: dict, default_vault: Path, shared_root: Path = Path("/share"),
+                   *, app_config: Path = Path("/config"), initialize_local: bool = False) -> tuple[str, Path, bool]:
     """Resolve mode and folder; never start LiveSync while in local mode.
 
     Missing mode preserves 0.2.2 behavior. The original enable_livesync
     option remains authoritative for installations that already use it.
     """
     mode = str(options.get("storage_mode", "livesync")).strip()
-    if mode not in ("livesync", "local"):
+    if mode == "Local - Personal folder path":
+        mode = "local"
+    if mode not in ("livesync", "local", "Local - default"):
         raise ValueError("Invalid storage_mode")
+    if mode == "Local - default":
+        vault = app_config / "local-vault"
+        if initialize_local:
+            initialize_local_vault(vault)
+        return mode, vault, False
     if mode == "local":
         path = str(options.get("vault_path", "")).strip()
         if not path:

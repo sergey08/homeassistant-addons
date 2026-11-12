@@ -12,9 +12,12 @@ configuration:
     name: LiveSync interval (seconds)
     description: "Time between LiveSync polling cycles, from 30 to 3600 seconds. Default is 60 seconds."
 
-  vault_path:
-    name: Carpeta Markdown local (opcional)
-    description: "Dejar vacío en modo LiveSync: se utiliza automáticamente la bóveda de Obsidian sincronizada. Solo en modo Local, indicar una carpeta existente dentro de /share, por ejemplo /share/obsidian-prueba-local."
+  livesync_shared_vault_path:
+    name: LiveSync shared vault path
+    description: "Only used with livesync. This is the local folder that LiveSync keeps synchronized with the server."
   storage_mode:
-    name: Modo de almacenamiento
-    description: "LiveSync utiliza tu bóveda habitual sincronizada con CouchDB. Local utiliza una carpeta Markdown existente indicada en Carpeta Markdown local, sin LiveSync."
+    name: Storage mode
+    description: "Local - default uses the app folder, accessible via Samba and included in app backups."
+  vault_path:
+    name: Local - Personal folder path
+    description: "Only used with Local - Personal folder path. Enter the path to an existing folder under /share."
