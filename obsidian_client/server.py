@@ -271,8 +271,8 @@ No utiliza Obsidian MCP. Las consultas son de solo lectura; la importación modi
 <p><button id="load" type="button">Consultar notas en CouchDB</button>
 <span id="status" role="status" aria-live="polite"></span></p>
 <ul id="notes"></ul><h2 id="selected-title"></h2><pre id="content"></pre>
-<p id="edit-action" hidden><a id="edit-link" href="#">Abrir editor Markdown (copia local independiente)</a> <button id="compare-local" type="button">Comparar con copia local</button> <button id="show-diff" type="button" hidden>Ver diferencias línea a línea</button> <button id="advance-baseline" type="button" hidden>Confirmar versión común</button> <button id="pull-private" type="button" hidden>Descargar cambios a copia privada</button> <button id="import-private" type="button" hidden>Importar copia privada</button></p>
-<p id="comparison-result" role="status" aria-live="polite"></p><pre id="diff-result" hidden style="white-space:pre-wrap;overflow-wrap:anywhere"></pre>
+<p id="edit-action" hidden><a id="edit-link" href="#">Abrir editor Markdown (copia local independiente)</a> <button id="compare-local" type="button">Comparar con copia local</button> <button id="sync-plan" type="button">Ver plan de sincronización</button> <button id="show-diff" type="button" hidden>Ver diferencias línea a línea</button> <button id="advance-baseline" type="button" hidden>Confirmar versión común</button> <button id="pull-private" type="button" hidden>Descargar cambios a copia privada</button> <button id="import-private" type="button" hidden>Importar copia privada</button></p>
+<p id="comparison-result" role="status" aria-live="polite"></p><p id="sync-plan-result" role="status"></p><pre id="diff-result" hidden style="white-space:pre-wrap;overflow-wrap:anywhere"></pre>
 <p>El editor guarda una copia local privada. No modifica CouchDB ni sincroniza las notas.</p>
 <p><a href="../">Volver / Back</a></p>
 <script>
@@ -284,6 +284,8 @@ const content=document.getElementById("content");
 const editAction=document.getElementById("edit-action");
 const editLink=document.getElementById("edit-link");
 const compareButton=document.getElementById("compare-local");
+const planButton=document.getElementById("sync-plan");
+const planResult=document.getElementById("sync-plan-result");
 const importButton=document.getElementById("import-private");
 const diffButton=document.getElementById("show-diff");
 const advanceButton=document.getElementById("advance-baseline");
@@ -305,7 +307,7 @@ async function preview(path){
 button.addEventListener("click",async()=>{
   selectionVersion++;
   button.disabled=true;list.replaceChildren();title.textContent="";content.textContent="";
-  editAction.hidden=true;editLink.removeAttribute("href");importButton.hidden=true;diffButton.hidden=true;advanceButton.hidden=true;pullButton.hidden=true;diffResult.hidden=true;diffResult.textContent="";comparisonResult.textContent="";
+  editAction.hidden=true;editLink.removeAttribute("href");importButton.hidden=true;diffButton.hidden=true;advanceButton.hidden=true;pullButton.hidden=true;diffResult.hidden=true;diffResult.textContent="";comparisonResult.textContent="";planResult.textContent="";planButton.disabled=false;
   status.textContent="Consultando CouchDB…";
   try{
     const data=await preview();
@@ -316,13 +318,41 @@ button.addEventListener("click",async()=>{
       control.addEventListener("click",async()=>{
         const currentSelection=++selectionVersion;
         title.textContent=path;content.textContent="Cargando…";
-        editAction.hidden=true;editLink.removeAttribute("href");importButton.hidden=true;diffButton.hidden=true;advanceButton.hidden=true;pullButton.hidden=true;diffResult.hidden=true;diffResult.textContent="";comparisonResult.textContent="";
+        editAction.hidden=true;editLink.removeAttribute("href");importButton.hidden=true;diffButton.hidden=true;advanceButton.hidden=true;pullButton.hidden=true;diffResult.hidden=true;diffResult.textContent="";comparisonResult.textContent="";planResult.textContent="";planButton.disabled=false;
         try{
           const note=await preview(path);
           if(currentSelection!==selectionVersion)return;
           if(typeof note.content!=="string")throw Error("remote_content_missing");
           content.textContent=note.content;
           editLink.href="../remote/edit?path="+encodeURIComponent(path);
+          planButton.onclick=async()=>{
+            planButton.disabled=true;
+            planResult.textContent="Comprobando el plan de sincronización…";
+            try{
+              const response=await fetch("../api/remote/manual-sync-plan?path="+encodeURIComponent(path),{
+                method:"GET",credentials:"same-origin",cache:"no-store"
+              });
+              const data=await response.json();
+              if(currentSelection!==selectionVersion)return;
+              if(!response.ok||data.read_only!==true||data.execute_supported!==false){
+                throw Error("manual_sync_plan_unavailable");
+              }
+              const guidance=new Map([
+                ["no_common_ancestor","Falta una versión común verificada. Compara las copias antes de decidir."],
+                ["missing_private_copy","Falta la copia privada. Importa la nota desde la biblioteca."],
+                ["already_identical","Las copias coinciden con la versión común."],
+                ["requires_cas_and_backup","Solo cambió la copia privada. Revisa las diferencias antes de una futura publicación."],
+                ["requires_local_cas_and_backup","Solo cambió la nota remota. Puedes descargar los cambios a la copia privada desde la comparación."],
+                ["matching_new_ancestor","Ambas copias llegaron al mismo texto. Puedes confirmar la versión común desde la comparación."],
+                ["manual_resolution_required","Ambas copias cambiaron de forma distinta. Revisa las diferencias y resuelve el conflicto manualmente."]
+              ]);
+              planResult.textContent=guidance.get(data.reason)||"El servidor no reconoció un plan para esta nota.";
+            }catch(error){
+              if(currentSelection===selectionVersion)planResult.textContent="No se pudo verificar el plan de esta nota.";
+            }finally{
+              if(currentSelection===selectionVersion)planButton.disabled=false;
+            }
+          };
           compareButton.onclick=async()=>{
             comparisonResult.textContent="Comparando versiones (solo lectura)…";
             try{
@@ -954,6 +984,28 @@ def remote_format():
     return jsonify(status="ok", inspected=len(rows), shapes=shapes, read_only=True)
 
 
+def _encrypted_couchdb_base(config):
+    """Return a validated root for read-only encrypted note requests."""
+    url = (config.get("couchdb_url") or "").rstrip("/")
+    database = config.get("couchdb_database") or ""
+    if not re.fullmatch(r"[A-Za-z0-9_.-]+", database) or database in (".", ".."):
+        return None
+    if url == "http://db21ed7f-obsidian-syncserver-ssl:5984":
+        return url + "/" + quote(database, safe="")
+    if any(character.isspace() or ord(character) < 32 for character in url) or "\\" in url:
+        return None
+    try:
+        parsed = urlsplit(url)
+        parsed.port
+    except ValueError:
+        return None
+    if (parsed.scheme != "https" or not parsed.hostname or parsed.path
+            or parsed.username is not None or parsed.password is not None
+            or parsed.query or parsed.fragment):
+        return None
+    return url + "/" + quote(database, safe="")
+
+
 def encrypted_note_paths():
     """Read-only, bounded LiveSync index; no decrypted note content fetched."""
     from livesync_crypto import decrypt_hkdf_string, UnsupportedEncryption
@@ -961,16 +1013,14 @@ def encrypted_note_paths():
     o = options()
     if not (o.get("livesync_encryption_enabled") and o.get("livesync_e2ee_passphrase")):
         return None, "encryption_not_configured"
-    url = (o.get("couchdb_url") or "").rstrip("/")
-    db = o.get("couchdb_database") or ""
-    if url != "http://db21ed7f-obsidian-syncserver-ssl:5984" or not re.fullmatch(r"[A-Za-z0-9_.-]+", db):
+    base = _encrypted_couchdb_base(o)
+    if base is None:
         return None, "unsupported_connection"
     headers = {"Accept": "application/json"}
     user = o.get("couchdb_username") or ""
     if user:
         headers["Authorization"] = "Basic " + base64.b64encode(
             (user + ":" + (o.get("couchdb_password") or "")).encode()).decode()
-    base = url + "/" + quote(db, safe="")
     class NoRedirect(HTTPRedirectHandler):
         def redirect_request(self, req, fp, code, msg, headers, newurl):
             return None
@@ -1190,9 +1240,8 @@ def read_encrypted_note(requested, *, verify_revision=False):
         return None,"invalid_path"
     if not cfg.get("livesync_encryption_enabled") or not cfg.get("livesync_e2ee_passphrase"):
         return None,"encryption_not_configured"
-    url=(cfg.get("couchdb_url") or "").rstrip("/")
-    db=cfg.get("couchdb_database") or ""
-    if url!="http://db21ed7f-obsidian-syncserver-ssl:5984" or not re.fullmatch(r"[A-Za-z0-9_.-]+",db):
+    base = _encrypted_couchdb_base(cfg)
+    if base is None:
         return None,"unsupported_connection"
     headers={"Accept":"application/json"}
     user=cfg.get("couchdb_username") or ""
@@ -1202,7 +1251,6 @@ def read_encrypted_note(requested, *, verify_revision=False):
         def redirect_request(self, req, fp, code, msg, headers, newurl):
             return None
     opener=build_opener(NoRedirect())
-    base=url+"/"+quote(db,safe="")
     def fetch(suffix,limit):
         with opener.open(Request(base+suffix,headers=headers),timeout=12) as resp:
             raw=resp.read(limit+1)
@@ -1318,9 +1366,8 @@ def remote_parent_revision(_requested_path=None):
     cfg=options()
     if not cfg.get("livesync_encryption_enabled") or not cfg.get("livesync_e2ee_passphrase"):
         return jsonify(error="encryption_not_configured"),409
-    endpoint=(cfg.get("couchdb_url") or "").rstrip("/")
-    database=cfg.get("couchdb_database") or ""
-    if endpoint!="http://db21ed7f-obsidian-syncserver-ssl:5984" or not re.fullmatch(r"[A-Za-z0-9_.-]+",database):
+    base = _encrypted_couchdb_base(cfg)
+    if base is None:
         return jsonify(error="unsupported_connection"),403
     user=cfg.get("couchdb_username") or ""
     headers={"Accept":"application/json"}
@@ -1331,7 +1378,6 @@ def remote_parent_revision(_requested_path=None):
         def redirect_request(self,req,fp,code,msg,headers,newurl):
             return None
     opener=build_opener(NoRedirect())
-    base=endpoint+"/"+quote(database,safe="")
     def fetch(suffix,limit):
         with opener.open(Request(base+suffix,headers=headers),timeout=12) as response:
             raw=response.read(limit+1)

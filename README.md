@@ -29,11 +29,11 @@ https://github.com/sergey08/homeassistant-addons
 [App source](./obsidian_suite/) · [Documentation](./obsidian_suite/DOCS.md)
 
 
-**Obsidian Client — 0.1.0-dev2 (experimental)**
+**Obsidian Client — 0.1.0-dev118 (experimental)**
 
-- Browse local Markdown notes under `/share` using Home Assistant Ingress.
-- Search note paths/names and render Markdown, tables and code blocks.
-- Read-only operation; no Obsidian MCP required.
+- Browse and read encrypted LiveSync notes through Home Assistant Ingress.
+- Edit private Markdown copies and compare changes with the remote note.
+- Review the manual synchronization plan before deciding what to do with each copy. CouchDB access is read-only in the client.
 
 **Not yet supported:** LiveSync/CouchDB connection and decryption, automatic sync, embedded attachments and wiki links. The app has been installed and tested on Home Assistant OS (HTTP 200, Gunicorn). Markdown rendering with real notes and LiveSync are not yet validated; this is not a stable release.
 
@@ -79,11 +79,11 @@ https://github.com/sergey08/homeassistant-addons
 [Código](./obsidian_suite/) · [Documentación](./obsidian_suite/DOCS.md)
 
 
-**Obsidian Client — 0.1.0-dev2 (experimental)**
+**Obsidian Client — 0.1.0-dev118 (experimental)**
 
-- Navega por notas Markdown locales dentro de `/share` mediante Ingress.
-- Busca por ruta o nombre y muestra Markdown, tablas y bloques de código.
-- Funciona en modo solo lectura; no necesita Obsidian MCP.
+- Navega y lee notas cifradas de LiveSync mediante Ingress de Home Assistant.
+- Edita copias privadas en Markdown y compara los cambios con la nota remota.
+- Consulta el plan de sincronización manual antes de decidir qué hacer con cada copia. El cliente accede a CouchDB en modo de solo lectura.
 
 **Todavía no disponible:** conexión y descifrado LiveSync/CouchDB, sincronización automática, adjuntos y enlaces wiki. La aplicación ya se ha instalado y probado en Home Assistant OS (HTTP 200 y Gunicorn). Falta validar la lectura de notas reales y LiveSync; no es una versión estable.
 

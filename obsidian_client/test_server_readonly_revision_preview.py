@@ -184,7 +184,7 @@ class RemotePreviewRevisionTests(unittest.TestCase):
         self.assertEqual(error, "ambiguous_parent")
         self.assertEqual(opener.open.call_count, 2)
 
-    def test_stable_encrypted_parent_can_be_read_without_writing(self):
+    def test_stable_encrypted_parent_can_be_read_from_https_without_writing(self):
         import io
         import json
         from unittest.mock import Mock
@@ -203,7 +203,7 @@ class RemotePreviewRevisionTests(unittest.TestCase):
         ]
         cfg = {"livesync_encryption_enabled": True,
                "livesync_e2ee_passphrase": "fixture-only",
-               "couchdb_url": "http://db21ed7f-obsidian-syncserver-ssl:5984",
+               "couchdb_url": "https://couchdb-test.example.org:6984/",
                "couchdb_database": "disposable"}
         decrypted = [json.dumps({"path": BODY["path"], "size": 4}), "body"]
         with (patch.object(server, "options", return_value=cfg),
@@ -218,9 +218,29 @@ class RemotePreviewRevisionTests(unittest.TestCase):
         self.assertEqual(content, "body")
         self.assertIsNone(error)
         self.assertEqual(opener.open.call_count, 4)
-        # All requests from the read-only reader must be GET requests.
-        self.assertTrue(all(call.args[0].get_method() == "GET"
-                            for call in opener.open.call_args_list))
+        for call in opener.open.call_args_list:
+            request = call.args[0]
+            self.assertEqual(request.get_method(), "GET")
+            self.assertTrue(request.full_url.startswith(
+                "https://couchdb-test.example.org:6984/disposable/"))
+
+    def test_unsupported_encrypted_endpoints_are_rejected_before_network(self):
+        for endpoint in (
+            "http://couchdb-test.example.org:5984",
+            "https://user:secret@couchdb-test.example.org",
+            "https://couchdb-test.example.org/proxy",
+            "https://couchdb-test.example.org:invalid",
+            "https://couchdb-test.example.org?target=other",
+        ):
+            with self.subTest(endpoint=endpoint), patch.object(server, "build_opener") as opener:
+                cfg = {"couchdb_url": endpoint, "couchdb_database": "disposable",
+                       "livesync_encryption_enabled": True,
+                       "livesync_e2ee_passphrase": "fixture-only"}
+                with patch.object(server, "options", return_value=cfg):
+                    self.assertEqual(server.encrypted_note_paths(), (None, "unsupported_connection"))
+                    self.assertEqual(server.read_encrypted_note(BODY["path"]),
+                                     (None, "unsupported_connection"))
+                opener.assert_not_called()
 
     def test_cross_origin_header_rejected(self):
         r=self.client.post("/api/remote/write-preview",json=BODY,
