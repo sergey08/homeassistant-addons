@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.2.7
+
+- Adds optional **remote MCP authentication** for Grok and other remote MCP clients.
+- New configuration options (default off, fully backward-compatible):
+  - `enable_remote_mcp`
+  - `remote_mcp_api_key`
+- When enabled, non-local requests must send `Authorization: Bearer <key>`.
+- Local connections (`127.0.0.1`) remain unauthenticated so the existing OpenAI Secure MCP Tunnel continues to work without changes.
+- All previous tools, LiveSync and ChatGPT tunnel behaviour are preserved.
+
 ## 0.2.6
 
 - Supports Home Assistant on AMD64 and ARM64 using the same multi-platform LiveSync CLI image.
