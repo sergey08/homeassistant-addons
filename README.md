@@ -19,16 +19,22 @@ https://github.com/sergey08/homeassistant-addons
 
 ### Available apps
 
-**Obsidian MCP for Home Assistant — 0.2.7**
+**Obsidian MCP for Home Assistant — 0.2.6 (stable)**
 
 - Install from the Home Assistant app store on AMD64 (`amd64`) or ARM64 (`aarch64`).
 - Work with local Markdown files or use optional Self-hosted LiveSync with your existing CouchDB server. Use the optional OpenAI Secure MCP Tunnel for private access from ChatGPT.
-- **New in 0.2.7:** optional authenticated remote MCP endpoint so you can also connect **Grok** (and other MCP clients) while keeping the ChatGPT tunnel.
 - Update an existing installation from its own app page to retain its persistent vault and configuration. A separate catalog entry is a separate installation.
 - For a new tunnel setup, choose the official Linux ZIP that matches your architecture and use the SHA256 manifest from the same release. Home Assistant `aarch64` uses the `linux-arm64.zip` package.
 
 [App source](./obsidian_suite/) · [Documentation](./obsidian_suite/DOCS.md)
 
+**Obsidian MCP for Home Assistant — 0.2.7-beta.1 (optional beta)**
+
+- Same features as 0.2.6 plus optional authenticated remote MCP endpoint for **Grok** (and other MCP clients).
+- **This beta is optional.** It does not replace the stable 0.2.6 release and is not the automatic update target.
+- Enable only if you want to test Grok / remote MCP access. The OpenAI ChatGPT tunnel continues to work.
+
+Branch for testing: `feature/remote-mcp-auth-grok`
 
 **Obsidian Client — 0.1.0-dev2 (experimental)**
 
@@ -70,16 +76,22 @@ https://github.com/sergey08/homeassistant-addons
 
 ### Aplicaciones disponibles
 
-**Obsidian MCP for Home Assistant — 0.2.7**
+**Obsidian MCP for Home Assistant — 0.2.6 (estable)**
 
 - Instala el complemento desde la tienda de Home Assistant en AMD64 (`amd64`) o ARM64 (`aarch64`).
 - Trabaja con archivos Markdown locales o activa Self-hosted LiveSync con tu servidor CouchDB existente. El túnel seguro de OpenAI es opcional y permite el acceso privado desde ChatGPT.
-- **Nuevo en 0.2.7:** endpoint MCP remoto autenticado opcional para conectar también **Grok** (y otros clientes MCP) sin perder el túnel de ChatGPT.
 - Actualiza una instalación existente desde su propia ficha para conservar la bóveda y la configuración persistentes. Una entrada de otro catálogo corresponde a una instalación independiente.
 - Para configurar un túnel nuevo, elige el ZIP oficial de Linux que corresponda a tu arquitectura y usa el manifiesto SHA256 de la misma versión. Home Assistant `aarch64` usa el paquete `linux-arm64.zip`.
 
 [Código](./obsidian_suite/) · [Documentación](./obsidian_suite/DOCS.md)
 
+**Obsidian MCP for Home Assistant — 0.2.7-beta.1 (beta opcional)**
+
+- Mismas funciones que 0.2.6 más un endpoint MCP remoto autenticado opcional para **Grok** (y otros clientes MCP).
+- **Esta beta es opcional.** No sustituye la versión estable 0.2.6 y no es el objetivo de actualización automática.
+- Actívala solo si quieres probar el acceso desde Grok / MCP remoto. El túnel de ChatGPT sigue funcionando.
+
+Rama de pruebas: `feature/remote-mcp-auth-grok`
 
 **Obsidian Client — 0.1.0-dev2 (experimental)**
 

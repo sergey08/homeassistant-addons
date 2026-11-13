@@ -1,16 +1,30 @@
 # Changelog
 
-## 0.2.7
+## 0.2.7-beta.1 (optional beta)
+
+**This is an explicit beta release.** It is **not** the default automatic update target.
+Install or switch to it only if you want to test the new remote MCP authentication for Grok.
+The stable channel remains **0.2.6**.
+
+### Changes in this beta
 
 - Adds optional **remote MCP authentication** for Grok and other remote MCP clients.
-- New configuration options (default off, fully backward-compatible):
+- New configuration options (default off, fully backward-compatible with 0.2.6):
   - `enable_remote_mcp`
   - `remote_mcp_api_key`
 - When enabled, non-local requests must send `Authorization: Bearer <key>`.
 - Local connections (`127.0.0.1`) remain unauthenticated so the existing OpenAI Secure MCP Tunnel continues to work without changes.
 - All previous tools, LiveSync and ChatGPT tunnel behaviour are preserved.
+- Documentation updated with a “Connect from Grok” section.
 
-## 0.2.6
+### How to install this beta (optional)
+
+1. Make sure the repository `https://github.com/sergey08/homeassistant-addons` is added.
+2. In the add-on page, if Supervisor offers the beta version, choose **0.2.7-beta.1** explicitly.
+3. Or install / update from the branch `feature/remote-mcp-auth-grok` while testing.
+4. After testing you can stay on the beta or return to the stable 0.2.6 line.
+
+## 0.2.6 (current stable)
 
 - Supports Home Assistant on AMD64 and ARM64 using the same multi-platform LiveSync CLI image.
 - Verifies Linux AMD64 and ARM64 OpenAI tunnel packages against their official SHA256 manifests and the running architecture.

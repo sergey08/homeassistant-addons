@@ -1,7 +1,7 @@
-name: "Obsidian MCP for Home Assistant"
-version: "0.2.7"
+name: "Obsidian MCP for Home Assistant (Beta)"
+version: "0.2.7-beta.1"
 slug: "obsidian_suite"
-description: "One Home Assistant app for Obsidian notes, ChatGPT MCP access, LiveSync synchronization and optional remote MCP for Grok"
+description: "BETA — One Home Assistant app for Obsidian notes, ChatGPT MCP, LiveSync and optional authenticated remote MCP for Grok. Optional beta; does not replace the stable release."
 url: "https://github.com/sergey08/homeassistant-addons"
 arch:
   - amd64
