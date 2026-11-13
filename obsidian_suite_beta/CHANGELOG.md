@@ -9,7 +9,7 @@
 - Adds optional remote MCP authentication for Grok and other remote MCP clients.
 - New options (default off): `enable_remote_mcp`, `remote_mcp_api_key`.
 - Local connections remain unauthenticated so the OpenAI ChatGPT tunnel still works.
-- Uses its own persistent path: `/app_configs/obsidian_bridge_beta` (does not share vault/tunnel files with the stable add-on by default).
+- Uses its own persistent path: `/app_configs/obsidian_bridge_beta`.
 
 ### Important
 
