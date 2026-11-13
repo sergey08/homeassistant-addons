@@ -1,5 +1,5 @@
-name: Obsidian Client (Development)
-slug: obsidian_client
+name: Obsidian Client (QA dev118)
+slug: obsidian_client_qa
 version: "0.1.0-dev118"
 description: "Independent Obsidian client / Cliente Obsidian independiente (experimental)"
 url: https://github.com/sergey08/homeassistant-addons/tree/main/obsidian_client
@@ -12,11 +12,9 @@ init: false
 ingress: true
 ingress_port: 8099
 panel_icon: mdi:notebook-outline
-panel_title: Obsidian
-map:
-  - share:rw
+panel_title: Obsidian QA
 options:
-  vault_path: /share/obsidian-client/vault
+  vault_path: /share/obsidian-client-qa/vault
   couchdb_url: ""
   couchdb_database: ""
   couchdb_username: ""
@@ -34,4 +32,4 @@ schema:
   livesync_encryption_enabled: bool
   livesync_e2ee_passphrase: password?
   livesync_cli_enabled: bool
-  editor_storage_mode: list(private|local|livesync|mcp_shared)
+  editor_storage_mode: list(private|local)
