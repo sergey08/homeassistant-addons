@@ -1,0 +1,240 @@
+from pathlib import Path
+import os
+import shutil
+import datetime
+import hashlib
+import threading
+import fcntl
+import json
+from contextlib import contextmanager
+from mcp.server.fastmcp import FastMCP
+
+ROOT = Path("/vault").resolve()
+TRASH = Path("/trash").resolve()
+NOTE_WRITE_LOCK = threading.RLock()
+mcp = FastMCP("Obsidian HA", host="0.0.0.0", port=8765, stateless_http=True, json_response=True)
+
+
+def _load_options() -> dict:
+    try:
+        return json.loads(Path("/data/options.json").read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+
+
+_options = _load_options()
+_ENABLE_REMOTE_MCP = bool(_options.get("enable_remote_mcp", False))
+_REMOTE_API_KEY = str(_options.get("remote_mcp_api_key", "")).strip()
+
+
+@contextmanager
+def vault_write_lock():
+    """Serialize MCP edits with Obsidian Client edits on a shared /share vault.
+
+    This protects inter-addon changes, not the independent LiveSync process.
+    """
+    with NOTE_WRITE_LOCK:
+        fd = os.open(ROOT / ".obsidian-write.lock",
+                     os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX)
+            try:
+                yield
+            finally:
+                fcntl.flock(fd, fcntl.LOCK_UN)
+        finally:
+            os.close(fd)
+
+
+def note_path(name: str, must_exist: bool = False) -> Path:
+    if not name or "\\" in name or "\x00" in name:
+        raise ValueError("Invalid note name")
+    p = Path(name)
+    if p.is_absolute() or ".." in p.parts or p.suffix.lower() != ".md" or any(part.startswith(".") for part in p.parts):
+        raise ValueError("Only Markdown (.md) files inside the vault are allowed")
+    dest = ROOT / p
+    cursor = ROOT
+    for part in p.parts:
+        cursor = cursor / part
+        if cursor.is_symlink():
+            raise ValueError("Symlinked Markdown paths are not allowed")
+    if not dest.resolve().is_relative_to(ROOT):
+        raise ValueError("Path is outside the vault")
+    if must_exist and (not dest.is_file() or dest.is_symlink()):
+        raise FileNotFoundError(name)
+    return dest
+
+
+@mcp.tool()
+def list_notes() -> list[str]:
+    """List Markdown notes in the Obsidian vault."""
+    return sorted(
+        str(p.relative_to(ROOT))
+        for p in ROOT.rglob("*.md")
+        if p.is_file() and not p.is_symlink() and p.resolve().is_relative_to(ROOT)
+        and not any(parent.is_symlink() for parent in p.parents if parent != ROOT and parent.is_relative_to(ROOT))
+    )
+
+
+@mcp.tool()
+def search_notes(text: str, max_results: int = 30) -> list[dict]:
+    """Search note contents and return matching line excerpts."""
+    if not text or len(text) > 200:
+        raise ValueError("Invalid search text")
+    found = []
+    for name in list_notes():
+        p = note_path(name, True)
+        for line_no, line in enumerate(p.read_text(encoding="utf-8").splitlines(), 1):
+            if text.casefold() in line.casefold():
+                found.append({"note": name, "line": line_no, "excerpt": line[:400]})
+                if len(found) >= max(1, min(max_results, 100)):
+                    return found
+    return found
+
+
+@mcp.tool()
+def read_note(name: str) -> str:
+    """Read the complete contents of a Markdown note."""
+    return note_path(name, True).read_text(encoding="utf-8")
+
+
+@mcp.tool()
+def read_note_with_revision(name: str) -> dict:
+    """Read a note with its SHA-256 revision. Pass sha256 as expected_sha256 when editing."""
+    with vault_write_lock():
+        content = note_path(name, True).read_bytes()
+        return {"name": name, "content": content.decode("utf-8"),
+                "sha256": hashlib.sha256(content).hexdigest()}
+
+
+@mcp.tool()
+def note_revision(name: str) -> str:
+    """Return SHA-256 of a note for safe optimistic updates."""
+    return hashlib.sha256(note_path(name, True).read_bytes()).hexdigest()
+
+
+def check_revision(path: Path, expected_sha256: str) -> None:
+    """Reject stale edits when a revision is supplied by the caller."""
+    if expected_sha256 and (not path.is_file() or
+        hashlib.sha256(path.read_bytes()).hexdigest() != expected_sha256):
+        raise RuntimeError("Note changed since it was read; refusing modification")
+
+
+@mcp.tool()
+def write_note(name: str, content: str, overwrite: bool = False, expected_sha256: str = "") -> str:
+    """Create a Markdown note. Replacing an existing note requires overwrite=True."""
+    with vault_write_lock():
+        p = note_path(name)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        if p.exists() and not overwrite:
+            raise FileExistsError("Note already exists; use overwrite=True to replace it")
+        if p.exists() and (not p.is_file() or p.is_symlink()):
+            raise ValueError("Invalid destination")
+        check_revision(p, expected_sha256)
+        if p.exists():
+            backup = TRASH / "versions" / datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%S%f") / name
+            backup.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(p, backup)
+        # Use a unique, exclusively created temporary file: fixed names can be symlinks.
+        import tempfile
+        fd, temp_name = tempfile.mkstemp(prefix=".mcp-", suffix=".tmp", dir=p.parent)
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as out:
+                out.write(content)
+                out.flush()
+                os.fsync(out.fileno())
+            os.replace(temp_name, p)
+        finally:
+            if os.path.exists(temp_name):
+                os.unlink(temp_name)
+        return f"Saved: {name}"
+    
+
+@mcp.tool()
+def append_note(name: str, content: str, expected_sha256: str = "") -> str:
+    """Append content to an existing Markdown note."""
+    with vault_write_lock():
+        p = note_path(name, True)
+        check_revision(p, expected_sha256)
+        with p.open("a", encoding="utf-8") as f:
+            f.write(content)
+        return f"Updated: {name}"
+    
+
+@mcp.tool()
+def rename_note(source: str, destination: str, expected_sha256: str = "") -> str:
+    """Move or rename a note without overwriting an existing destination."""
+    with vault_write_lock():
+        src, dst = note_path(source, True), note_path(destination)
+        check_revision(src, expected_sha256)
+        if dst.exists():
+            raise FileExistsError(destination)
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        src.rename(dst)
+        return f"Moved: {source} -> {destination}"
+    
+
+@mcp.tool()
+def delete_note(name: str, expected_sha256: str = "") -> str:
+    """Move a note to private recoverable trash instead of permanently deleting it."""
+    with vault_write_lock():
+        p = note_path(name, True)
+        check_revision(p, expected_sha256)
+        dest = TRASH / "deleted" / datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%S%f") / name
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        shutil.move(str(p), str(dest))
+        return f"Removed from vault: {name}. Recoverable copy retained."
+    
+
+if __name__ == "__main__":
+    if _ENABLE_REMOTE_MCP and _REMOTE_API_KEY:
+        # Remote MCP mode (Grok, Claude, Cursor, etc.).
+        # Local clients (OpenAI Secure Tunnel on 127.0.0.1) are exempt so existing
+        # ChatGPT functionality continues to work without configuration changes.
+        from starlette.applications import Starlette
+        from starlette.middleware import Middleware
+        from starlette.middleware.base import BaseHTTPMiddleware
+        from starlette.requests import Request
+        from starlette.responses import JSONResponse
+        from starlette.routing import Mount
+        import uvicorn
+
+        class LocalOrBearerAuth(BaseHTTPMiddleware):
+            async def dispatch(self, request: Request, call_next):
+                client_host = request.client.host if request.client else ""
+                if client_host in ("127.0.0.1", "::1"):
+                    return await call_next(request)
+                auth = request.headers.get("Authorization", "")
+                if auth == f"Bearer {_REMOTE_API_KEY}":
+                    return await call_next(request)
+                return JSONResponse(
+                    {"error": "Unauthorized. Provide Authorization: Bearer <remote_mcp_api_key>"},
+                    status_code=401,
+                )
+
+        mcp_app = None
+        for getter in (
+            lambda: mcp.streamable_http_app(),
+            lambda: mcp.http_app(transport="streamable-http"),
+            lambda: mcp.http_app(),
+            lambda: mcp.sse_app(),
+        ):
+            try:
+                mcp_app = getter()
+                break
+            except Exception:
+                continue
+
+        if mcp_app is None:
+            # Fallback: original behaviour if we cannot obtain the ASGI app
+            print("WARNING: could not attach auth middleware; starting without remote auth", flush=True)
+            mcp.run(transport="streamable-http")
+        else:
+            app = Starlette(
+                routes=[Mount("/", app=mcp_app)],
+                middleware=[Middleware(LocalOrBearerAuth)],
+            )
+            print("MCP running with remote authentication enabled (local clients exempt)", flush=True)
+            uvicorn.run(app, host="0.0.0.0", port=8765, log_level="info")
+    else:
+        mcp.run(transport="streamable-http")
