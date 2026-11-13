@@ -5,6 +5,7 @@ import datetime
 import hashlib
 import threading
 import fcntl
+import json
 from contextlib import contextmanager
 from mcp.server.fastmcp import FastMCP
 
@@ -12,6 +13,19 @@ ROOT = Path("/vault").resolve()
 TRASH = Path("/trash").resolve()
 NOTE_WRITE_LOCK = threading.RLock()
 mcp = FastMCP("Obsidian HA", host="0.0.0.0", port=8765, stateless_http=True, json_response=True)
+
+
+def _load_options() -> dict:
+    try:
+        return json.loads(Path("/data/options.json").read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+
+
+_options = _load_options()
+_ENABLE_REMOTE_MCP = bool(_options.get("enable_remote_mcp", False))
+_REMOTE_API_KEY = str(_options.get("remote_mcp_api_key", "")).strip()
+
 
 @contextmanager
 def vault_write_lock():
@@ -30,7 +44,6 @@ def vault_write_lock():
                 fcntl.flock(fd, fcntl.LOCK_UN)
         finally:
             os.close(fd)
-
 
 
 def note_path(name: str, must_exist: bool = False) -> Path:
@@ -174,4 +187,54 @@ def delete_note(name: str, expected_sha256: str = "") -> str:
     
 
 if __name__ == "__main__":
-    mcp.run(transport="streamable-http")
+    if _ENABLE_REMOTE_MCP and _REMOTE_API_KEY:
+        # Remote MCP mode (Grok, Claude, Cursor, etc.).
+        # Local clients (OpenAI Secure Tunnel on 127.0.0.1) are exempt so existing
+        # ChatGPT functionality continues to work without configuration changes.
+        from starlette.applications import Starlette
+        from starlette.middleware import Middleware
+        from starlette.middleware.base import BaseHTTPMiddleware
+        from starlette.requests import Request
+        from starlette.responses import JSONResponse
+        from starlette.routing import Mount
+        import uvicorn
+
+        class LocalOrBearerAuth(BaseHTTPMiddleware):
+            async def dispatch(self, request: Request, call_next):
+                client_host = request.client.host if request.client else ""
+                if client_host in ("127.0.0.1", "::1"):
+                    return await call_next(request)
+                auth = request.headers.get("Authorization", "")
+                if auth == f"Bearer {_REMOTE_API_KEY}":
+                    return await call_next(request)
+                return JSONResponse(
+                    {"error": "Unauthorized. Provide Authorization: Bearer <remote_mcp_api_key>"},
+                    status_code=401,
+                )
+
+        mcp_app = None
+        for getter in (
+            lambda: mcp.streamable_http_app(),
+            lambda: mcp.http_app(transport="streamable-http"),
+            lambda: mcp.http_app(),
+            lambda: mcp.sse_app(),
+        ):
+            try:
+                mcp_app = getter()
+                break
+            except Exception:
+                continue
+
+        if mcp_app is None:
+            # Fallback: original behaviour if we cannot obtain the ASGI app
+            print("WARNING: could not attach auth middleware; starting without remote auth", flush=True)
+            mcp.run(transport="streamable-http")
+        else:
+            app = Starlette(
+                routes=[Mount("/", app=mcp_app)],
+                middleware=[Middleware(LocalOrBearerAuth)],
+            )
+            print("MCP running with remote authentication enabled (local clients exempt)", flush=True)
+            uvicorn.run(app, host="0.0.0.0", port=8765, log_level="info")
+    else:
+        mcp.run(transport="streamable-http")
