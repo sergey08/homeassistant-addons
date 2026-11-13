@@ -1,0 +1,25 @@
+configuration:
+  tunnel_id:
+    name: OpenAI tunnel ID
+    description: "Identificador de OpenAI Platform > Organization settings > Tunnels (empieza por tunnel_). No es una API key."
+  enable_tunnel:
+    name: Activar túnel de ChatGPT
+    description: "Inicia el cliente de túnel de OpenAI para que ChatGPT acceda al MCP privado. Requiere tunnel ID, ejecutable y archivo de API key."
+  enable_livesync:
+    name: Activar LiveSync
+    description: "Sincroniza la bóveda Markdown local con CouchDB usando el archivo de ajustes LiveSync existente. No ejecutes otro writer sobre la misma bóveda."
+  livesync_interval:
+    name: Intervalo LiveSync (segundos)
+    description: "Tiempo entre ciclos de LiveSync, de 30 a 3600 segundos. Por defecto 60."
+  vault_path:
+    name: Carpeta Markdown local (opcional)
+    description: "Dejar vacío en modo LiveSync: se utiliza automáticamente la bóveda de Obsidian sincronizada. Solo en modo Local, indicar una carpeta existente dentro de /share."
+  storage_mode:
+    name: Modo de almacenamiento
+    description: "LiveSync utiliza tu bóveda habitual sincronizada con CouchDB. Local utiliza una carpeta Markdown existente indicada en Carpeta Markdown local, sin LiveSync."
+  enable_remote_mcp:
+    name: Activar MCP remoto (Grok)
+    description: "Exige autenticación Bearer para clientes MCP no locales (Grok y otros). Las conexiones locales del túnel OpenAI siguen permitidas sin clave."
+  remote_mcp_api_key:
+    name: API key MCP remoto
+    description: "Secreto usado como token Authorization Bearer cuando el MCP remoto está activo. Mantenlo privado."

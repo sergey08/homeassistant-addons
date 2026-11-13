@@ -1,0 +1,25 @@
+configuration:
+  tunnel_id:
+    name: OpenAI tunnel ID
+    description: "Identifier from OpenAI Platform > Organization settings > Tunnels (starts with tunnel_). This is not an API key."
+  enable_tunnel:
+    name: Enable ChatGPT tunnel
+    description: "Start the locally provisioned OpenAI tunnel client so ChatGPT can access the private MCP server. Requires a tunnel ID, executable and runtime API key file."
+  enable_livesync:
+    name: Enable LiveSync
+    description: "Synchronize the local Markdown vault with the configured CouchDB database using the existing LiveSync settings file. Do not run another writer for this vault."
+  livesync_interval:
+    name: LiveSync interval (seconds)
+    description: "Time between LiveSync polling cycles, from 30 to 3600 seconds. Default is 60 seconds."
+  vault_path:
+    name: Local Markdown folder (optional)
+    description: "Leave empty when storage_mode is livesync: the existing synchronized Obsidian vault is used automatically. For local mode, enter an existing folder under /share, for example /share/obsidian-prueba-local."
+  storage_mode:
+    name: Storage mode
+    description: "LiveSync uses your existing Obsidian vault synchronized with CouchDB. Local uses an existing Markdown directory specified in Local Markdown folder, without LiveSync."
+  enable_remote_mcp:
+    name: Enable remote MCP (Grok)
+    description: "Require Bearer token authentication for non-local MCP clients (Grok and others). Local OpenAI tunnel connections remain allowed without the key."
+  remote_mcp_api_key:
+    name: Remote MCP API key
+    description: "Secret used as Authorization Bearer token when remote MCP is enabled. Keep this private."

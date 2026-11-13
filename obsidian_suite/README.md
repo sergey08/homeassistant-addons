@@ -2,6 +2,9 @@
 
 **One Home Assistant add-on for private ChatGPT access to Obsidian notes and optional LiveSync replication.**
 
+> **Current stable:** `0.2.6`  
+> **Optional beta:** `0.2.7-beta.1` (remote MCP auth for Grok) — install only if you want to test it. It does **not** replace the stable release and is not the automatic update target.
+
 ## Features
 
 The add-on combines three supervised processes:
@@ -9,6 +12,8 @@ The add-on combines three supervised processes:
 1. **Markdown MCP Server**: list, search, read, create, append, rename and recoverably delete Markdown files in a local Obsidian vault.
 2. **OpenAI Secure MCP Tunnel**: connect an authorized ChatGPT workspace to the local MCP endpoint without public port forwarding.
 3. **Self-hosted LiveSync CLI**: synchronize that vault with an existing CouchDB-backed Obsidian LiveSync setup.
+
+From **0.2.7-beta.1** the same MCP server can optionally be exposed with Bearer-token authentication so **Grok** (and other remote MCP clients) can use it, while the OpenAI tunnel continues to work for local connections.
 
 It reuses files in Home Assistant's persistent `/app_configs/obsidian_bridge` directory. The MCP server starts before the tunnel client.
 

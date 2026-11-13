@@ -10,6 +10,8 @@ Obsidian MCP Suite runs three services inside **one Home Assistant app**:
 
 The app builds for **AMD64 (`amd64`) and ARM64 (`aarch64`)** on Home Assistant installations with Supervisor and app installation enabled. It supports existing `obsidian_bridge` vaults and the fresh-install modes below.
 
+From version **0.2.7** the same MCP server can also be exposed securely to **Grok** (and other remote MCP clients) using optional Bearer-token authentication.
+
 ## Fresh installation: choose the storage mode first
 
 The default configuration starts with **LiveSync selected but disabled**, and the **ChatGPT tunnel disabled**. This is intentional: a new installation should not require credentials before its first start.
@@ -75,6 +77,65 @@ The app reads the API key from a file: it never needs the key pasted into its UI
 
 See the [official Secure MCP Tunnel documentation](https://developers.openai.com/api/docs/guides/secure-mcp-tunnels) for updated UI, permissions, security and troubleshooting.
 
+## Connect from Grok (and other remote MCP clients) — new in 0.2.7
+
+Grok supports custom remote MCP servers. The add-on can expose the same tools with optional Bearer-token protection while keeping the OpenAI tunnel fully functional.
+
+### 1. Enable remote MCP authentication
+
+In **Home Assistant → Settings → Apps → Obsidian MCP for Home Assistant → Configuration**:
+
+| Option | Recommended value |
+| --- | --- |
+| **Enable remote MCP** (`enable_remote_mcp`) | `true` |
+| **Remote MCP API key** (`remote_mcp_api_key`) | A long random secret (treat it like a password) |
+
+Save and **restart** the add-on. Check the logs for the line:
+
+```text
+MCP running with remote authentication enabled (local clients exempt)
+```
+
+Local connections (`127.0.0.1`) are still accepted without the key, so the existing ChatGPT / OpenAI tunnel continues to work unchanged.
+
+### 2. Expose the MCP endpoint securely
+
+Grok (and most remote clients) only accept **public HTTPS** URLs. The add-on itself does not publish port 8765. You must put a reverse proxy or tunnel in front of it:
+
+- Cloudflare Tunnel
+- Tailscale Funnel / Serve
+- ngrok / similar
+- Your existing reverse proxy (Caddy, Nginx Proxy Manager, Traefik…) with TLS
+
+Point the public URL at the internal MCP path, usually:
+
+```text
+http://<home-assistant-ip-or-hostname>:8765/mcp
+```
+
+(or the path your reverse proxy maps to the add-on network).
+
+**Important security notes:**
+
+- Always use HTTPS on the public side.
+- Prefer short-lived or rotatable API keys.
+- Do not commit the API key to any repository.
+- The unauthenticated local endpoint must never be reachable from the public internet.
+
+### 3. Add the connector in Grok
+
+1. Open [grok.com/connectors](https://grok.com/connectors).
+2. Click **New Connector** → **Custom**.
+3. Paste the public HTTPS URL of your MCP endpoint (for example `https://mcp.yourdomain.com/mcp`).
+4. When prompted for authentication, supply the same value you configured in `remote_mcp_api_key` as a Bearer token.
+5. Save. Grok will discover the tools (`list_notes`, `search_notes`, `read_note`, etc.).
+
+You can now ask Grok to list, search or edit notes in your Obsidian vault. The same tools remain available to ChatGPT through the OpenAI tunnel.
+
+### Other MCP clients
+
+Any client that speaks **Streamable HTTP** (or SSE) and can send a Bearer token works the same way: Claude Desktop / Claude Code, Cursor, Continue, custom agents, etc.
+
 ## Configuration explained
 
 | Field | Default | Description |
@@ -83,6 +144,8 @@ See the [official Secure MCP Tunnel documentation](https://developers.openai.com
 | **Enable tunnel** (`enable_tunnel`) | `false` | Start the private ChatGPT tunnel connection. Requires executable, API key file and tunnel ID. |
 | **Enable LiveSync** (`enable_livesync`) | `false` | Run continuous synchronization using the existing CouchDB/LiveSync settings. Do not run a second LiveSync writer. |
 | **LiveSync interval** (`livesync_interval`) | `60` | Seconds between polling cycles, allowed 30–3600. |
+| **Enable remote MCP** (`enable_remote_mcp`) | `false` | Require Bearer-token authentication for non-local MCP clients (Grok, etc.). Local OpenAI tunnel remains unaffected. |
+| **Remote MCP API key** (`remote_mcp_api_key`) | Empty | Secret used as `Authorization: Bearer <key>` when remote MCP is enabled. |
 
 Settings changes may require restarting the app. For an established installation, enable **Start on boot** only after all services have been tested.
 
@@ -95,6 +158,7 @@ Expected log signals:
 - `mcp session initialized`
 - `LiveSync is configured and ready`
 - `Initial replication complete`
+- `MCP running with remote authentication enabled (local clients exempt)` (when remote MCP is on)
 
 A missing MCP OAuth discovery endpoint may log a 404 warning even when the tunnel works; verify by actually invoking a tool.
 
@@ -124,5 +188,6 @@ Common issues:
 - **Tunnel does not show up in ChatGPT:** check OpenAI workspace/organization association and Tunnels Read + Use permission.
 - **Missing vault or settings:** restore from backup and ensure the five required paths exist.
 - **Sync conflicts:** stop all duplicate LiveSync clients and inspect CouchDB/LiveSync logs.
+- **Remote MCP 401 Unauthorized:** verify the Bearer token matches `remote_mcp_api_key` and that the public URL reaches the add-on.
 
 **Security:** do not expose the unauthenticated MCP HTTP endpoint publicly; never publish vault notes, API keys or LiveSync secrets. Only use a tunnel with workspaces and people you trust to access or modify the notes.
