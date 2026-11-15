@@ -5,6 +5,7 @@ No remote URL fetching, arbitrary roots, or printer movement.
 """
 import hashlib
 import json
+import secrets
 import urllib.request
 
 from moonraker_files import FileAccessError, _NoRedirect, validate_base_url, validate_filename
@@ -35,7 +36,7 @@ def upload_gcode(base_url, filename, content, expected_sha256, api_key="", opene
     if b"\x00" in content[:4096]:
         raise UploadError("Binary input refused")
     # Deliberately do not use Moonraker's print=true upload parameter.
-    boundary = "moonraker-safe-upload-boundary"
+    boundary = "moonraker-safe-" + secrets.token_hex(24)
     parts = [
         ('root', 'gcodes'),
         ('path', ''),
@@ -64,8 +65,9 @@ def upload_gcode(base_url, filename, content, expected_sha256, api_key="", opene
     if not isinstance(result, dict) or not isinstance(result.get("result"), dict):
         raise UploadError("Upload not confirmed")
     received = result["result"]
-    if received.get("root") != "gcodes" or received.get("item", {}).get("path") != filename:
+    item = received.get("item")
+    if received.get("root") != "gcodes" or not isinstance(item, dict) or item.get("path") != filename:
         raise UploadError("Uploaded path differs from requested path")
     return {"uploaded": True, "filename": filename, "sha256_local": digest,
-            "size_bytes": len(content), "print_started": False,
-            "note": "Verify remote metadata and file bytes separately before authorizing a print."}
+            "size_bytes": len(content), "print_requested": False,
+            "note": "Upload requested print=false; printer state and remote file integrity are unverified."}
