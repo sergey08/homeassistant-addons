@@ -77,6 +77,7 @@ LOCAL_U1_TOOLS = {
         "inputSchema": {"type": "object", "properties": {}, "additionalProperties": False},
     },
 }
+RESERVED_UPLOAD_TOOL = "moonraker_safe_gcode_upload"  # Not callable until chunked transport is implemented.
 LOCAL_PRINT_WRITE_TOOLS = {
     "moonraker_safe_print_pause": {
         "name": "moonraker_safe_print_pause",
@@ -244,6 +245,8 @@ def check_message(message, allowed):
             raise PolicyError("Tool arguments too large")
         authorize_call(params.get("name"), allowed)
         name = params.get("name")
+        if name == RESERVED_UPLOAD_TOOL:
+            raise PolicyError("G-code upload transport is not implemented")
         if name in LOCAL_FILE_TOOLS or name in LOCAL_U1_TOOLS or name in LOCAL_PRINT_WRITE_TOOLS or name in (LOCAL_STATUS_TOOL, LOCAL_SPOOLMAN_TOOL):
             schema = (LOCAL_STATUS_DEFINITION if name == LOCAL_STATUS_TOOL
                       else LOCAL_SPOOLMAN_DEFINITION if name == LOCAL_SPOOLMAN_TOOL
@@ -370,7 +373,7 @@ def filter_reply(method, response, allowed, cursor=None):
     safe_result = {key: value for key, value in result.items()
                    if key in ("tools", "nextCursor")}
     response["result"] = dict(safe_result, tools=[tool for tool in filter_tools(result.get("tools"), allowed)
-                                                        if tool["name"] not in LOCAL_FILE_TOOLS and tool["name"] not in LOCAL_U1_TOOLS and tool["name"] not in LOCAL_PRINT_WRITE_TOOLS and tool["name"] not in (LOCAL_STATUS_TOOL, LOCAL_SPOOLMAN_TOOL)] + local_tools)
+                                                        if tool["name"] != RESERVED_UPLOAD_TOOL and tool["name"] not in LOCAL_FILE_TOOLS and tool["name"] not in LOCAL_U1_TOOLS and tool["name"] not in LOCAL_PRINT_WRITE_TOOLS and tool["name"] not in (LOCAL_STATUS_TOOL, LOCAL_SPOOLMAN_TOOL)] + local_tools)
     for tool in response["result"]["tools"]:
         if tool["name"] == PRIVACY_SAFE_PRINTER_INFO:
             tool["description"] = ("Read printer state and software version only. "
