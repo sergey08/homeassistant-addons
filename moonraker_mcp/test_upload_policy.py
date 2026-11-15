@@ -17,11 +17,12 @@ class UploadPolicyTests(unittest.TestCase):
         with self.assertRaises(PolicyError):
             authorize_call(UPLOAD, extend_allowed(frozenset(), []))
 
-    def test_upload_not_exposed_as_implemented_local_tool(self):
-        from gateway import LOCAL_FILE_TOOLS, LOCAL_PRINT_WRITE_TOOLS, RESERVED_UPLOAD_TOOL
+    def test_upload_local_tool_schema(self):
+        from gateway import LOCAL_FILE_TOOLS, LOCAL_PRINT_WRITE_TOOLS, RESERVED_UPLOAD_TOOL, LOCAL_UPLOAD_DEFINITION, check_message
         self.assertEqual(RESERVED_UPLOAD_TOOL, UPLOAD)
         self.assertNotIn(UPLOAD, LOCAL_FILE_TOOLS)
         self.assertNotIn(UPLOAD, LOCAL_PRINT_WRITE_TOOLS)
+        self.assertEqual(LOCAL_UPLOAD_DEFINITION['inputSchema']['required'], ['filename', 'sha256', 'confirmation'])
 
     def test_upload_defaults_off_and_requires_master_write_gate(self):
         config = (HERE / "config.yaml").read_text()
