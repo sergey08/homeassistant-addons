@@ -7,6 +7,8 @@ on:
     paths:
       - 'moonraker_mcp/moonraker_preflight.py'
       - 'moonraker_mcp/test_moonraker_preflight.py'
+      - 'moonraker_mcp/moonraker_upload.py'
+      - 'moonraker_mcp/test_moonraker_upload.py'
       - '.github/workflows/moonraker-safe-print.yml'
   workflow_dispatch:
 permissions:
@@ -20,7 +22,7 @@ jobs:
         with:
           python-version: '3.12'
       - name: Compile preflight and tests
-        run: python -m py_compile moonraker_mcp/moonraker_preflight.py moonraker_mcp/test_moonraker_preflight.py
+        run: python -m py_compile moonraker_mcp/moonraker_preflight.py moonraker_mcp/test_moonraker_preflight.py moonraker_mcp/moonraker_upload.py moonraker_mcp/test_moonraker_upload.py
       - name: Run offline tests (no printer connection)
         working-directory: moonraker_mcp
-        run: python -m unittest -v test_moonraker_preflight
+        run: python -m unittest -v test_moonraker_preflight test_moonraker_upload
