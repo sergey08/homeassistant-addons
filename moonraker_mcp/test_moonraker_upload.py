@@ -35,7 +35,7 @@ class UploadTests(unittest.TestCase):
                 upload_gcode("http://printer.local:7125", filename, self.data, self.digest)
 
     def test_rejects_binary_nul(self):
-        data = b"; header\\nG28\\x00\\n"
+        data = b"; header\nG28\x00\n"
         with self.assertRaises(UploadError):
             upload_gcode("http://printer.local:7125", "test.gcode", data,
                          hashlib.sha256(data).hexdigest())
