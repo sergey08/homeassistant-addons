@@ -24,7 +24,7 @@ class UploadTests(unittest.TestCase):
             return FakeResponse({"result": {"root": "gcodes", "item": {"path": "test.gcode"}}})
         result = upload_gcode("http://printer.local:7125", "test.gcode", self.data, self.digest, opener=opener)
         self.assertTrue(result["uploaded"])
-        self.assertFalse(result["print_started"])
+        self.assertFalse(result["print_requested"])
         self.assertEqual(requests[0].get_method(), "POST")
         self.assertTrue(requests[0].full_url.endswith("/server/files/upload"))
         self.assertIn(b'name="print"\r\n\r\nfalse', requests[0].data)
@@ -39,6 +39,23 @@ class UploadTests(unittest.TestCase):
         with self.assertRaises(UploadError):
             upload_gcode("http://printer.local:7125", "test.gcode", data,
                          hashlib.sha256(data).hexdigest())
+
+    def test_rejects_malformed_item_response(self):
+        with self.assertRaises(UploadError):
+            upload_gcode("http://printer.local:7125", "test.gcode", self.data,
+                         self.digest, opener=lambda req, timeout: FakeResponse(
+                             {"result": {"root": "gcodes", "item": None}}))
+
+    def test_uses_randomized_multipart_boundary(self):
+        requests = []
+        def opener(req, timeout):
+            requests.append(req)
+            return FakeResponse({"result": {"root": "gcodes", "item": {"path": "test.gcode"}}})
+        for _ in range(2):
+            upload_gcode("http://printer.local:7125", "test.gcode",
+                         self.data, self.digest, opener=opener)
+        self.assertNotEqual(requests[0].get_header("Content-type"),
+                            requests[1].get_header("Content-type"))
 
     def test_rejects_hash_mismatch(self):
         with self.assertRaises(UploadError):
