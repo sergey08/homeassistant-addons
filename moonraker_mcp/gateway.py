@@ -11,6 +11,8 @@ import urllib.error
 import urllib.request
 import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from moonraker_staging import read_staged_gcode
+from moonraker_upload import UploadError, upload_gcode
 from moonraker_files import FileAccessError, list_gcodes, gcode_metadata, gcode_preview
 from moonraker_spoolman import SpoolmanReadError, list_spoolman_inventory
 from moonraker_snapshot import SnapshotError, print_snapshot, filament_slots
@@ -77,7 +79,17 @@ LOCAL_U1_TOOLS = {
         "inputSchema": {"type": "object", "properties": {}, "additionalProperties": False},
     },
 }
-RESERVED_UPLOAD_TOOL = "moonraker_safe_gcode_upload"  # Not callable until chunked transport is implemented.
+RESERVED_UPLOAD_TOOL = "moonraker_safe_gcode_upload"
+LOCAL_UPLOAD_DEFINITION = {
+    "name": RESERVED_UPLOAD_TOOL,
+    "description": "Upload a pre-staged G-code only after explicit approval; NEVER prints.",
+    "inputSchema": {"type": "object",
+                    "properties": {"filename": {"type": "string"},
+                                   "sha256": {"type": "string"},
+                                   "confirmation": {"type": "string", "enum": ["CONFIRM_UPLOAD"]}},
+                    "required": ["filename", "sha256", "confirmation"],
+                    "additionalProperties": False},
+}
 LOCAL_PRINT_WRITE_TOOLS = {
     "moonraker_safe_print_pause": {
         "name": "moonraker_safe_print_pause",
@@ -246,7 +258,11 @@ def check_message(message, allowed):
         authorize_call(params.get("name"), allowed)
         name = params.get("name")
         if name == RESERVED_UPLOAD_TOOL:
-            raise PolicyError("G-code upload transport is not implemented")
+            if set(arguments) != {"filename", "sha256", "confirmation"} or any(
+                    type(value) is not str for value in arguments.values()):
+                raise PolicyError("Invalid G-code upload arguments")
+            if arguments["confirmation"] != "CONFIRM_UPLOAD":
+                raise PolicyError("Explicit upload confirmation required")
         if name in LOCAL_FILE_TOOLS or name in LOCAL_U1_TOOLS or name in LOCAL_PRINT_WRITE_TOOLS or name in (LOCAL_STATUS_TOOL, LOCAL_SPOOLMAN_TOOL):
             schema = (LOCAL_STATUS_DEFINITION if name == LOCAL_STATUS_TOOL
                       else LOCAL_SPOOLMAN_DEFINITION if name == LOCAL_SPOOLMAN_TOOL
@@ -368,7 +384,8 @@ def filter_reply(method, response, allowed, cursor=None):
                    [tool for name, tool in LOCAL_FILE_TOOLS.items() if name in allowed] +
                    ([LOCAL_SPOOLMAN_DEFINITION] if LOCAL_SPOOLMAN_TOOL in allowed else []) +
                    [tool for name, tool in LOCAL_U1_TOOLS.items() if name in allowed] +
-                   [tool for name, tool in LOCAL_PRINT_WRITE_TOOLS.items() if name in allowed]
+                   [tool for name, tool in LOCAL_PRINT_WRITE_TOOLS.items() if name in allowed] +
+                   ([LOCAL_UPLOAD_DEFINITION] if RESERVED_UPLOAD_TOOL in allowed else [])
                    if cursor is None else [])
     safe_result = {key: value for key, value in result.items()
                    if key in ("tools", "nextCursor")}
@@ -603,6 +620,22 @@ class Handler(BaseHTTPRequestHandler):
                     response_result["resultType"] = "complete"
                 return self.reply(200, {"jsonrpc": "2.0", "id": message["id"],
                                         "result": response_result})
+            if method == "tools/call" and message["params"]["name"] == RESERVED_UPLOAD_TOOL:
+                args = message["params"]["arguments"]
+                try:
+                    content = read_staged_gcode(args["filename"], args["sha256"])
+                    result = upload_gcode(os.environ["MOONRAKER_URL"], args["filename"],
+                                          content, args["sha256"],
+                                          os.environ.get("MOONRAKER_API_KEY", ""))
+                except (UploadError, urllib.error.URLError, TimeoutError, OSError):
+                    return self.file_tool_error(message["id"], "G-code upload failed; printer state unverified")
+                tool_result = {"content": [{"type": "text",
+                                           "text": json.dumps(result, ensure_ascii=False)}],
+                               "isError": False}
+                if is_modern:
+                    tool_result["resultType"] = "complete"
+                return self.reply(200, {"jsonrpc": "2.0", "id": message["id"],
+                                        "result": tool_result})
             if method == "tools/call" and message["params"]["name"] in LOCAL_PRINT_WRITE_TOOLS:
                 tool_name = message["params"]["name"]
                 arguments = message["params"].get("arguments", {})
