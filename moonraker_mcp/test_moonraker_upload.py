@@ -58,7 +58,7 @@ class UploadTests(unittest.TestCase):
                             requests[1].get_header("Content-type"))
 
     def test_rejects_nul_after_header(self):
-        data = b"; header\\n" + b"G1 X1\\n" * 1000 + b"\\x00"
+        data = b"; header\n" + b"G1 X1\n" * 1000 + b"\x00"
         with self.assertRaises(UploadError):
             upload_gcode("http://printer.local:7125", "test.gcode", data,
                          hashlib.sha256(data).hexdigest())
