@@ -29,6 +29,17 @@ class UploadTests(unittest.TestCase):
         self.assertTrue(requests[0].full_url.endswith("/server/files/upload"))
         self.assertIn(b'name="print"\r\n\r\nfalse', requests[0].data)
 
+    def test_rejects_unsafe_multipart_filename(self):
+        for filename in ('bad"name.gcode', 'bad;name.gcode'):
+            with self.subTest(filename=filename), self.assertRaises(UploadError):
+                upload_gcode("http://printer.local:7125", filename, self.data, self.digest)
+
+    def test_rejects_binary_nul(self):
+        data = b"; header\\nG28\\x00\\n"
+        with self.assertRaises(UploadError):
+            upload_gcode("http://printer.local:7125", "test.gcode", data,
+                         hashlib.sha256(data).hexdigest())
+
     def test_rejects_hash_mismatch(self):
         with self.assertRaises(UploadError):
             upload_gcode("http://printer.local:7125", "test.gcode", self.data, "0" * 64)
