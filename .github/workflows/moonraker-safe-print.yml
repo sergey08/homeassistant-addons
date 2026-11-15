@@ -1,0 +1,26 @@
+name: Moonraker safe print preflight
+on:
+  push:
+    branches:
+      - feat/moonraker-safe-print-workflow
+  pull_request:
+    paths:
+      - 'moonraker_mcp/moonraker_preflight.py'
+      - 'moonraker_mcp/test_moonraker_preflight.py'
+      - '.github/workflows/moonraker-safe-print.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Compile preflight and tests
+        run: python -m py_compile moonraker_mcp/moonraker_preflight.py moonraker_mcp/test_moonraker_preflight.py
+      - name: Run offline tests (no printer connection)
+        working-directory: moonraker_mcp
+        run: python -m unittest -v test_moonraker_preflight
