@@ -57,6 +57,12 @@ class UploadTests(unittest.TestCase):
         self.assertNotEqual(requests[0].get_header("Content-type"),
                             requests[1].get_header("Content-type"))
 
+    def test_rejects_nul_after_header(self):
+        data = b"; header\\n" + b"G1 X1\\n" * 1000 + b"\\x00"
+        with self.assertRaises(UploadError):
+            upload_gcode("http://printer.local:7125", "test.gcode", data,
+                         hashlib.sha256(data).hexdigest())
+
     def test_rejects_hash_mismatch(self):
         with self.assertRaises(UploadError):
             upload_gcode("http://printer.local:7125", "test.gcode", self.data, "0" * 64)
