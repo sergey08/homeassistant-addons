@@ -33,7 +33,7 @@ def upload_gcode(base_url, filename, content, expected_sha256, api_key="", opene
     digest = hashlib.sha256(content).hexdigest()
     if type(expected_sha256) is not str or len(expected_sha256) != 64 or digest != expected_sha256.lower():
         raise UploadError("SHA-256 mismatch")
-    if b"\x00" in content[:4096]:
+    if b"\x00" in content:
         raise UploadError("Binary input refused")
     # Deliberately do not use Moonraker's print=true upload parameter.
     boundary = "moonraker-safe-" + secrets.token_hex(24)
