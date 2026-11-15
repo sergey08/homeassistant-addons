@@ -33,6 +33,7 @@ options:
   allow_print_resume: false
   allow_print_cancel: false
   allow_print_start: false
+  allow_gcode_upload: false
 schema:
   moonraker_url: url
   moonraker_api_key: "password?"
@@ -53,3 +54,4 @@ schema:
   allow_print_resume: bool
   allow_print_cancel: bool
   allow_print_start: bool
+  allow_gcode_upload: bool
