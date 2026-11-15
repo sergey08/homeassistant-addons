@@ -23,6 +23,8 @@ def upload_gcode(base_url, filename, content, expected_sha256, api_key="", opene
         base = validate_base_url(base_url)
     except FileAccessError as exc:
         raise UploadError("Invalid filename or printer URL") from exc
+    if any(ch in filename for ch in ('"', ';')):
+        raise UploadError("Unsafe multipart filename")
     if not filename.lower().endswith((".gcode", ".gco")):
         raise UploadError("Only G-code accepted")
     if type(content) is not bytes or not 0 < len(content) <= MAX_UPLOAD_BYTES:
@@ -30,7 +32,7 @@ def upload_gcode(base_url, filename, content, expected_sha256, api_key="", opene
     digest = hashlib.sha256(content).hexdigest()
     if type(expected_sha256) is not str or len(expected_sha256) != 64 or digest != expected_sha256.lower():
         raise UploadError("SHA-256 mismatch")
-    if b"\\x00" in content[:4096]:
+    if b"\x00" in content[:4096]:
         raise UploadError("Binary input refused")
     # Deliberately do not use Moonraker's print=true upload parameter.
     boundary = "moonraker-safe-upload-boundary"
@@ -41,10 +43,10 @@ def upload_gcode(base_url, filename, content, expected_sha256, api_key="", opene
     ]
     body = bytearray()
     for key, value in parts:
-        body.extend(('--' + boundary + '\\r\\nContent-Disposition: form-data; name="' + key + '"\\r\\n\\r\\n' + value + '\\r\\n').encode())
-    body.extend(('--' + boundary + '\\r\\nContent-Disposition: form-data; name="file"; filename="' + filename + '"\\r\\nContent-Type: application/octet-stream\\r\\n\\r\\n').encode())
+        body.extend(('--' + boundary + '\r\nContent-Disposition: form-data; name="' + key + '"\r\n\r\n' + value + '\r\n').encode())
+    body.extend(('--' + boundary + '\r\nContent-Disposition: form-data; name="file"; filename="' + filename + '"\r\nContent-Type: application/octet-stream\r\n\r\n').encode())
     body.extend(content)
-    body.extend(('\\r\\n--' + boundary + '--\\r\\n').encode())
+    body.extend(('\r\n--' + boundary + '--\r\n').encode())
     headers = {"Accept": "application/json", "Content-Type": "multipart/form-data; boundary=" + boundary}
     if api_key:
         headers["X-Api-Key"] = api_key
