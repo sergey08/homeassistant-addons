@@ -17,7 +17,7 @@ from moonraker_upload import MAX_UPLOAD_BYTES, UploadError
 
 MAX_CHUNK_BYTES = 8192
 SHA_RE = re.compile(r"^[a-fA-F0-9]{64}$")
-NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._ -]{0,199}\\.(?:gcode|gco)$", re.I)
+NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._ -]{0,199}\.(?:gcode|gco)$", re.I)
 
 
 def _validate(filename, digest):
