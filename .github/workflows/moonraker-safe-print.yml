@@ -96,3 +96,15 @@ jobs:
           test "$status" -ne 0
           test "$status" -ne 124
           printf '%s\n' "$output" | grep -Fq 'Configure a nonempty MCP HTTP token'
+      - name: Container rejects malformed write permission (offline)
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf '%s\n' '{"moonraker_url":"http://127.0.0.1:9","mcp_http_token":"ci-only-token","enable_write_actions":"true","allow_gcode_upload":false,"enable_tunnel":false}' > "$RUNNER_TEMP/beta-options/options.json"
+          set +e
+          output="$(timeout 15 docker run --rm --network none --platform linux/${{ matrix.arch }} -v "$RUNNER_TEMP/beta-options:/data:ro" "moonraker-safeprint-beta-ci:${{ matrix.arch }}" 2>&1)"
+          status=$?
+          set -e
+          test "$status" -ne 0
+          test "$status" -ne 124
+          printf '%s\n' "$output" | grep -Fq 'enable_write_actions must be boolean'
