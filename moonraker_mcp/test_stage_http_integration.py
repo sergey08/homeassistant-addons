@@ -61,10 +61,10 @@ class StagingHTTPTests(unittest.TestCase):
             return stage_chunk(filename, digest, offset, chunk, final, self.root)
         def read_local(filename, digest):
             return read_staged_gcode(filename, digest, self.root)
-        with patch("gateway.stage_chunk", side_effect=stage_local), \\
-             patch("gateway.read_staged_gcode", side_effect=read_local), \\
-             patch("gateway.upload_gcode", side_effect=fake_upload), \\
-             patch.dict("os.environ", {"MOONRAKER_URL": "http://127.0.0.1:7125", "MOONRAKER_API_KEY": ""}):
+        with (patch("gateway.stage_chunk", side_effect=stage_local),
+             patch("gateway.read_staged_gcode", side_effect=read_local),
+             patch("gateway.upload_gcode", side_effect=fake_upload),
+             patch.dict("os.environ", {"MOONRAKER_URL": "http://127.0.0.1:7125", "MOONRAKER_API_KEY": ""})):
             for offset, chunk, final in [(0, self.data[:10], False),
                                          (10, self.data[10:], True)]:
                 status, result = self.call(STAGE_CHUNK_TOOL, {
