@@ -67,6 +67,18 @@ class ChunkStagingTests(unittest.TestCase):
         with self.assertRaises(UploadError):
             self.send(self.data, final=True, filename="a" * 160 + ".gcode")
 
+    def test_partial_session_count_quota(self):
+        for i in range(4):
+            self.send(self.data[:4], filename="session%d.gcode" % i)
+        with self.assertRaisesRegex(UploadError, "quota"):
+            self.send(self.data[:4], filename="session4.gcode")
+        self.assertFalse((self.root / "session4.gcode").exists())
+
+    def test_rejects_unsafe_inventory(self):
+        (self.root / ".foreign.part").symlink_to(self.root / "missing")
+        with self.assertRaises(UploadError):
+            self.send(self.data[:4])
+
     def test_rejects_oversized_chunk(self):
         with self.assertRaises(UploadError):
             self.send(b"x" * 8193)
