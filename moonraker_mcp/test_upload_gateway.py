@@ -2,7 +2,7 @@
 import copy
 import unittest
 
-from gateway import check_message, filter_reply, RESERVED_UPLOAD_TOOL
+from gateway import check_message, filter_reply, RESERVED_UPLOAD_TOOL, STAGE_CHUNK_TOOL
 from tool_policy import PolicyError
 
 
@@ -14,6 +14,19 @@ class GatewayUploadTests(unittest.TestCase):
                     "params": {"name": RESERVED_UPLOAD_TOOL,
                                "arguments": self.args}}
         self.allowed = frozenset({RESERVED_UPLOAD_TOOL})
+
+    def test_stage_chunk_requires_separate_confirmation_and_permission(self):
+        args = {"filename": "sample.gcode", "sha256": "a" * 64,
+                "offset": 0, "chunk_b64": "RzI4Cg==", "final": True,
+                "confirmation": "CONFIRM_STAGE"}
+        msg = {"jsonrpc": "2.0", "id": 10, "method": "tools/call",
+               "params": {"name": STAGE_CHUNK_TOOL, "arguments": args}}
+        with self.assertRaises(PolicyError):
+            check_message(msg, frozenset())
+        self.assertEqual(check_message(msg, frozenset({STAGE_CHUNK_TOOL})), "tools/call")
+        args["confirmation"] = "CONFIRM_UPLOAD"
+        with self.assertRaises(PolicyError):
+            check_message(msg, frozenset({STAGE_CHUNK_TOOL}))
 
     def test_explicit_approval_required(self):
         self.assertEqual(check_message(self.msg, self.allowed), "tools/call")
@@ -49,7 +62,11 @@ class GatewayUploadTests(unittest.TestCase):
         hidden_names = [x["name"] for x in hidden["result"]["tools"]]
         shown_names = [x["name"] for x in shown["result"]["tools"]]
         self.assertNotIn(RESERVED_UPLOAD_TOOL, hidden_names)
+        self.assertNotIn(STAGE_CHUNK_TOOL, hidden_names)
         self.assertEqual(shown_names.count(RESERVED_UPLOAD_TOOL), 1)
+        self.assertEqual(shown_names.count(STAGE_CHUNK_TOOL), 0)
+        both = filter_reply("tools/list", copy.deepcopy(upstream), self.allowed | {STAGE_CHUNK_TOOL})
+        self.assertEqual([x["name"] for x in both["result"]["tools"]].count(STAGE_CHUNK_TOOL), 1)
 
 
 if __name__ == "__main__":
