@@ -40,7 +40,7 @@ def stage_chunk(filename, expected_sha256, offset, chunk_b64, final=False, direc
         raise UploadError("Invalid base64 chunk") from exc
     if not 0 < len(chunk) <= MAX_CHUNK_BYTES or offset + len(chunk) > MAX_UPLOAD_BYTES:
         raise UploadError("Chunk exceeds staging limits")
-    if b"\\x00" in chunk:
+    if bytes([0]) in chunk:
         raise UploadError("Binary G-code refused")
     directory = Path(directory)
     flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC
@@ -84,7 +84,7 @@ def stage_chunk(filename, expected_sha256, offset, chunk_b64, final=False, direc
                 raise
             if len(payload) != offset + len(chunk) or hashlib.sha256(payload).hexdigest() != expected_sha256.lower():
                 raise UploadError("Final SHA-256 mismatch")
-            if b"\\x00" in payload:
+            if bytes([0]) in payload:
                 raise UploadError("Binary G-code refused")
             # Never overwrite a previously published destination.
             os.link(part, filename, src_dir_fd=dirfd, dst_dir_fd=dirfd, follow_symlinks=False)
