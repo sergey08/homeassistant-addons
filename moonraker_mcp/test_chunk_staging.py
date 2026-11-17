@@ -67,6 +67,16 @@ class ChunkStagingTests(unittest.TestCase):
         with self.assertRaises(UploadError):
             self.send(self.data, final=True, filename="a" * 160 + ".gcode")
 
+    def test_directory_lock_prevents_concurrent_quota_reservations(self):
+        fd = os.open(self.root, os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            with self.assertRaises(UploadError):
+                self.send(self.data[:4])
+            self.assertEqual(list(self.root.iterdir()), [])
+        finally:
+            os.close(fd)
+
     def test_partial_session_count_quota(self):
         for i in range(4):
             self.send(self.data[:4], filename="session%d.gcode" % i)
