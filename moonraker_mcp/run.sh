@@ -75,7 +75,11 @@ su-exec 65534:65534 sh -c 'exec /usr/local/bin/mcp-raker < /run/moonraker-stdin'
 UPSTREAM_PID=$!
 TUNNEL_PID=""
 GATEWAY_PID=""
+HOUSEKEEPER_PID=""
 cleanup() {
+  if [ -n "$HOUSEKEEPER_PID" ]; then
+    kill "$HOUSEKEEPER_PID" 2>/dev/null || true
+  fi
   if [ -n "$GATEWAY_PID" ]; then
     kill "$GATEWAY_PID" 2>/dev/null || true
   fi
@@ -96,12 +100,17 @@ if [ "$MCP_ENABLE_TUNNEL" = "true" ]; then
 fi
 su-exec 65534:65534 python3 -u gateway.py &
 GATEWAY_PID=$!
+if [ "$MCP_WRITE_ENABLED" = "true" ] &&
+   printf '%s' "$MCP_ALLOWED_PROFILES" | jq -e 'index("gcode_upload") != null' >/dev/null; then
+  su-exec 65534:65534 python3 -u staging_housekeeper.py &
+  HOUSEKEEPER_PID=$!
+fi
 
 # Fail closed if any required child exits, including a successfully exiting
 # tunnel-client. BusyBox ash wait -n has known edge cases in version 1.37,
 # so inspect live child process states without relying on its exit status.
 while :; do
-  for pid in "$UPSTREAM_PID" "$KEEPALIVE_PID" "$GATEWAY_PID" ${TUNNEL_PID:+"$TUNNEL_PID"}; do
+  for pid in "$UPSTREAM_PID" "$KEEPALIVE_PID" "$GATEWAY_PID" ${TUNNEL_PID:+"$TUNNEL_PID"} ${HOUSEKEEPER_PID:+"$HOUSEKEEPER_PID"}; do
     if ! kill -0 "$pid" 2>/dev/null; then
       echo "Required Moonraker MCP process exited; stopping add-on" >&2
       exit 1
