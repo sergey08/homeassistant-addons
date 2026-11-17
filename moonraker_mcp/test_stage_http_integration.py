@@ -103,8 +103,9 @@ class StagingHTTPTests(unittest.TestCase):
             self.assertEqual(list(self.root.iterdir()), [])
             stage_chunk("sample.gcode", self.digest, 0,
                         base64.b64encode(self.data).decode(), True, self.root)
-            status, _ = self.call(ABORT_STAGE_TOOL, args)
-            self.assertNotEqual(status, 200)
+            status, result = self.call(ABORT_STAGE_TOOL, args)
+            self.assertEqual(status, 200)
+            self.assertTrue(result["result"]["isError"])
             self.assertEqual((self.root / "sample.gcode").read_bytes(), self.data)
 
     def test_invalid_confirmation_cannot_stage(self):
