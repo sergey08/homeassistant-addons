@@ -53,9 +53,13 @@ The staging confirmation does **not** authorize uploading to Moonraker;
 `CONFIRM_UPLOAD` is still required for that separate tool.
 
 This is a development-only transport, not an unrestricted file manager. Do not
-expose the staging volume over a network or relax its permissions. Interrupted
-transfers can leave hidden `.part` files: storage quotas, expiry and a safe
-administrative cleanup/abort procedure remain to be designed and validated.
+expose the staging volume over a network or relax its permissions. Interrupted transfers can leave hidden `.part` files. The development branch
+limits concurrent partial sessions to four and aggregate partial storage to
+64 MiB; checks are serialized by a directory lock. The opt-in
+`moonraker_safe_gcode_abort_stage` tool accepts the exact filename, SHA-256 and
+`confirmation: CONFIRM_ABORT_STAGE`, and removes only that unfinished matching
+part. It never removes a published G-code or contacts the printer.
+Automatic expiry/garbage collection remains to be designed and validated.
 Do not enable this workflow in production until those safeguards and an
 isolated beta validation are complete. The tool does not download
 models, slice, verify the printer's remote file checksum, confirm physical
