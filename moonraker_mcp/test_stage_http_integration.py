@@ -11,8 +11,8 @@ from pathlib import Path
 from unittest.mock import patch
 from http.server import ThreadingHTTPServer
 
-from gateway import Handler, STAGE_CHUNK_TOOL, RESERVED_UPLOAD_TOOL
-from moonraker_chunk_staging import stage_chunk
+from gateway import Handler, STAGE_CHUNK_TOOL, RESERVED_UPLOAD_TOOL, ABORT_STAGE_TOOL
+from moonraker_chunk_staging import stage_chunk, abort_staged_chunk
 from moonraker_staging import read_staged_gcode
 
 
@@ -25,7 +25,7 @@ class StagingHTTPTests(unittest.TestCase):
         self.data = b"; Snapmaker U1 test\nG28\nM84\n"
         self.digest = hashlib.sha256(self.data).hexdigest()
         self.old_allowed, self.old_token = Handler.allowed, Handler.token
-        Handler.allowed = frozenset({STAGE_CHUNK_TOOL, RESERVED_UPLOAD_TOOL})
+        Handler.allowed = frozenset({STAGE_CHUNK_TOOL, RESERVED_UPLOAD_TOOL, ABORT_STAGE_TOOL})
         Handler.token = "offline-test"
         self.server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
         self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
@@ -83,6 +83,29 @@ class StagingHTTPTests(unittest.TestCase):
             self.assertEqual(len(calls), 1)
             self.assertEqual(calls[0], ("sample.gcode", self.data, self.digest))
             self.assertFalse(json.loads(result["result"]["content"][0]["text"])["print_requested"])
+
+    def test_http_abort_requires_confirmation_and_preserves_completed_file(self):
+        def abort_local(filename, digest):
+            return abort_staged_chunk(filename, digest, self.root)
+        with patch("gateway.abort_staged_chunk", side_effect=abort_local):
+            stage_chunk("sample.gcode", self.digest, 0,
+                        base64.b64encode(self.data[:6]).decode(), False, self.root)
+            args = {"filename": "sample.gcode", "sha256": self.digest,
+                    "confirmation": "CONFIRM_UPLOAD"}
+            status, _ = self.call(ABORT_STAGE_TOOL, args)
+            self.assertNotEqual(status, 200)
+            self.assertEqual(len(list(self.root.iterdir())), 1)
+            args["confirmation"] = "CONFIRM_ABORT_STAGE"
+            status, result = self.call(ABORT_STAGE_TOOL, args)
+            self.assertEqual(status, 200)
+            self.assertFalse(result["result"]["isError"])
+            self.assertTrue(json.loads(result["result"]["content"][0]["text"])["aborted"])
+            self.assertEqual(list(self.root.iterdir()), [])
+            stage_chunk("sample.gcode", self.digest, 0,
+                        base64.b64encode(self.data).decode(), True, self.root)
+            status, _ = self.call(ABORT_STAGE_TOOL, args)
+            self.assertNotEqual(status, 200)
+            self.assertEqual((self.root / "sample.gcode").read_bytes(), self.data)
 
     def test_invalid_confirmation_cannot_stage(self):
         status, result = self.call(STAGE_CHUNK_TOOL, {
