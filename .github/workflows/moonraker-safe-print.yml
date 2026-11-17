@@ -79,6 +79,20 @@ jobs:
       - name: Build beta image without push or printer access
         run: |
           docker buildx build --platform linux/${{ matrix.arch }} \
-            --progress=plain \
+            --progress=plain --load \
+            --tag "moonraker-safeprint-beta-ci:${{ matrix.arch }}" \
             --file "$RUNNER_TEMP/moonraker_mcp_safeprint_beta/Dockerfile" \
             "$RUNNER_TEMP/moonraker_mcp_safeprint_beta"
+      - name: Container fails closed without configured bearer token (offline)
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/beta-options"
+          printf '%s\n' '{"moonraker_url":"http://127.0.0.1:9","mcp_http_token":"","enable_write_actions":false,"allow_gcode_upload":false,"allow_print_start":false,"enable_tunnel":false}' > "$RUNNER_TEMP/beta-options/options.json"
+          set +e
+          output="$(timeout 15 docker run --rm --network none --platform linux/${{ matrix.arch }} -v "$RUNNER_TEMP/beta-options:/data:ro" "moonraker-safeprint-beta-ci:${{ matrix.arch }}" 2>&1)"
+          status=$?
+          set -e
+          test "$status" -ne 0
+          test "$status" -ne 124
+          printf '%s\n' "$output" | grep -Fq 'Configure a nonempty MCP HTTP token'
