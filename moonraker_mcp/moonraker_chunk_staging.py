@@ -60,14 +60,15 @@ def stage_chunk(filename, expected_sha256, offset, chunk_b64, final=False, direc
             part = "." + filename + "." + expected_sha256.lower() + ".part"
             # Recalculate total before EVERY chunk, while holding the directory lock.
             active, total = 0, 0
-            for entry in os.scandir(dirfd):
-                if not entry.name.endswith(".part"):
-                    continue
-                info = entry.stat(follow_symlinks=False)
-                if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1 or info.st_mode & 0o077:
-                    raise UploadError("Unsafe staging inventory")
-                active += 1
-                total += info.st_size
+            with os.scandir(dirfd) as entries:
+                for entry in entries:
+                    if not entry.name.endswith(".part"):
+                        continue
+                    info = entry.stat(follow_symlinks=False)
+                    if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1 or info.st_mode & 0o077:
+                        raise UploadError("Unsafe staging inventory")
+                    active += 1
+                    total += info.st_size
             if total + len(chunk) > MAX_PARTIAL_BYTES:
                 raise UploadError("Staging quota exceeded")
             if offset == 0:
