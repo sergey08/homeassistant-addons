@@ -40,6 +40,16 @@ class StagingTests(unittest.TestCase):
         with self.assertRaises(UploadError):
             read_staged_gcode("sample.gcode", self.digest, self.root)
 
+    def test_rejects_hardlinked_file(self):
+        os.link(self.file, self.root / "second.gcode")
+        with self.assertRaises(UploadError):
+            read_staged_gcode("sample.gcode", self.digest, self.root)
+
+    def test_rejects_nonprivate_directory(self):
+        self.root.chmod(0o755)
+        with self.assertRaises(UploadError):
+            read_staged_gcode("sample.gcode", self.digest, self.root)
+
     def test_rejects_binary_input(self):
         data = self.data + bytes([0])
         self.file.write_bytes(data)
