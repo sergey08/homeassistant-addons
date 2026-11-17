@@ -167,7 +167,7 @@ def cleanup_stale_parts(max_age_seconds=7 * 24 * 60 * 60, directory=STAGING_DIR)
                 names = [entry.name for entry in entries if entry.name.endswith(".part")]
             for name in names:
                 # Never remove unknown files, even if their names end in .part.
-                match = re.fullmatch(r"\\.(.+)\\.([a-f0-9]{64})\\.part", name)
+                match = re.fullmatch(r"\.(.+)\.([a-f0-9]{64})\.part", name)
                 if match is None:
                     continue
                 try:
