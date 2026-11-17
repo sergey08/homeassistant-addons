@@ -33,6 +33,17 @@ class UploadPolicyTests(unittest.TestCase):
         self.assertIn('chown 65534:65534 "$STAGING_DIR"', runtime)
         self.assertIn('if [ -L "$STAGING_DIR" ]', runtime)
 
+    def test_housekeeper_is_supervised_and_upload_gated(self):
+        runtime = (HERE / "run.sh").read_text()
+        image = (HERE / "Dockerfile").read_text()
+        self.assertIn('HOUSEKEEPER_PID=""', runtime)
+        self.assertIn('su-exec 65534:65534 python3 -u staging_housekeeper.py &', runtime)
+        self.assertIn('HOUSEKEEPER_PID=$!', runtime)
+        self.assertIn('index("gcode_upload") != null', runtime)
+        self.assertIn('if [ "$MCP_WRITE_ENABLED" = "true" ]', runtime)
+        self.assertIn('${HOUSEKEEPER_PID:+"$HOUSEKEEPER_PID"}; do', runtime)
+        self.assertIn('staging_housekeeper.py', image)
+
     def test_upload_defaults_off_and_requires_master_write_gate(self):
         config = (HERE / "config.yaml").read_text()
         runtime = (HERE / "run.sh").read_text()
