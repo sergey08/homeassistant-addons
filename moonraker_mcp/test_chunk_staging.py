@@ -7,7 +7,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from moonraker_chunk_staging import stage_chunk
+from moonraker_chunk_staging import stage_chunk, abort_staged_chunk
 from moonraker_staging import read_staged_gcode
 from moonraker_upload import UploadError
 
@@ -76,6 +76,26 @@ class ChunkStagingTests(unittest.TestCase):
             self.assertEqual(list(self.root.iterdir()), [])
         finally:
             os.close(fd)
+
+    def test_abort_only_matching_incomplete_part(self):
+        self.send(self.data[:4])
+        with self.assertRaises(UploadError):
+            abort_staged_chunk("other.gcode", self.digest, self.root)
+        self.assertEqual(abort_staged_chunk("sample.gcode", self.digest, self.root)["aborted"], True)
+        self.assertEqual(list(self.root.iterdir()), [])
+
+    def test_abort_never_deletes_published_gcode(self):
+        self.send(self.data, final=True)
+        with self.assertRaises(UploadError):
+            abort_staged_chunk("sample.gcode", self.digest, self.root)
+        self.assertEqual((self.root / "sample.gcode").read_bytes(), self.data)
+
+    def test_abort_rejects_symlink_part(self):
+        part = self.root / ("." + "sample.gcode" + "." + self.digest + ".part")
+        part.symlink_to(self.root / "victim")
+        with self.assertRaises(UploadError):
+            abort_staged_chunk("sample.gcode", self.digest, self.root)
+        self.assertTrue(part.is_symlink())
 
     def test_partial_session_count_quota(self):
         for i in range(4):
