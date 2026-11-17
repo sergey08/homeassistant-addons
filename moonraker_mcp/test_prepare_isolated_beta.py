@@ -46,7 +46,7 @@ class BetaIsolationTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             target = Path(temp) / BETA_SLUG
             with patch("prepare_isolated_beta.SOURCE", Path(temp) / "missing-source"):
-                with self.assertRaises(FileNotFoundError):
+                with self.assertRaisesRegex(ValueError, "Unsafe or missing beta source asset"):
                     prepare(target)
             self.assertFalse(target.exists())
 
