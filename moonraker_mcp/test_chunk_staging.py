@@ -54,7 +54,7 @@ class ChunkStagingTests(unittest.TestCase):
 
     def test_rejects_binary_chunk(self):
         with self.assertRaises(UploadError):
-            self.send(b"G28\\x00", final=True)
+            self.send(b"G28" + bytes([0]), final=True)
 
     def test_never_overwrites_published_file(self):
         self.send(self.data, final=True)
