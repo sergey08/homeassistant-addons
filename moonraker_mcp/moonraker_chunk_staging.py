@@ -17,6 +17,8 @@ from moonraker_staging import STAGING_DIR
 from moonraker_upload import MAX_UPLOAD_BYTES, UploadError
 
 MAX_CHUNK_BYTES = 8192
+MAX_ACTIVE_PARTS = 4
+MAX_PARTIAL_BYTES = 64 * 1024 * 1024
 SHA_RE = re.compile(r"^[a-fA-F0-9]{64}$")
 NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._ -]{0,149}\.(?:gcode|gco)$", re.I)
 
@@ -54,6 +56,19 @@ def stage_chunk(filename, expected_sha256, offset, chunk_b64, final=False, direc
             # destination. O_EXCL ensures no concurrent or stale overwrite.
             part = "." + filename + "." + expected_sha256.lower() + ".part"
             if offset == 0:
+                # Count only regular, singly-linked, private staging parts.
+                # Fail closed if an unexpected object is found in the private volume.
+                active, total = 0, 0
+                for entry in os.scandir(dirfd):
+                    if not entry.name.endswith(".part"):
+                        continue
+                    info = entry.stat(follow_symlinks=False)
+                    if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1 or info.st_mode & 0o077:
+                        raise UploadError("Unsafe staging inventory")
+                    active += 1
+                    total += info.st_size
+                if active >= MAX_ACTIVE_PARTS or total + len(chunk) > MAX_PARTIAL_BYTES:
+                    raise UploadError("Staging quota exceeded")
                 fd = os.open(part, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
                              0o600, dir_fd=dirfd)
             else:
@@ -65,6 +80,8 @@ def stage_chunk(filename, expected_sha256, offset, chunk_b64, final=False, direc
                     raise UploadError("Unsafe staging part")
                 if info.st_size != offset:
                     raise UploadError("Out-of-order chunk")
+                if offset and info.st_size + len(chunk) > MAX_UPLOAD_BYTES:
+                    raise UploadError("Staging quota exceeded")
                 os.lseek(fd, offset, os.SEEK_SET)
                 written = os.write(fd, chunk)
                 if written != len(chunk):
