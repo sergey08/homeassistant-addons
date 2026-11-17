@@ -24,6 +24,13 @@ class UploadPolicyTests(unittest.TestCase):
         self.assertNotIn(UPLOAD, LOCAL_PRINT_WRITE_TOOLS)
         self.assertEqual(LOCAL_UPLOAD_DEFINITION['inputSchema']['required'], ['filename', 'sha256', 'confirmation'])
 
+    def test_private_staging_directory_is_provisioned(self):
+        runtime = (HERE / "run.sh").read_text()
+        self.assertIn("STAGING_DIR=/data/safe-gcode-staging", runtime)
+        self.assertIn('chmod 700 "$STAGING_DIR"', runtime)
+        self.assertIn('chown 65534:65534 "$STAGING_DIR"', runtime)
+        self.assertIn('if [ -L "$STAGING_DIR" ]', runtime)
+
     def test_upload_defaults_off_and_requires_master_write_gate(self):
         config = (HERE / "config.yaml").read_text()
         runtime = (HERE / "run.sh").read_text()
