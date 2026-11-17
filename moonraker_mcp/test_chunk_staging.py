@@ -75,6 +75,24 @@ class ChunkStagingTests(unittest.TestCase):
         with self.assertRaises(UploadError):
             self.send(b"G28" + bytes([0]), final=True)
 
+    def test_rejects_actual_nul_before_writing(self):
+        with self.assertRaises(UploadError):
+            self.send(b"G28" + bytes([0]) + b"\\n", final=True)
+        self.assertEqual(list(self.root.iterdir()), [])
+
+    def test_rejects_symlink_part(self):
+        part = self.root / ("." + "sample.gcode" + "." + self.digest + ".part")
+        part.symlink_to(self.root / "victim")
+        with self.assertRaises(UploadError):
+            self.send(self.data)
+        self.assertFalse((self.root / "sample.gcode").exists())
+
+    def test_rejects_wrong_final_hash_without_publishing(self):
+        wrong = "f" * 64 if self.digest != "f" * 64 else "e" * 64
+        with self.assertRaises(UploadError):
+            self.send(self.data, final=True, digest=wrong)
+        self.assertFalse((self.root / "sample.gcode").exists())
+
     def test_never_overwrites_published_file(self):
         self.send(self.data, final=True)
         with self.assertRaises(UploadError):
