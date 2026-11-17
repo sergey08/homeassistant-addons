@@ -11,6 +11,7 @@ import hashlib
 import os
 import re
 import stat
+import time
 from pathlib import Path
 
 from moonraker_staging import STAGING_DIR
@@ -144,3 +145,51 @@ def abort_staged_chunk(filename, expected_sha256, directory=STAGING_DIR):
             os.close(dirfd)
     except OSError as exc:
         raise UploadError("Unable to abort staging safely") from exc
+
+
+MIN_STALE_SECONDS = 24 * 60 * 60
+MAX_STALE_SECONDS = 30 * 24 * 60 * 60
+
+
+def cleanup_stale_parts(max_age_seconds=7 * 24 * 60 * 60, directory=STAGING_DIR):
+    """Explicit housekeeping: only stale, private, unlocked hidden .part files."""
+    if type(max_age_seconds) is not int or not MIN_STALE_SECONDS <= max_age_seconds <= MAX_STALE_SECONDS:
+        raise UploadError("Invalid staging retention period")
+    removed = 0
+    try:
+        dirfd = os.open(Path(directory), os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC)
+        try:
+            fcntl.flock(dirfd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            if os.fstat(dirfd).st_mode & 0o077:
+                raise UploadError("Staging directory is not private")
+            cutoff = time.time() - max_age_seconds
+            with os.scandir(dirfd) as entries:
+                names = [entry.name for entry in entries if entry.name.endswith(".part")]
+            for name in names:
+                # Never remove unknown files, even if their names end in .part.
+                match = re.fullmatch(r"\\.(.+)\\.([a-f0-9]{64})\\.part", name)
+                if match is None:
+                    continue
+                try:
+                    _validate(match.group(1), match.group(2))
+                    fd = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC, dir_fd=dirfd)
+                except (UploadError, OSError):
+                    continue
+                try:
+                    try:
+                        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    except BlockingIOError:
+                        continue
+                    info = os.fstat(fd)
+                    if (not stat.S_ISREG(info.st_mode) or info.st_nlink != 1
+                            or info.st_mode & 0o077 or info.st_mtime > cutoff):
+                        continue
+                    os.unlink(name, dir_fd=dirfd)
+                    removed += 1
+                finally:
+                    os.close(fd)
+            return {"removed_parts": removed}
+        finally:
+            os.close(dirfd)
+    except OSError as exc:
+        raise UploadError("Unable to clean staging safely") from exc
