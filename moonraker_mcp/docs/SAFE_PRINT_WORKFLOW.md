@@ -59,9 +59,18 @@ limits concurrent partial sessions to four and aggregate partial storage to
 `moonraker_safe_gcode_abort_stage` tool accepts the exact filename, SHA-256 and
 `confirmation: CONFIRM_ABORT_STAGE`, and removes only that unfinished matching
 part. It never removes a published G-code or contacts the printer.
-Automatic expiry/garbage collection remains to be designed and validated.
-Do not enable this workflow in production until those safeguards and an
-isolated beta validation are complete. The tool does not download
+The development branch now includes a supervised staging housekeeper. It runs
+once at startup and every 24 hours **only when both** `enable_write_actions`
+and `allow_gcode_upload` are enabled. Its default retention is 7 days (the
+cleanup function accepts 1–30 days); it deletes only matching, private,
+single-linked, unlocked hidden partial files older than the retention window.
+It never removes published G-code, accesses Moonraker or starts a print.
+The worker runs as UID/GID 65534 and its unexpected exit stops the add-on.
+This cleanup has offline tests, but has **not** been validated on the live
+Snapmaker U1 or in an isolated installed beta.
+
+Do not enable this workflow in production until an isolated beta validation
+and security review are complete. The tool does not download
 models, slice, verify the printer's remote file checksum, confirm physical
 printer readiness, or start printing. A successful upload is not approval
 to print. Never automatically retry an upload after an uncertain network
