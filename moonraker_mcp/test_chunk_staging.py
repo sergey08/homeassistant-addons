@@ -1,6 +1,8 @@
 """Offline tests for bounded, ordered G-code staging chunks."""
 import base64
 import hashlib
+import fcntl
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -47,6 +49,23 @@ class ChunkStagingTests(unittest.TestCase):
         with self.assertRaises(UploadError):
             self.send(self.data[:5])
         self.assertFalse((self.root / "sample.gcode").exists())
+
+    def test_rejects_concurrent_writer_lock(self):
+        self.send(self.data[:5])
+        part = self.root / ("." + "sample.gcode" + "." + self.digest + ".part")
+        fd = os.open(part, os.O_WRONLY)
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            with self.assertRaises(UploadError):
+                self.send(self.data[5:], 5, True)
+            self.assertEqual(part.stat().st_size, 5)
+            self.assertFalse((self.root / "sample.gcode").exists())
+        finally:
+            os.close(fd)
+
+    def test_rejects_filename_too_long_for_part_name(self):
+        with self.assertRaises(UploadError):
+            self.send(self.data, final=True, filename="a" * 160 + ".gcode")
 
     def test_rejects_oversized_chunk(self):
         with self.assertRaises(UploadError):
