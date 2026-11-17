@@ -406,7 +406,8 @@ def filter_reply(method, response, allowed, cursor=None):
                    ([LOCAL_SPOOLMAN_DEFINITION] if LOCAL_SPOOLMAN_TOOL in allowed else []) +
                    [tool for name, tool in LOCAL_U1_TOOLS.items() if name in allowed] +
                    [tool for name, tool in LOCAL_PRINT_WRITE_TOOLS.items() if name in allowed] +
-                   ([LOCAL_UPLOAD_DEFINITION, LOCAL_STAGE_CHUNK_DEFINITION] if RESERVED_UPLOAD_TOOL in allowed else [])
+                   ([LOCAL_UPLOAD_DEFINITION] if RESERVED_UPLOAD_TOOL in allowed else []) +
+                   ([LOCAL_STAGE_CHUNK_DEFINITION] if STAGE_CHUNK_TOOL in allowed else [])
                    if cursor is None else [])
     safe_result = {key: value for key, value in result.items()
                    if key in ("tools", "nextCursor")}
