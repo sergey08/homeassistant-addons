@@ -27,6 +27,8 @@ class UploadPolicyTests(unittest.TestCase):
     def test_private_staging_directory_is_provisioned(self):
         runtime = (HERE / "run.sh").read_text()
         self.assertIn("STAGING_DIR=/data/safe-gcode-staging", runtime)
+        self.assertIn('if [ "$MCP_WRITE_ENABLED" = "true" ]', runtime)
+        self.assertIn('index("gcode_upload") != null', runtime)
         self.assertIn('chmod 700 "$STAGING_DIR"', runtime)
         self.assertIn('chown 65534:65534 "$STAGING_DIR"', runtime)
         self.assertIn('if [ -L "$STAGING_DIR" ]', runtime)
