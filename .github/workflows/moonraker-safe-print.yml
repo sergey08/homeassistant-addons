@@ -19,6 +19,8 @@ on:
       - 'moonraker_mcp/test_stage_http_integration.py'
       - 'moonraker_mcp/staging_housekeeper.py'
       - 'moonraker_mcp/test_staging_housekeeper.py'
+      - 'moonraker_mcp/prepare_isolated_beta.py'
+      - 'moonraker_mcp/test_prepare_isolated_beta.py'
       - 'moonraker_mcp/tool_policy.py'
       - 'moonraker_mcp/config.yaml'
       - 'moonraker_mcp/run.sh'
@@ -36,7 +38,7 @@ jobs:
         with:
           python-version: '3.12'
       - name: Compile preflight and tests
-        run: python -m py_compile moonraker_mcp/moonraker_preflight.py moonraker_mcp/test_moonraker_preflight.py moonraker_mcp/moonraker_upload.py moonraker_mcp/test_moonraker_upload.py moonraker_mcp/test_upload_policy.py moonraker_mcp/moonraker_staging.py moonraker_mcp/test_moonraker_staging.py moonraker_mcp/test_upload_integration.py moonraker_mcp/test_upload_gateway.py moonraker_mcp/moonraker_chunk_staging.py moonraker_mcp/test_chunk_staging.py moonraker_mcp/test_stage_http_integration.py moonraker_mcp/staging_housekeeper.py moonraker_mcp/test_staging_housekeeper.py
+        run: python -m py_compile moonraker_mcp/moonraker_preflight.py moonraker_mcp/test_moonraker_preflight.py moonraker_mcp/moonraker_upload.py moonraker_mcp/test_moonraker_upload.py moonraker_mcp/test_upload_policy.py moonraker_mcp/moonraker_staging.py moonraker_mcp/test_moonraker_staging.py moonraker_mcp/test_upload_integration.py moonraker_mcp/test_upload_gateway.py moonraker_mcp/moonraker_chunk_staging.py moonraker_mcp/test_chunk_staging.py moonraker_mcp/test_stage_http_integration.py moonraker_mcp/staging_housekeeper.py moonraker_mcp/test_staging_housekeeper.py moonraker_mcp/prepare_isolated_beta.py moonraker_mcp/test_prepare_isolated_beta.py
       - name: Run offline tests (no printer connection)
         working-directory: moonraker_mcp
-        run: python -m unittest -v test_moonraker_preflight test_moonraker_upload test_upload_policy test_moonraker_staging test_upload_integration test_upload_gateway test_chunk_staging test_stage_http_integration test_staging_housekeeper
+        run: python -m unittest -v test_moonraker_preflight test_moonraker_upload test_upload_policy test_moonraker_staging test_upload_integration test_upload_gateway test_chunk_staging test_stage_http_integration test_staging_housekeeper test_prepare_isolated_beta
