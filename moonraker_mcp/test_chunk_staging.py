@@ -3,11 +3,12 @@ import base64
 import hashlib
 import fcntl
 import os
+import time
 import tempfile
 import unittest
 from pathlib import Path
 
-from moonraker_chunk_staging import stage_chunk, abort_staged_chunk
+from moonraker_chunk_staging import stage_chunk, abort_staged_chunk, cleanup_stale_parts
 from moonraker_staging import read_staged_gcode
 from moonraker_upload import UploadError
 
@@ -76,6 +77,26 @@ class ChunkStagingTests(unittest.TestCase):
             self.assertEqual(list(self.root.iterdir()), [])
         finally:
             os.close(fd)
+
+    def test_cleanup_removes_only_old_unfinished_parts(self):
+        self.send(self.data[:4])
+        part = self.root / ("." + "sample.gcode" + "." + self.digest + ".part")
+        old = time.time() - 9 * 24 * 60 * 60
+        os.utime(part, (old, old))
+        (self.root / "finished.gcode").write_bytes(self.data)
+        self.assertEqual(cleanup_stale_parts(directory=self.root)["removed_parts"], 1)
+        self.assertFalse(part.exists())
+        self.assertEqual((self.root / "finished.gcode").read_bytes(), self.data)
+
+    def test_cleanup_keeps_recent_and_unknown_parts(self):
+        self.send(self.data[:4])
+        (self.root / ".unrecognized.part").write_bytes(b"do not delete")
+        self.assertEqual(cleanup_stale_parts(directory=self.root)["removed_parts"], 0)
+        self.assertEqual(len(list(self.root.iterdir())), 2)
+
+    def test_cleanup_rejects_short_retention(self):
+        with self.assertRaises(UploadError):
+            cleanup_stale_parts(10, self.root)
 
     def test_abort_only_matching_incomplete_part(self):
         self.send(self.data[:4])
