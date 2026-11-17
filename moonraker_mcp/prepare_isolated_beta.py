@@ -32,13 +32,8 @@ def prepare(destination):
         source = SOURCE / relative
         if source.is_symlink() or not source.is_file() or not stat.S_ISREG(source.stat().st_mode):
             raise ValueError("Unsafe or missing beta source asset: " + relative)
-    destination.mkdir(parents=False)
-    for relative in assets:
-        target = destination / relative
-        target.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(SOURCE / relative, target)
-    config = destination / "config.yaml"
-    value = config.read_text()
+    # Validate the entire config before creating any destination.
+    value = (SOURCE / "config.yaml").read_text()
     for old, new in [
         ('name: "Moonraker MCP"', 'name: "Moonraker MCP Safe Print BETA"'),
         ('version: "0.1.4"', 'version: "' + BETA_VERSION + '"'),
@@ -50,7 +45,16 @@ def prepare(destination):
     for flag in ("enable_write_actions", "allow_gcode_upload", "allow_print_start", "enable_tunnel"):
         if '  ' + flag + ': false' not in value:
             raise ValueError("Unsafe default for " + flag)
-    config.write_text(value)
+    # Copy into a private temporary sibling and publish only on success.
+    import tempfile
+    with tempfile.TemporaryDirectory(prefix=".moonraker-beta-", dir=destination.parent) as temp:
+        temp_path = Path(temp)
+        for relative in assets:
+            target = temp_path / relative
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(SOURCE / relative, target)
+        (temp_path / "config.yaml").write_text(value)
+        temp_path.rename(destination)
     return destination
 
 if __name__ == "__main__":
