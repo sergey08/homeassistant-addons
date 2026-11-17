@@ -10,7 +10,6 @@ import hashlib
 import os
 import re
 import stat
-import tempfile
 from pathlib import Path
 
 from moonraker_staging import STAGING_DIR
