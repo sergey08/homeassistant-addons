@@ -18,7 +18,7 @@ from moonraker_upload import MAX_UPLOAD_BYTES, UploadError
 
 MAX_CHUNK_BYTES = 8192
 SHA_RE = re.compile(r"^[a-fA-F0-9]{64}$")
-NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._ -]{0,199}\.(?:gcode|gco)$", re.I)
+NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._ -]{0,149}\.(?:gcode|gco)$", re.I)
 
 
 def _validate(filename, digest):
@@ -71,26 +71,26 @@ def stage_chunk(filename, expected_sha256, offset, chunk_b64, final=False, direc
                     os.ftruncate(fd, offset)
                     raise UploadError("Short staging write")
                 os.fsync(fd)
+                if not final:
+                    return {"received_bytes": offset + len(chunk), "complete": False}
+                # Finalization requires full integrity verification.
+                readfd = os.open(part, os.O_RDONLY | os.O_NOFOLLOW, dir_fd=dirfd)
+                try:
+                    with os.fdopen(readfd, "rb") as stream:
+                        payload = stream.read(MAX_UPLOAD_BYTES + 1)
+                except Exception:
+                    raise
+                if len(payload) != offset + len(chunk) or hashlib.sha256(payload).hexdigest() != expected_sha256.lower():
+                    raise UploadError("Final SHA-256 mismatch")
+                if bytes([0]) in payload:
+                    raise UploadError("Binary G-code refused")
+                # Never overwrite a previously published destination.
+                os.link(part, filename, src_dir_fd=dirfd, dst_dir_fd=dirfd, follow_symlinks=False)
+                os.unlink(part, dir_fd=dirfd)
+                return {"received_bytes": len(payload), "complete": True,
+                        "filename": filename, "sha256": expected_sha256.lower()}
             finally:
                 os.close(fd)
-            if not final:
-                return {"received_bytes": offset + len(chunk), "complete": False}
-            # Finalization requires full integrity verification.
-            readfd = os.open(part, os.O_RDONLY | os.O_NOFOLLOW, dir_fd=dirfd)
-            try:
-                with os.fdopen(readfd, "rb") as stream:
-                    payload = stream.read(MAX_UPLOAD_BYTES + 1)
-            except Exception:
-                raise
-            if len(payload) != offset + len(chunk) or hashlib.sha256(payload).hexdigest() != expected_sha256.lower():
-                raise UploadError("Final SHA-256 mismatch")
-            if bytes([0]) in payload:
-                raise UploadError("Binary G-code refused")
-            # Never overwrite a previously published destination.
-            os.link(part, filename, src_dir_fd=dirfd, dst_dir_fd=dirfd, follow_symlinks=False)
-            os.unlink(part, dir_fd=dirfd)
-            return {"received_bytes": len(payload), "complete": True,
-                    "filename": filename, "sha256": expected_sha256.lower()}
         finally:
             os.close(dirfd)
     except OSError as exc:
