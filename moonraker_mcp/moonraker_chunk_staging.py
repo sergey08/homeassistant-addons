@@ -116,3 +116,30 @@ def stage_chunk(filename, expected_sha256, offset, chunk_b64, final=False, direc
             os.close(dirfd)
     except OSError as exc:
         raise UploadError("Unable to stage G-code safely") from exc
+
+
+def abort_staged_chunk(filename, expected_sha256, directory=STAGING_DIR):
+    """Delete only an unfinished matching part; never a published G-code."""
+    _validate(filename, expected_sha256)
+    directory = Path(directory)
+    try:
+        dirfd = os.open(directory, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC)
+        try:
+            fcntl.flock(dirfd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            if os.fstat(dirfd).st_mode & 0o077:
+                raise UploadError("Staging directory is not private")
+            part = "." + filename + "." + expected_sha256.lower() + ".part"
+            fd = os.open(part, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC, dir_fd=dirfd)
+            try:
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                info = os.fstat(fd)
+                if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1 or info.st_mode & 0o077:
+                    raise UploadError("Unsafe staging part")
+                os.unlink(part, dir_fd=dirfd)
+                return {"aborted": True, "filename": filename, "sha256": expected_sha256.lower()}
+            finally:
+                os.close(fd)
+        finally:
+            os.close(dirfd)
+    except OSError as exc:
+        raise UploadError("Unable to abort staging safely") from exc
