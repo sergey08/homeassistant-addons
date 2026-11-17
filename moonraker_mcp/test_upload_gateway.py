@@ -2,7 +2,7 @@
 import copy
 import unittest
 
-from gateway import check_message, filter_reply, RESERVED_UPLOAD_TOOL, STAGE_CHUNK_TOOL
+from gateway import check_message, filter_reply, RESERVED_UPLOAD_TOOL, STAGE_CHUNK_TOOL, ABORT_STAGE_TOOL
 from tool_policy import PolicyError
 
 
@@ -27,6 +27,18 @@ class GatewayUploadTests(unittest.TestCase):
         args["confirmation"] = "CONFIRM_UPLOAD"
         with self.assertRaises(PolicyError):
             check_message(msg, frozenset({STAGE_CHUNK_TOOL}))
+
+    def test_abort_requires_independent_confirmation_and_permission(self):
+        args = {"filename": "sample.gcode", "sha256": "a" * 64,
+                "confirmation": "CONFIRM_ABORT_STAGE"}
+        msg = {"jsonrpc": "2.0", "id": 12, "method": "tools/call",
+               "params": {"name": ABORT_STAGE_TOOL, "arguments": args}}
+        with self.assertRaises(PolicyError):
+            check_message(msg, frozenset())
+        self.assertEqual(check_message(msg, frozenset({ABORT_STAGE_TOOL})), "tools/call")
+        args["confirmation"] = "CONFIRM_UPLOAD"
+        with self.assertRaises(PolicyError):
+            check_message(msg, frozenset({ABORT_STAGE_TOOL}))
 
     def test_explicit_approval_required(self):
         self.assertEqual(check_message(self.msg, self.allowed), "tools/call")
@@ -63,8 +75,11 @@ class GatewayUploadTests(unittest.TestCase):
         shown_names = [x["name"] for x in shown["result"]["tools"]]
         self.assertNotIn(RESERVED_UPLOAD_TOOL, hidden_names)
         self.assertNotIn(STAGE_CHUNK_TOOL, hidden_names)
+        self.assertNotIn(ABORT_STAGE_TOOL, hidden_names)
         self.assertEqual(shown_names.count(RESERVED_UPLOAD_TOOL), 1)
         self.assertEqual(shown_names.count(STAGE_CHUNK_TOOL), 0)
+        abort = filter_reply("tools/list", copy.deepcopy(upstream), frozenset({ABORT_STAGE_TOOL}))
+        self.assertEqual([x["name"] for x in abort["result"]["tools"]].count(ABORT_STAGE_TOOL), 1)
         both = filter_reply("tools/list", copy.deepcopy(upstream), self.allowed | {STAGE_CHUNK_TOOL})
         self.assertEqual([x["name"] for x in both["result"]["tools"]].count(STAGE_CHUNK_TOOL), 1)
 
