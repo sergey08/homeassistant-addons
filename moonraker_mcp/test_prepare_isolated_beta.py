@@ -41,6 +41,15 @@ class BetaIsolationTests(unittest.TestCase):
                     self.assertTrue((target / entry).exists(),
                                     "Missing Docker COPY input: " + entry)
 
+    def test_failed_preflight_leaves_no_beta_directory(self):
+        from unittest.mock import patch
+        with tempfile.TemporaryDirectory() as temp:
+            target = Path(temp) / BETA_SLUG
+            with patch("prepare_isolated_beta.SOURCE", Path(temp) / "missing-source"):
+                with self.assertRaises(FileNotFoundError):
+                    prepare(target)
+            self.assertFalse(target.exists())
+
     def test_rejects_wrong_directory_name(self):
         with tempfile.TemporaryDirectory() as temp:
             with self.assertRaises(ValueError):
