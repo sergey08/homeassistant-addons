@@ -9,6 +9,8 @@ BETA_SLUG = "moonraker_mcp_safeprint_beta"
 BETA_VERSION = "0.1.5-beta.1"
 
 def prepare(destination):
+    if BETA_SLUG == "moonraker_mcp" or BETA_VERSION == "0.1.4" or "beta" not in BETA_VERSION.lower():
+        raise ValueError("Beta identity must differ from stable add-on")
     destination = Path(destination).resolve()
     if destination == SOURCE.resolve() or SOURCE.resolve() in destination.parents:
         raise ValueError("Beta destination must be outside stable source")
