@@ -20,6 +20,9 @@ class BetaIsolationTests(unittest.TestCase):
             self.assertIn('  enable_tunnel: false', beta)
             self.assertTrue((target / "Dockerfile").exists())
             self.assertTrue((target / "staging_housekeeper.py").exists())
+            self.assertFalse((target / "test_prepare_isolated_beta.py").exists())
+            self.assertFalse((target / "prepare_isolated_beta.py").exists())
+            self.assertFalse((target / "data").exists())
             self.assertEqual((source / "config.yaml").read_bytes(), before)
             with self.assertRaises(FileExistsError):
                 prepare(target)
