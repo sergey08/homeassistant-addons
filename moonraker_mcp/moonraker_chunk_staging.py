@@ -49,6 +49,9 @@ def stage_chunk(filename, expected_sha256, offset, chunk_b64, final=False, direc
     try:
         dirfd = os.open(directory, flags)
         try:
+            # Serialize inventory checks and writes across all sessions.
+            # Nonblocking failure is safer than accepting a stale quota snapshot.
+            fcntl.flock(dirfd, fcntl.LOCK_EX | fcntl.LOCK_NB)
             dstat = os.fstat(dirfd)
             if dstat.st_mode & 0o077:
                 raise UploadError("Staging directory is not private")
