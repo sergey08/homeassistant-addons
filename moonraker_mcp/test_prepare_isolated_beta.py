@@ -27,6 +27,20 @@ class BetaIsolationTests(unittest.TestCase):
             with self.assertRaises(FileExistsError):
                 prepare(target)
 
+    def test_beta_contains_all_local_docker_copy_inputs(self):
+        source = Path(__file__).resolve().parent
+        dockerfile = (source / "Dockerfile").read_text()
+        with tempfile.TemporaryDirectory() as temp:
+            target = Path(temp) / BETA_SLUG
+            prepare(target)
+            for line in dockerfile.splitlines():
+                if not line.startswith("COPY ") or "--from=" in line:
+                    continue
+                args = line.split()[1:-1]
+                for entry in args:
+                    self.assertTrue((target / entry).exists(),
+                                    "Missing Docker COPY input: " + entry)
+
     def test_rejects_wrong_directory_name(self):
         with tempfile.TemporaryDirectory() as temp:
             with self.assertRaises(ValueError):
