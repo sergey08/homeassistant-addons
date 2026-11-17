@@ -21,7 +21,7 @@ OPTIONAL_PROFILES = {
     "print_resume": frozenset(("moonraker_safe_print_resume",)),
     "print_cancel": frozenset(("moonraker_safe_print_cancel",)),
     "print_start": frozenset(("moonraker_safe_print_start",)),
-    "gcode_upload": frozenset(("moonraker_safe_gcode_upload", "moonraker_safe_gcode_stage_chunk")),
+    "gcode_upload": frozenset(("moonraker_safe_gcode_upload", "moonraker_safe_gcode_stage_chunk", "moonraker_safe_gcode_abort_stage")),
 }
 
 
