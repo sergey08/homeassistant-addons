@@ -67,6 +67,21 @@ class GatewayUploadTests(unittest.TestCase):
         with self.assertRaises(PolicyError):
             check_message(msg, self.allowed)
 
+    def test_tools_list_hides_all_transfer_tools_even_if_upstream_advertises_them(self):
+        names = (RESERVED_UPLOAD_TOOL, STAGE_CHUNK_TOOL, ABORT_STAGE_TOOL)
+        upstream = {"jsonrpc": "2.0", "id": 19, "result": {
+            "tools": [{"name": name, "description": "untrusted upstream"} for name in names]}}
+        hidden = filter_reply("tools/list", copy.deepcopy(upstream), frozenset())
+        visible = [item["name"] for item in hidden["result"]["tools"]]
+        for name in names:
+            with self.subTest(name=name):
+                self.assertNotIn(name, visible)
+        authorized = filter_reply("tools/list", copy.deepcopy(upstream), frozenset(names))
+        visible = [item["name"] for item in authorized["result"]["tools"]]
+        for name in names:
+            with self.subTest(authorized=name):
+                self.assertEqual(visible.count(name), 1)
+
     def test_tools_list_exposes_upload_only_when_allowed(self):
         upstream = {"jsonrpc": "2.0", "id": 9, "result": {"tools": []}}
         hidden = filter_reply("tools/list", copy.deepcopy(upstream), frozenset())
