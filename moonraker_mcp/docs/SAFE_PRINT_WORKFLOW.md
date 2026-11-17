@@ -41,9 +41,23 @@ The tool requires `filename`, the exact file `sha256`, and
 32 MiB, rejects symlinks and insecure file permissions, and verifies SHA-256
 before invoking Moonraker's upload endpoint with `print=false`.
 
-**No MCP file transfer into staging exists yet.** Placing a file into the
-private add-on data volume is a separate administrator action; do not expose
-the volume over a network or relax its permissions. The tool does not download
+The development branch also exposes `moonraker_safe_gcode_stage_chunk` under the
+same opt-in permission profile. Each call requires the filename, full-file
+SHA-256, sequential byte offset, base64-encoded chunk (at most 8 KiB decoded),
+boolean `final`, and the separate literal confirmation `CONFIRM_STAGE`.
+The first chunk uses offset 0; subsequent offsets must match the bytes
+already received. The file is published to private staging only after the
+final SHA-256 matches. Files are limited to 32 MiB, names are flat, and
+symbolic links, binary NUL bytes and concurrent writers are rejected.
+The staging confirmation does **not** authorize uploading to Moonraker;
+`CONFIRM_UPLOAD` is still required for that separate tool.
+
+This is a development-only transport, not an unrestricted file manager. Do not
+expose the staging volume over a network or relax its permissions. Interrupted
+transfers can leave hidden `.part` files: storage quotas, expiry and a safe
+administrative cleanup/abort procedure remain to be designed and validated.
+Do not enable this workflow in production until those safeguards and an
+isolated beta validation are complete. The tool does not download
 models, slice, verify the printer's remote file checksum, confirm physical
 printer readiness, or start printing. A successful upload is not approval
 to print. Never automatically retry an upload after an uncertain network
