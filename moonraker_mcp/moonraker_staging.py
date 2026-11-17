@@ -31,11 +31,16 @@ def read_staged_gcode(filename, expected_sha256, directory=STAGING_DIR):
     try:
         dirfd = os.open(os.fspath(directory), flags)
         try:
+            dirinfo = os.fstat(dirfd)
+            if not stat.S_ISDIR(dirinfo.st_mode) or dirinfo.st_mode & 0o077:
+                raise UploadError("Staging directory permissions must be private")
             fd = os.open(filename, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC, dir_fd=dirfd)
             try:
                 info = os.fstat(fd)
                 if not stat.S_ISREG(info.st_mode) or not 0 < info.st_size <= MAX_UPLOAD_BYTES:
                     raise UploadError("Staged G-code must be a bounded regular file")
+                if info.st_nlink != 1:
+                    raise UploadError("Hard-linked staged files are not accepted")
                 if info.st_mode & 0o022:
                     raise UploadError("Staged file must not be group/world writable")
                 with os.fdopen(os.dup(fd), "rb") as stream:
