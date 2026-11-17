@@ -6,6 +6,7 @@ A session is one filename+hash pair, never an arbitrary path.
 """
 import base64
 import binascii
+import fcntl
 import hashlib
 import os
 import re
@@ -58,6 +59,7 @@ def stage_chunk(filename, expected_sha256, offset, chunk_b64, final=False, direc
             else:
                 fd = os.open(part, os.O_WRONLY | os.O_NOFOLLOW, dir_fd=dirfd)
             try:
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
                 info = os.fstat(fd)
                 if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1 or info.st_mode & 0o077:
                     raise UploadError("Unsafe staging part")
@@ -66,6 +68,7 @@ def stage_chunk(filename, expected_sha256, offset, chunk_b64, final=False, direc
                 os.lseek(fd, offset, os.SEEK_SET)
                 written = os.write(fd, chunk)
                 if written != len(chunk):
+                    os.ftruncate(fd, offset)
                     raise UploadError("Short staging write")
                 os.fsync(fd)
             finally:
