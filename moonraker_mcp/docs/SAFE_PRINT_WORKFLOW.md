@@ -29,3 +29,22 @@ Permitir preparar un modelo para Snapmaker U1, subir G-code validado a Moonraker
 
 ## Fuera de alcance inicial
 Laminado automático remoto, descarga y ejecución automática de archivos de terceros, gestión de energía o intervención física en la impresora.
+
+
+## Staged G-code upload (development branch; not released)
+
+The gateway exposes `moonraker_safe_gcode_upload` only when both
+`enable_write_actions` and `allow_gcode_upload` are explicitly enabled.
+The add-on creates `/data/safe-gcode-staging` (UID/GID 65534, mode 0700).
+The tool requires `filename`, the exact file `sha256`, and
+`confirmation: CONFIRM_UPLOAD`. It reads a flat .gcode/.gco file of at most
+32 MiB, rejects symlinks and insecure file permissions, and verifies SHA-256
+before invoking Moonraker's upload endpoint with `print=false`.
+
+**No MCP file transfer into staging exists yet.** Placing a file into the
+private add-on data volume is a separate administrator action; do not expose
+the volume over a network or relax its permissions. The tool does not download
+models, slice, verify the printer's remote file checksum, confirm physical
+printer readiness, or start printing. A successful upload is not approval
+to print. Never automatically retry an upload after an uncertain network
+failure without first inspecting the remote file state.
