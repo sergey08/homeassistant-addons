@@ -50,6 +50,16 @@ class BetaIsolationTests(unittest.TestCase):
                     prepare(target)
             self.assertFalse(target.exists())
 
+    def test_rejects_stable_identity_even_before_creating_directory(self):
+        from unittest.mock import patch
+        with tempfile.TemporaryDirectory() as temp:
+            target = Path(temp) / BETA_SLUG
+            for field, unsafe in (("BETA_SLUG", "moonraker_mcp"), ("BETA_VERSION", "0.1.4")):
+                with self.subTest(field=field), patch("prepare_isolated_beta." + field, unsafe):
+                    with self.assertRaisesRegex(ValueError, "Beta identity"):
+                        prepare(target)
+                    self.assertFalse(target.exists())
+
     def test_rejects_wrong_directory_name(self):
         with tempfile.TemporaryDirectory() as temp:
             with self.assertRaises(ValueError):
