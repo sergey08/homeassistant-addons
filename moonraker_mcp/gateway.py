@@ -11,6 +11,9 @@ import urllib.error
 import urllib.request
 import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from moonraker_staging import read_staged_gcode
+from moonraker_chunk_staging import stage_chunk, abort_staged_chunk
+from moonraker_upload import UploadError, upload_gcode
 from moonraker_files import FileAccessError, list_gcodes, gcode_metadata, gcode_preview
 from moonraker_spoolman import SpoolmanReadError, list_spoolman_inventory
 from moonraker_snapshot import SnapshotError, print_snapshot, filament_slots
@@ -76,6 +79,42 @@ LOCAL_U1_TOOLS = {
                         "without revealing NFC identifiers. Does not assert Spoolman mapping. Read-only."),
         "inputSchema": {"type": "object", "properties": {}, "additionalProperties": False},
     },
+}
+RESERVED_UPLOAD_TOOL = "moonraker_safe_gcode_upload"
+STAGE_CHUNK_TOOL = "moonraker_safe_gcode_stage_chunk"
+ABORT_STAGE_TOOL = "moonraker_safe_gcode_abort_stage"
+LOCAL_ABORT_STAGE_DEFINITION = {
+    "name": ABORT_STAGE_TOOL,
+    "description": "Abort one incomplete staged G-code transfer only. Never deletes completed files or contacts a printer. Requires CONFIRM_ABORT_STAGE.",
+    "inputSchema": {"type": "object", "properties": {
+        "filename": {"type": "string"},
+        "sha256": {"type": "string"},
+        "confirmation": {"type": "string", "enum": ["CONFIRM_ABORT_STAGE"]}},
+        "required": ["filename", "sha256", "confirmation"],
+        "additionalProperties": False},
+}
+LOCAL_STAGE_CHUNK_DEFINITION = {
+    "name": STAGE_CHUNK_TOOL,
+    "description": "Stage one bounded G-code chunk locally. Never uploads or starts a print. Requires explicit CONFIRM_STAGE.",
+    "inputSchema": {"type": "object", "properties": {
+        "filename": {"type": "string"},
+        "sha256": {"type": "string"},
+        "offset": {"type": "integer", "minimum": 0},
+        "chunk_b64": {"type": "string"},
+        "final": {"type": "boolean"},
+        "confirmation": {"type": "string", "enum": ["CONFIRM_STAGE"]}},
+        "required": ["filename", "sha256", "offset", "chunk_b64", "final", "confirmation"],
+        "additionalProperties": False},
+}
+LOCAL_UPLOAD_DEFINITION = {
+    "name": RESERVED_UPLOAD_TOOL,
+    "description": "Upload a pre-staged G-code only after explicit approval; NEVER prints.",
+    "inputSchema": {"type": "object",
+                    "properties": {"filename": {"type": "string"},
+                                   "sha256": {"type": "string"},
+                                   "confirmation": {"type": "string", "enum": ["CONFIRM_UPLOAD"]}},
+                    "required": ["filename", "sha256", "confirmation"],
+                    "additionalProperties": False},
 }
 LOCAL_PRINT_WRITE_TOOLS = {
     "moonraker_safe_print_pause": {
@@ -244,6 +283,24 @@ def check_message(message, allowed):
             raise PolicyError("Tool arguments too large")
         authorize_call(params.get("name"), allowed)
         name = params.get("name")
+        if name == ABORT_STAGE_TOOL:
+            if set(arguments) != {"filename", "sha256", "confirmation"} or any(
+                    type(value) is not str for value in arguments.values()):
+                raise PolicyError("Invalid staging abort arguments")
+            if arguments["confirmation"] != "CONFIRM_ABORT_STAGE":
+                raise PolicyError("Explicit staging abort confirmation required")
+        if name == STAGE_CHUNK_TOOL:
+            if set(arguments) != {"filename", "sha256", "offset", "chunk_b64", "final", "confirmation"} or (
+                    any(type(arguments[k]) is not str for k in ("filename", "sha256", "chunk_b64", "confirmation")) or
+                    type(arguments["offset"]) is not int or type(arguments["final"]) is not bool or
+                    arguments["confirmation"] != "CONFIRM_STAGE"):
+                raise PolicyError("Invalid G-code staging arguments or missing confirmation")
+        if name == RESERVED_UPLOAD_TOOL:
+            if set(arguments) != {"filename", "sha256", "confirmation"} or any(
+                    type(value) is not str for value in arguments.values()):
+                raise PolicyError("Invalid G-code upload arguments")
+            if arguments["confirmation"] != "CONFIRM_UPLOAD":
+                raise PolicyError("Explicit upload confirmation required")
         if name in LOCAL_FILE_TOOLS or name in LOCAL_U1_TOOLS or name in LOCAL_PRINT_WRITE_TOOLS or name in (LOCAL_STATUS_TOOL, LOCAL_SPOOLMAN_TOOL):
             schema = (LOCAL_STATUS_DEFINITION if name == LOCAL_STATUS_TOOL
                       else LOCAL_SPOOLMAN_DEFINITION if name == LOCAL_SPOOLMAN_TOOL
@@ -365,12 +422,15 @@ def filter_reply(method, response, allowed, cursor=None):
                    [tool for name, tool in LOCAL_FILE_TOOLS.items() if name in allowed] +
                    ([LOCAL_SPOOLMAN_DEFINITION] if LOCAL_SPOOLMAN_TOOL in allowed else []) +
                    [tool for name, tool in LOCAL_U1_TOOLS.items() if name in allowed] +
-                   [tool for name, tool in LOCAL_PRINT_WRITE_TOOLS.items() if name in allowed]
+                   [tool for name, tool in LOCAL_PRINT_WRITE_TOOLS.items() if name in allowed] +
+                   ([LOCAL_UPLOAD_DEFINITION] if RESERVED_UPLOAD_TOOL in allowed else []) +
+                   ([LOCAL_STAGE_CHUNK_DEFINITION] if STAGE_CHUNK_TOOL in allowed else []) +
+                   ([LOCAL_ABORT_STAGE_DEFINITION] if ABORT_STAGE_TOOL in allowed else [])
                    if cursor is None else [])
     safe_result = {key: value for key, value in result.items()
                    if key in ("tools", "nextCursor")}
     response["result"] = dict(safe_result, tools=[tool for tool in filter_tools(result.get("tools"), allowed)
-                                                        if tool["name"] not in LOCAL_FILE_TOOLS and tool["name"] not in LOCAL_U1_TOOLS and tool["name"] not in LOCAL_PRINT_WRITE_TOOLS and tool["name"] not in (LOCAL_STATUS_TOOL, LOCAL_SPOOLMAN_TOOL)] + local_tools)
+                                                        if tool["name"] not in (RESERVED_UPLOAD_TOOL, STAGE_CHUNK_TOOL, ABORT_STAGE_TOOL) and tool["name"] not in LOCAL_FILE_TOOLS and tool["name"] not in LOCAL_U1_TOOLS and tool["name"] not in LOCAL_PRINT_WRITE_TOOLS and tool["name"] not in (LOCAL_STATUS_TOOL, LOCAL_SPOOLMAN_TOOL)] + local_tools)
     for tool in response["result"]["tools"]:
         if tool["name"] == PRIVACY_SAFE_PRINTER_INFO:
             tool["description"] = ("Read printer state and software version only. "
@@ -600,6 +660,49 @@ class Handler(BaseHTTPRequestHandler):
                     response_result["resultType"] = "complete"
                 return self.reply(200, {"jsonrpc": "2.0", "id": message["id"],
                                         "result": response_result})
+            if method == "tools/call" and message["params"]["name"] == ABORT_STAGE_TOOL:
+                args = message["params"]["arguments"]
+                try:
+                    result = abort_staged_chunk(args["filename"], args["sha256"])
+                except (UploadError, OSError):
+                    return self.file_tool_error(message["id"], "G-code staging abort failed")
+                tool_result = {"content": [{"type": "text",
+                                           "text": json.dumps(result, ensure_ascii=False)}],
+                               "isError": False}
+                if is_modern:
+                    tool_result["resultType"] = "complete"
+                return self.reply(200, {"jsonrpc": "2.0", "id": message["id"],
+                                        "result": tool_result})
+            if method == "tools/call" and message["params"]["name"] == STAGE_CHUNK_TOOL:
+                args = message["params"]["arguments"]
+                try:
+                    result = stage_chunk(args["filename"], args["sha256"], args["offset"],
+                                         args["chunk_b64"], args["final"])
+                except (UploadError, OSError):
+                    return self.file_tool_error(message["id"], "G-code staging failed")
+                tool_result = {"content": [{"type": "text",
+                                           "text": json.dumps(result, ensure_ascii=False)}],
+                               "isError": False}
+                if is_modern:
+                    tool_result["resultType"] = "complete"
+                return self.reply(200, {"jsonrpc": "2.0", "id": message["id"],
+                                        "result": tool_result})
+            if method == "tools/call" and message["params"]["name"] == RESERVED_UPLOAD_TOOL:
+                args = message["params"]["arguments"]
+                try:
+                    content = read_staged_gcode(args["filename"], args["sha256"])
+                    result = upload_gcode(os.environ["MOONRAKER_URL"], args["filename"],
+                                          content, args["sha256"],
+                                          os.environ.get("MOONRAKER_API_KEY", ""))
+                except (UploadError, urllib.error.URLError, TimeoutError, OSError):
+                    return self.file_tool_error(message["id"], "G-code upload failed; printer state unverified")
+                tool_result = {"content": [{"type": "text",
+                                           "text": json.dumps(result, ensure_ascii=False)}],
+                               "isError": False}
+                if is_modern:
+                    tool_result["resultType"] = "complete"
+                return self.reply(200, {"jsonrpc": "2.0", "id": message["id"],
+                                        "result": tool_result})
             if method == "tools/call" and message["params"]["name"] in LOCAL_PRINT_WRITE_TOOLS:
                 tool_name = message["params"]["name"]
                 arguments = message["params"].get("arguments", {})

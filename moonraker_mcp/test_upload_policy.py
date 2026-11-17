@@ -1,0 +1,71 @@
+"""Offline permission regression tests; no printer or Home Assistant access."""
+import unittest
+from pathlib import Path
+from tool_policy import OPTIONAL_PROFILES, PolicyError, authorize_call, extend_allowed
+
+HERE = Path(__file__).resolve().parent
+UPLOAD = "moonraker_safe_gcode_upload"
+
+class UploadPolicyTests(unittest.TestCase):
+    def test_upload_is_not_in_read_only_default(self):
+        from tool_policy import load_allowed
+        self.assertNotIn(UPLOAD, load_allowed())
+
+    def test_upload_requires_explicit_profile(self):
+        self.assertNotIn(UPLOAD, extend_allowed(frozenset(), []))
+        self.assertIn(UPLOAD, extend_allowed(frozenset(), ["gcode_upload"]))
+        with self.assertRaises(PolicyError):
+            authorize_call(UPLOAD, extend_allowed(frozenset(), []))
+
+    def test_all_staging_and_upload_tools_are_denied_in_read_only_mode(self):
+        from gateway import RESERVED_UPLOAD_TOOL, STAGE_CHUNK_TOOL, ABORT_STAGE_TOOL
+        from tool_policy import load_allowed
+        default = load_allowed()
+        read_only = extend_allowed(default, [])
+        write_profile = extend_allowed(default, ["gcode_upload"])
+        for tool in (RESERVED_UPLOAD_TOOL, STAGE_CHUNK_TOOL, ABORT_STAGE_TOOL):
+            with self.subTest(tool=tool):
+                self.assertNotIn(tool, read_only)
+                with self.assertRaises(PolicyError):
+                    authorize_call(tool, read_only)
+                self.assertIn(tool, write_profile)
+                authorize_call(tool, write_profile)
+
+    def test_upload_local_tool_schema(self):
+        from gateway import LOCAL_FILE_TOOLS, LOCAL_PRINT_WRITE_TOOLS, RESERVED_UPLOAD_TOOL, LOCAL_UPLOAD_DEFINITION, check_message
+        self.assertEqual(RESERVED_UPLOAD_TOOL, UPLOAD)
+        self.assertNotIn(UPLOAD, LOCAL_FILE_TOOLS)
+        self.assertNotIn(UPLOAD, LOCAL_PRINT_WRITE_TOOLS)
+        self.assertEqual(LOCAL_UPLOAD_DEFINITION['inputSchema']['required'], ['filename', 'sha256', 'confirmation'])
+
+    def test_private_staging_directory_is_provisioned(self):
+        runtime = (HERE / "run.sh").read_text()
+        self.assertIn("STAGING_DIR=/data/safe-gcode-staging", runtime)
+        self.assertIn('if [ "$MCP_WRITE_ENABLED" = "true" ]', runtime)
+        self.assertIn('index("gcode_upload") != null', runtime)
+        self.assertIn('chmod 700 "$STAGING_DIR"', runtime)
+        self.assertIn('chown 65534:65534 "$STAGING_DIR"', runtime)
+        self.assertIn('if [ -L "$STAGING_DIR" ]', runtime)
+
+    def test_housekeeper_is_supervised_and_upload_gated(self):
+        runtime = (HERE / "run.sh").read_text()
+        image = (HERE / "Dockerfile").read_text()
+        self.assertIn('HOUSEKEEPER_PID=""', runtime)
+        self.assertIn('su-exec 65534:65534 python3 -u staging_housekeeper.py &', runtime)
+        self.assertIn('HOUSEKEEPER_PID=$!', runtime)
+        self.assertIn('index("gcode_upload") != null', runtime)
+        self.assertIn('if [ "$MCP_WRITE_ENABLED" = "true" ]', runtime)
+        self.assertIn('${HOUSEKEEPER_PID:+"$HOUSEKEEPER_PID"}; do', runtime)
+        self.assertIn('staging_housekeeper.py', image)
+
+    def test_upload_defaults_off_and_requires_master_write_gate(self):
+        config = (HERE / "config.yaml").read_text()
+        runtime = (HERE / "run.sh").read_text()
+        self.assertIn("  allow_gcode_upload: false", config)
+        self.assertIn("  allow_gcode_upload: bool", config)
+        self.assertIn('["gcode_upload", .allow_gcode_upload]', runtime)
+        self.assertIn('.[0] != "gcode_upload"', runtime)
+        self.assertIn('$master or', runtime)
+
+if __name__ == "__main__":
+    unittest.main()

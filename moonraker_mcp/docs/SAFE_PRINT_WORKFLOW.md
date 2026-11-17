@@ -1,0 +1,77 @@
+# Moonraker MCP — flujo seguro de impresión (diseño inicial)
+
+Estado: propuesta de implementación; **no habilitar acciones de escritura en producción** hasta completar pruebas.
+
+## Objetivo
+Permitir preparar un modelo para Snapmaker U1, subir G-code validado a Moonraker y lanzar la impresión **solo tras confirmación explícita y reciente del usuario**.
+
+## Hallazgos del repositorio
+- La versión 0.1.4 ya incluye las opciones `enable_write_actions` y `allow_print_start` en `config.yaml`, desactivadas por defecto.
+- `run.sh` filtra los perfiles `print_*` mediante el interruptor maestro.
+- Esto **no demuestra** que exista una herramienta de subida de archivos ni que el flujo de confirmación esté implementado.
+
+## Fases
+1. Inventariar herramientas reales del gateway y API Moonraker, identificar ruta de subida y arranque y revisar la política del proxy.
+2. Añadir subida de G-code a carpeta de cuarentena, con límites de tamaño, nombre saneado, autenticación, bloqueo de rutas arbitrarias y comprobación de hash.
+3. Validar metadatos: máquina Snapmaker U1, tamaño/volumen, herramientas T0–T3, materiales, temperaturas y estimaciones. Rechazar G-code de procedencia o compatibilidad dudosa; preferir laminar STL/3MF con perfil U1.
+4. Implementar preparación sin movimiento y vista previa de archivo, consumos y riesgos; obtener confirmación explícita del usuario antes del arranque. Una confirmación no se reutiliza para otro archivo o trabajo.
+5. Antes de arrancar, verificar conexión, Klippy ready, estado no imprimiendo/pausado, archivo y hash intactos, y condiciones físicas que requieran verificación humana (cama despejada, pieza retirada, filamento correcto). La API no garantiza por sí sola estas condiciones.
+6. Arranque opt-in con permisos mínimos, trazabilidad de usuario, fecha, hash, resultado, y gestión de reintentos idempotente. No iniciar automáticamente por recuperar conexión ni repetir un comando de resultado incierto.
+7. Pruebas unitarias, integración simulada y pruebas reales controladas; documentación de rollback. Activar solo tras revisión y aprobación.
+
+## Criterios de aceptación
+- Sin permisos de escritura, el catálogo sigue siendo solo lectura.
+- La subida nunca implica arranque.
+- Ninguna impresión se inicia sin confirmación específica para ese G-code.
+- No se ejecuta G-code arbitrario enviado como comando directo.
+- Errores de red o timeout no provocan doble arranque.
+- Estado, archivo, progreso y resultado se pueden verificar desde el MCP.
+
+## Fuera de alcance inicial
+Laminado automático remoto, descarga y ejecución automática de archivos de terceros, gestión de energía o intervención física en la impresora.
+
+
+## Staged G-code upload (development branch; not released)
+
+The gateway exposes `moonraker_safe_gcode_upload` only when both
+`enable_write_actions` and `allow_gcode_upload` are explicitly enabled.
+The add-on creates `/data/safe-gcode-staging` (UID/GID 65534, mode 0700).
+The tool requires `filename`, the exact file `sha256`, and
+`confirmation: CONFIRM_UPLOAD`. It reads a flat .gcode/.gco file of at most
+32 MiB, rejects symlinks and insecure file permissions, and verifies SHA-256
+before invoking Moonraker's upload endpoint with `print=false`.
+
+The development branch also exposes `moonraker_safe_gcode_stage_chunk` under the
+same opt-in permission profile. Each call requires the filename, full-file
+SHA-256, sequential byte offset, base64-encoded chunk (at most 8 KiB decoded),
+boolean `final`, and the separate literal confirmation `CONFIRM_STAGE`.
+The first chunk uses offset 0; subsequent offsets must match the bytes
+already received. The file is published to private staging only after the
+final SHA-256 matches. Files are limited to 32 MiB, names are flat, and
+symbolic links, binary NUL bytes and concurrent writers are rejected.
+The staging confirmation does **not** authorize uploading to Moonraker;
+`CONFIRM_UPLOAD` is still required for that separate tool.
+
+This is a development-only transport, not an unrestricted file manager. Do not
+expose the staging volume over a network or relax its permissions. Interrupted transfers can leave hidden `.part` files. The development branch
+limits concurrent partial sessions to four and aggregate partial storage to
+64 MiB; checks are serialized by a directory lock. The opt-in
+`moonraker_safe_gcode_abort_stage` tool accepts the exact filename, SHA-256 and
+`confirmation: CONFIRM_ABORT_STAGE`, and removes only that unfinished matching
+part. It never removes a published G-code or contacts the printer.
+The development branch now includes a supervised staging housekeeper. It runs
+once at startup and every 24 hours **only when both** `enable_write_actions`
+and `allow_gcode_upload` are enabled. Its default retention is 7 days (the
+cleanup function accepts 1–30 days); it deletes only matching, private,
+single-linked, unlocked hidden partial files older than the retention window.
+It never removes published G-code, accesses Moonraker or starts a print.
+The worker runs as UID/GID 65534 and its unexpected exit stops the add-on.
+This cleanup has offline tests, but has **not** been validated on the live
+Snapmaker U1 or in an isolated installed beta.
+
+Do not enable this workflow in production until an isolated beta validation
+and security review are complete. The tool does not download
+models, slice, verify the printer's remote file checksum, confirm physical
+printer readiness, or start printing. A successful upload is not approval
+to print. Never automatically retry an upload after an uncertain network
+failure without first inspecting the remote file state.

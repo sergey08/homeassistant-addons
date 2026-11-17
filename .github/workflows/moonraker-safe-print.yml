@@ -1,0 +1,125 @@
+name: Moonraker safe print preflight
+on:
+  push:
+    branches:
+      - feat/moonraker-safe-print-workflow
+  pull_request:
+    paths:
+      - 'moonraker_mcp/moonraker_preflight.py'
+      - 'moonraker_mcp/test_moonraker_preflight.py'
+      - 'moonraker_mcp/moonraker_upload.py'
+      - 'moonraker_mcp/test_moonraker_upload.py'
+      - 'moonraker_mcp/test_upload_policy.py'
+      - 'moonraker_mcp/moonraker_staging.py'
+      - 'moonraker_mcp/test_moonraker_staging.py'
+      - 'moonraker_mcp/test_upload_integration.py'
+      - 'moonraker_mcp/test_upload_gateway.py'
+      - 'moonraker_mcp/moonraker_chunk_staging.py'
+      - 'moonraker_mcp/test_chunk_staging.py'
+      - 'moonraker_mcp/test_stage_http_integration.py'
+      - 'moonraker_mcp/staging_housekeeper.py'
+      - 'moonraker_mcp/test_staging_housekeeper.py'
+      - 'moonraker_mcp/prepare_isolated_beta.py'
+      - 'moonraker_mcp/test_prepare_isolated_beta.py'
+      - 'moonraker_mcp/tool_policy.py'
+      - 'moonraker_mcp/config.yaml'
+      - 'moonraker_mcp/run.sh'
+      - 'moonraker_mcp/gateway.py'
+      - '.github/workflows/moonraker-safe-print.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Compile preflight and tests
+        run: python -m py_compile moonraker_mcp/moonraker_preflight.py moonraker_mcp/test_moonraker_preflight.py moonraker_mcp/moonraker_upload.py moonraker_mcp/test_moonraker_upload.py moonraker_mcp/test_upload_policy.py moonraker_mcp/moonraker_staging.py moonraker_mcp/test_moonraker_staging.py moonraker_mcp/test_upload_integration.py moonraker_mcp/test_upload_gateway.py moonraker_mcp/moonraker_chunk_staging.py moonraker_mcp/test_chunk_staging.py moonraker_mcp/test_stage_http_integration.py moonraker_mcp/staging_housekeeper.py moonraker_mcp/test_staging_housekeeper.py moonraker_mcp/prepare_isolated_beta.py moonraker_mcp/test_prepare_isolated_beta.py
+      - name: Run offline tests (no printer connection)
+        working-directory: moonraker_mcp
+        run: python -m unittest -v test_moonraker_preflight test_moonraker_upload test_upload_policy test_moonraker_staging test_upload_integration test_upload_gateway test_chunk_staging test_stage_http_integration test_staging_housekeeper test_prepare_isolated_beta
+      - name: Prepare and inspect isolated beta build context (offline)
+        shell: bash
+        run: |
+          set -euo pipefail
+          dest="$RUNNER_TEMP/moonraker_mcp_safeprint_beta"
+          python moonraker_mcp/prepare_isolated_beta.py "$dest"
+          test -f "$dest/Dockerfile"
+          test -f "$dest/run.sh"
+          test -f "$dest/staging_housekeeper.py"
+          grep -Fxq 'slug: "moonraker_mcp_safeprint_beta"' "$dest/config.yaml"
+          grep -Fxq 'version: "0.1.5-beta.1"' "$dest/config.yaml"
+          grep -Fxq '  enable_write_actions: false' "$dest/config.yaml"
+          grep -Fxq '  allow_gcode_upload: false' "$dest/config.yaml"
+          grep -Fxq '  allow_print_start: false' "$dest/config.yaml"
+          grep -Fxq '  enable_tunnel: false' "$dest/config.yaml"
+          ! test -e "$dest/data"
+          ! test -e "$dest/options.json"
+          ! test -e "$dest/test_prepare_isolated_beta.py"
+          grep -Fxq 'slug: "moonraker_mcp"' moonraker_mcp/config.yaml
+          grep -Fxq 'version: "0.1.4"' moonraker_mcp/config.yaml
+          grep -Fxq '  8765/tcp: null' "$dest/config.yaml"
+          test ! -L "$dest"
+      - name: Package isolated beta for review (not published)
+        shell: bash
+        run: |
+          set -euo pipefail
+          tar -C "$RUNNER_TEMP" -czf "$RUNNER_TEMP/moonraker-safeprint-beta-context.tar.gz" moonraker_mcp_safeprint_beta
+          tar -tzf "$RUNNER_TEMP/moonraker-safeprint-beta-context.tar.gz" | grep -Fxq 'moonraker_mcp_safeprint_beta/config.yaml'
+      - name: Retain beta context as private CI artifact (no deployment)
+        uses: actions/upload-artifact@v4
+        with:
+          name: moonraker-safeprint-beta-context
+          path: ${{ runner.temp }}/moonraker-safeprint-beta-context.tar.gz
+          retention-days: 7
+          if-no-files-found: error
+  beta-image-build:
+    runs-on: ubuntu-latest
+    needs: preflight
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [amd64, arm64]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - name: Prepare isolated beta build context
+        run: python3 moonraker_mcp/prepare_isolated_beta.py "$RUNNER_TEMP/moonraker_mcp_safeprint_beta"
+      - name: Build beta image without push or printer access
+        run: |
+          docker buildx build --platform linux/${{ matrix.arch }} \
+            --progress=plain --load \
+            --tag "moonraker-safeprint-beta-ci:${{ matrix.arch }}" \
+            --file "$RUNNER_TEMP/moonraker_mcp_safeprint_beta/Dockerfile" \
+            "$RUNNER_TEMP/moonraker_mcp_safeprint_beta"
+      - name: Container fails closed without configured bearer token (offline)
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/beta-options"
+          printf '%s\n' '{"moonraker_url":"http://127.0.0.1:9","mcp_http_token":"","enable_write_actions":false,"allow_gcode_upload":false,"allow_print_start":false,"enable_tunnel":false}' > "$RUNNER_TEMP/beta-options/options.json"
+          set +e
+          output="$(timeout 15 docker run --rm --network none --platform linux/${{ matrix.arch }} -v "$RUNNER_TEMP/beta-options:/data:ro" "moonraker-safeprint-beta-ci:${{ matrix.arch }}" 2>&1)"
+          status=$?
+          set -e
+          test "$status" -ne 0
+          test "$status" -ne 124
+          printf '%s\n' "$output" | grep -Fq 'Configure a nonempty MCP HTTP token'
+      - name: Container rejects malformed write permission (offline)
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf '%s\n' '{"moonraker_url":"http://127.0.0.1:9","mcp_http_token":"ci-only-token","enable_write_actions":"true","allow_gcode_upload":false,"enable_tunnel":false}' > "$RUNNER_TEMP/beta-options/options.json"
+          set +e
+          output="$(timeout 15 docker run --rm --network none --platform linux/${{ matrix.arch }} -v "$RUNNER_TEMP/beta-options:/data:ro" "moonraker-safeprint-beta-ci:${{ matrix.arch }}" 2>&1)"
+          status=$?
+          set -e
+          test "$status" -ne 0
+          test "$status" -ne 124
+          printf '%s\n' "$output" | grep -Fq 'enable_write_actions must be boolean'
