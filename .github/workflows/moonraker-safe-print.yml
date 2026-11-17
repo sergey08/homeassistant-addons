@@ -42,3 +42,23 @@ jobs:
       - name: Run offline tests (no printer connection)
         working-directory: moonraker_mcp
         run: python -m unittest -v test_moonraker_preflight test_moonraker_upload test_upload_policy test_moonraker_staging test_upload_integration test_upload_gateway test_chunk_staging test_stage_http_integration test_staging_housekeeper test_prepare_isolated_beta
+      - name: Prepare and inspect isolated beta build context (offline)
+        shell: bash
+        run: |
+          set -euo pipefail
+          dest="$RUNNER_TEMP/moonraker_mcp_safeprint_beta"
+          python moonraker_mcp/prepare_isolated_beta.py "$dest"
+          test -f "$dest/Dockerfile"
+          test -f "$dest/run.sh"
+          test -f "$dest/staging_housekeeper.py"
+          grep -Fxq 'slug: "moonraker_mcp_safeprint_beta"' "$dest/config.yaml"
+          grep -Fxq 'version: "0.1.5-beta.1"' "$dest/config.yaml"
+          grep -Fxq '  enable_write_actions: false' "$dest/config.yaml"
+          grep -Fxq '  allow_gcode_upload: false' "$dest/config.yaml"
+          grep -Fxq '  allow_print_start: false' "$dest/config.yaml"
+          grep -Fxq '  enable_tunnel: false' "$dest/config.yaml"
+          ! test -e "$dest/data"
+          ! test -e "$dest/options.json"
+          ! test -e "$dest/test_prepare_isolated_beta.py"
+          grep -Fxq 'slug: "moonraker_mcp"' moonraker_mcp/config.yaml
+          grep -Fxq 'version: "0.1.4"' moonraker_mcp/config.yaml
