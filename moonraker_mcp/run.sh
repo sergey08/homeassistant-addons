@@ -40,6 +40,22 @@ if [ "$MCP_ENABLE_TUNNEL" = "true" ]; then
     exit 1
   fi
 fi
+# Stage files inside the private add-on data volume. Do not make staging
+# world-writable or depend on an externally mounted shared directory.
+STAGING_DIR=/data/safe-gcode-staging
+if [ -L "$STAGING_DIR" ]; then
+  echo "Unsafe G-code staging directory symlink" >&2
+  exit 1
+fi
+if [ ! -e "$STAGING_DIR" ]; then
+  (umask 077; mkdir "$STAGING_DIR")
+fi
+if [ ! -d "$STAGING_DIR" ] || [ -L "$STAGING_DIR" ]; then
+  echo "Unsafe G-code staging directory" >&2
+  exit 1
+fi
+chown 65534:65534 "$STAGING_DIR"
+chmod 700 "$STAGING_DIR"
 export MCP_HTTP_HOST=127.0.0.1
 export MCP_HTTP_PORT=8766
 export MOONRAKER_ENABLE_ADMIN=false
