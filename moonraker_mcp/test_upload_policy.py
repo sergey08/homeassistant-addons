@@ -17,6 +17,20 @@ class UploadPolicyTests(unittest.TestCase):
         with self.assertRaises(PolicyError):
             authorize_call(UPLOAD, extend_allowed(frozenset(), []))
 
+    def test_all_staging_and_upload_tools_are_denied_in_read_only_mode(self):
+        from gateway import RESERVED_UPLOAD_TOOL, STAGE_CHUNK_TOOL, ABORT_STAGE_TOOL
+        from tool_policy import load_allowed
+        default = load_allowed()
+        read_only = extend_allowed(default, [])
+        write_profile = extend_allowed(default, ["gcode_upload"])
+        for tool in (RESERVED_UPLOAD_TOOL, STAGE_CHUNK_TOOL, ABORT_STAGE_TOOL):
+            with self.subTest(tool=tool):
+                self.assertNotIn(tool, read_only)
+                with self.assertRaises(PolicyError):
+                    authorize_call(tool, read_only)
+                self.assertIn(tool, write_profile)
+                authorize_call(tool, write_profile)
+
     def test_upload_local_tool_schema(self):
         from gateway import LOCAL_FILE_TOOLS, LOCAL_PRINT_WRITE_TOOLS, RESERVED_UPLOAD_TOOL, LOCAL_UPLOAD_DEFINITION, check_message
         self.assertEqual(RESERVED_UPLOAD_TOOL, UPLOAD)
