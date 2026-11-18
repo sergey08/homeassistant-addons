@@ -702,7 +702,9 @@ class Handler(BaseHTTPRequestHandler):
                     result = upload_gcode(os.environ["MOONRAKER_URL"], args["filename"],
                                           content, args["sha256"],
                                           os.environ.get("MOONRAKER_API_KEY", ""))
-                except (UploadError, urllib.error.URLError, TimeoutError, OSError):
+                except (UploadError, urllib.error.URLError, TimeoutError, OSError) as exc:
+                    reason = str(exc) if isinstance(exc, UploadError) else type(exc).__name__
+                    print(json.dumps({"event": "safeprint_upload_failed", "reason": reason}, sort_keys=True), flush=True)
                     return self.file_tool_error(message["id"], "G-code upload failed; printer state unverified")
                 tool_result = {"content": [{"type": "text",
                                            "text": json.dumps(result, ensure_ascii=False)}],
