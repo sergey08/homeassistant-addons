@@ -78,5 +78,28 @@ class PrintControlTests(unittest.TestCase):
             self.run_action("start", "standby", "CONFIRM_START")
 
 
+    def test_pause_rejects_unconfirmed_moonraker_response(self):
+        def fake_open(req, timeout=10):
+            return Response({"result": {"unexpected": True}})
+        with patch("moonraker_print_control._state", return_value={
+            "state": "printing", "filename": "test.gcode"
+        }):
+            with self.assertRaisesRegex(PrintControlError, "did not confirm"):
+                execute_print_action(
+                    "http://127.0.0.1:7125", "", "pause", "CONFIRM_PAUSE",
+                    opener=fake_open)
+
+    def test_pause_network_failure_does_not_claim_success(self):
+        from urllib.error import URLError
+        def fake_open(req, timeout=10):
+            raise URLError("offline")
+        with patch("moonraker_print_control._state", return_value={
+            "state": "printing", "filename": "test.gcode"
+        }):
+            with self.assertRaises(URLError):
+                execute_print_action(
+                    "http://127.0.0.1:7125", "", "pause", "CONFIRM_PAUSE",
+                    opener=fake_open)
+
 if __name__ == "__main__":
     unittest.main()
