@@ -431,6 +431,14 @@ def filter_reply(method, response, allowed, cursor=None):
                    if key in ("tools", "nextCursor")}
     response["result"] = dict(safe_result, tools=[tool for tool in filter_tools(result.get("tools"), allowed)
                                                         if tool["name"] not in (RESERVED_UPLOAD_TOOL, STAGE_CHUNK_TOOL, ABORT_STAGE_TOOL) and tool["name"] not in LOCAL_FILE_TOOLS and tool["name"] not in LOCAL_U1_TOOLS and tool["name"] not in LOCAL_PRINT_WRITE_TOOLS and tool["name"] not in (LOCAL_STATUS_TOOL, LOCAL_SPOOLMAN_TOOL)] + local_tools)
+    if cursor is None:
+        published_names = sorted(tool["name"] for tool in response["result"]["tools"])
+        safeprint_names = [name for name in published_names if name.startswith("moonraker_safe_")]
+        print(json.dumps({"event": "mcp_tools_catalog", "count": len(published_names),
+                          "safeprint_count": len(safeprint_names),
+                          "safeprint_tools": safeprint_names,
+                          "write_profile_enabled": bool(safeprint_names)},
+                         sort_keys=True), flush=True)
     for tool in response["result"]["tools"]:
         if tool["name"] == PRIVACY_SAFE_PRINTER_INFO:
             tool["description"] = ("Read printer state and software version only. "
