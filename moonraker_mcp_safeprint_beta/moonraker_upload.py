@@ -63,11 +63,15 @@ def upload_gcode(base_url, filename, content, expected_sha256, api_key="", opene
     except (ValueError, UnicodeError) as exc:
         raise UploadError("Invalid upload response") from exc
     if not isinstance(result, dict) or not isinstance(result.get("result"), dict):
-        raise UploadError("Upload not confirmed")
+        raise UploadError("Upload response missing result object")
     received = result["result"]
     item = received.get("item")
-    if received.get("root") != "gcodes" or not isinstance(item, dict) or item.get("path") != filename:
-        raise UploadError("Uploaded path differs from requested path")
+    if received.get("root") != "gcodes":
+        raise UploadError("Upload response root mismatch")
+    if not isinstance(item, dict):
+        raise UploadError("Upload response missing item object")
+    if item.get("path") != filename:
+        raise UploadError("Upload response path mismatch")
     return {"uploaded": True, "filename": filename, "sha256_local": digest,
             "size_bytes": len(content), "print_requested": False,
             "note": "Upload requested print=false; printer state and remote file integrity are unverified."}
