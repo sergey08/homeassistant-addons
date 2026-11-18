@@ -43,7 +43,7 @@ jobs:
       - name: Compile beta Python sources
         run: python3 -m compileall -q moonraker_mcp_safeprint_beta
       - name: Offline print-control regression tests
-        run: python3 -m unittest discover -s moonraker_mcp_safeprint_beta -p 'test_print_control.py' -v
+        run: python3 -m unittest discover -s moonraker_mcp_safeprint_beta -p 'test_*.py' -v
   image-build:
     runs-on: ubuntu-latest
     needs: validate
