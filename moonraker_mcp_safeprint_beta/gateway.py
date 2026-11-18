@@ -686,7 +686,10 @@ class Handler(BaseHTTPRequestHandler):
                 try:
                     result = stage_chunk(args["filename"], args["sha256"], args["offset"],
                                          args["chunk_b64"], args["final"])
-                except (UploadError, OSError):
+                except (UploadError, OSError) as exc:
+                    # Keep client errors generic; log only a bounded, known-safe reason.
+                    reason = str(exc) if isinstance(exc, UploadError) else type(exc).__name__
+                    print(json.dumps({"event": "safeprint_staging_failed", "reason": reason}, sort_keys=True), flush=True)
                     return self.file_tool_error(message["id"], "G-code staging failed")
                 tool_result = {"content": [{"type": "text",
                                            "text": json.dumps(result, ensure_ascii=False)}],
