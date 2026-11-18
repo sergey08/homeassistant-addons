@@ -7,6 +7,7 @@ import hashlib
 import json
 import secrets
 import urllib.request
+import urllib.parse
 
 from moonraker_files import FileAccessError, _NoRedirect, validate_base_url, validate_filename
 
@@ -63,7 +64,22 @@ def upload_gcode(base_url, filename, content, expected_sha256, api_key="", opene
     except (ValueError, UnicodeError) as exc:
         raise UploadError("Invalid upload response") from exc
     if not isinstance(result, dict) or not isinstance(result.get("result"), dict):
-        raise UploadError("Upload response missing result object")
+        # Nonstandard upload responses must be independently verified.
+        # Never infer success from HTTP 200 alone.
+        remote_url = base + "/server/files/gcodes/" + urllib.parse.quote(filename, safe="")
+        verify_headers = {"Accept": "application/octet-stream"}
+        if api_key:
+            verify_headers["X-Api-Key"] = api_key
+        verify_req = urllib.request.Request(remote_url, headers=verify_headers, method="GET")
+        verify_open = urllib.request.build_opener(_NoRedirect()).open
+        with verify_open(verify_req, timeout=30) as remote_response:
+            remote = remote_response.read(MAX_UPLOAD_BYTES + 1)
+        if len(remote) != len(content) or hashlib.sha256(remote).hexdigest() != digest:
+            raise UploadError("Remote G-code verification mismatch")
+        return {"uploaded": True, "filename": filename, "sha256_local": digest,
+                "sha256_remote_verified": digest, "size_bytes": len(content),
+                "print_requested": False, "confirmation": "remote_sha256",
+                "note": "Upload requested print=false; remote file verified; printer state unverified."}
     received = result["result"]
     item = received.get("item")
     if received.get("root") != "gcodes":
