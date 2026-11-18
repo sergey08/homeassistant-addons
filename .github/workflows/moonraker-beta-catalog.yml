@@ -26,7 +26,7 @@ jobs:
           test -f "$dir/run.sh"
           test -f "$dir/gateway.py"
           grep -Fxq 'slug: "moonraker_mcp_safeprint_beta"' "$dir/config.yaml"
-          grep -Eq '^version: "0\.1\.5-beta\.[0-9]+"
+          grep -Eq '^version: "0[.]1[.]5-beta[.][0-9]+"$' "$dir/config.yaml"
           grep -Fxq 'boot: manual' "$dir/config.yaml"
           grep -Fxq '  8765/tcp: null' "$dir/config.yaml"
           for flag in enable_write_actions allow_gcode_upload allow_print_start enable_tunnel; do
