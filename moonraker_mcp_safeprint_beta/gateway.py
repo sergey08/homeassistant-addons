@@ -716,11 +716,19 @@ class Handler(BaseHTTPRequestHandler):
             if method == "tools/call" and message["params"]["name"] in LOCAL_PRINT_WRITE_TOOLS:
                 tool_name = message["params"]["name"]
                 arguments = message["params"].get("arguments", {})
-                result = execute_print_action(
-                    os.environ["MOONRAKER_URL"], os.environ.get("MOONRAKER_API_KEY", ""),
-                    tool_name.rsplit("_", 1)[-1], arguments["confirmation"],
-                    filename=arguments.get("filename"),
-                    expected_filename=arguments.get("expected_filename"))
+                try:
+                    result = execute_print_action(
+                        os.environ["MOONRAKER_URL"], os.environ.get("MOONRAKER_API_KEY", ""),
+                        tool_name.rsplit("_", 1)[-1], arguments["confirmation"],
+                        filename=arguments.get("filename"),
+                        expected_filename=arguments.get("expected_filename"))
+                except (PrintControlError, FileAccessError, urllib.error.URLError,
+                        TimeoutError, OSError, ValueError) as exc:
+                    reason = str(exc) if isinstance(exc, PrintControlError) else type(exc).__name__
+                    print(json.dumps({"event": "safeprint_control_failed",
+                                      "action": tool_name.rsplit("_", 1)[-1],
+                                      "reason": reason}, sort_keys=True), flush=True)
+                    return self.file_tool_error(message["id"], "Print control failed; printer state unverified")
                 tool_result = {"content": [{"type": "text",
                                            "text": json.dumps(result, ensure_ascii=False)}],
                                "isError": False}
