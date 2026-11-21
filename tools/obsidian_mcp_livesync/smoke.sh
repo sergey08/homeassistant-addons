@@ -13,7 +13,7 @@ cleanup() {
 trap cleanup EXIT
 
 mkdir "$data/vault" "$data/db"
-printf '# LiveSync integration smoke test\n' > "$data/vault/Integration.md"
+printf '# LiveSync integration smoke test\n' > "$data/vault/integration.md"
 cat > "$data/settings.json" <<'JSON'
 {"couchDB_URI":"http://obsidian-couchdb:5984","couchDB_USER":"testadmin","couchDB_PASSWORD":"ci-password","couchDB_DBNAME":"obsidian-ci","encrypt":false,"isConfigured":true}
 JSON
@@ -29,11 +29,11 @@ curl -fsS -u testadmin:ci-password -H 'Content-Type: application/json' \
 curl -fsS -u testadmin:ci-password -X PUT "$couch/obsidian-ci"
 
 docker run -d --name obsidian-livesync-smoke --network obsidian-livesync-ci \
-    -e LIVESYNC_DB_PATH=/fixtures/db -v "$data:/fixtures" -v "$bundle:/config/obsidian_mcp:ro" \
+    --user "$(id -u):$(id -g)" -e HOME=/fixtures -e LIVESYNC_DB_PATH=/fixtures/db -v "$data:/fixtures" -v "$bundle:/config/obsidian_mcp:ro" \
     --entrypoint /config/obsidian_mcp/bin/livesync-cli ghcr.io/home-assistant/home-assistant:2026.9.4 \
     --settings /fixtures/settings.json --vault /fixtures/vault --interval 30
 for attempt in $(seq 1 45); do
-    if curl -fsS -u testadmin:ci-password "$couch/obsidian-ci/_all_docs" | grep -Fq 'Integration.md'; then
+    if curl -fsS -u testadmin:ci-password "$couch/obsidian-ci/_all_docs?include_docs=true" | grep -Fiq 'integration.md'; then
         exit 0
     fi
     if [ "$(docker inspect -f '{{.State.Running}}' obsidian-livesync-smoke)" != true ]; then
@@ -41,4 +41,5 @@ for attempt in $(seq 1 45); do
     fi
     sleep 2
 done
+curl -fsS -u testadmin:ci-password "$couch/obsidian-ci/_all_docs?include_docs=true"
 exit 1
