@@ -101,8 +101,13 @@ def execute_print_action(moonraker_url, moonraker_api_key, action, confirmation,
     if moonraker_api_key:
         headers["X-Api-Key"] = moonraker_api_key
     req = urllib.request.Request(base + endpoint, data=b"", headers=headers, method="POST")
-    with opener(req, timeout=10) as response:
-        raw = response.read(MAX_RESPONSE_BYTES + 1)
+    try:
+        with opener(req, timeout=10) as response:
+            raw = response.read(MAX_RESPONSE_BYTES + 1)
+    except (TimeoutError, urllib.error.URLError, ConnectionError) as exc:
+        # POST may have reached Moonraker even if the reply was lost.
+        # Never retry a non-idempotent print control action automatically.
+        raise PrintControlError("Control request outcome unknown; do not retry automatically") from exc
     if len(raw) > MAX_RESPONSE_BYTES:
         raise PrintControlError("Printer response too large")
     try:
