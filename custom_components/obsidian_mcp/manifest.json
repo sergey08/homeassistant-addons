@@ -1,0 +1,21 @@
+{
+  "domain": "obsidian_mcp",
+  "name": "Obsidian MCP",
+  "codeowners": [
+    "@sergey08"
+  ],
+  "config_flow": true,
+  "dependencies": [
+    "http"
+  ],
+  "documentation": "https://github.com/sergey08/homeassistant-addons/blob/feat/obsidian-mcp-hacs/OBSIDIAN_MCP_INTEGRATION.md",
+  "integration_type": "service",
+  "iot_class": "local_push",
+  "issue_tracker": "https://github.com/sergey08/homeassistant-addons/issues",
+  "requirements": [
+    "mcp>=1.26.0,<3",
+    "uvicorn>=0.37.0,<1"
+  ],
+  "single_config_entry": true,
+  "version": "0.3.0-beta.1"
+}
