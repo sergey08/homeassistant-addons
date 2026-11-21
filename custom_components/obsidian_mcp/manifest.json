@@ -1,6 +1,9 @@
 {
   "domain": "obsidian_mcp",
   "name": "Obsidian MCP",
+  "categories": [
+    "other_ecosystems"
+  ],
   "codeowners": [
     "@sergey08"
   ],
