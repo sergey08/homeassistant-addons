@@ -1,0 +1,77 @@
+name: Moonraker Safe Print beta catalog validation
+on:
+  push:
+    branches:
+      - feat/moonraker-safeprint-beta-catalog
+  pull_request:
+    paths:
+      - 'moonraker_mcp_safeprint_beta/**'
+      - '.github/workflows/moonraker-beta-catalog.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Verify isolated catalog identity and safe defaults
+        shell: bash
+        run: |
+          set -euo pipefail
+          dir=moonraker_mcp_safeprint_beta
+          test -f "$dir/Dockerfile"
+          test -f "$dir/run.sh"
+          test -f "$dir/gateway.py"
+          grep -Fxq 'slug: "moonraker_mcp_safeprint_beta"' "$dir/config.yaml"
+          grep -Eq '^version: "0[.]1[.]5-beta[.][0-9]+"$' "$dir/config.yaml"
+          grep -Fxq 'boot: manual' "$dir/config.yaml"
+          grep -Fxq '  8765/tcp: null' "$dir/config.yaml"
+          for flag in enable_write_actions allow_gcode_upload allow_print_start enable_tunnel; do
+            grep -Fxq "  $flag: false" "$dir/config.yaml"
+          done
+          test ! -e "$dir/data"
+          test ! -e "$dir/options.json"
+          git diff --name-only origin/main...HEAD | while IFS= read -r path; do
+            case "$path" in
+              moonraker_mcp_safeprint_beta/*|.github/workflows/moonraker-beta-catalog.yml) ;;
+              *) echo "Unexpected catalog change: $path"; exit 1 ;;
+            esac
+          done
+      - name: Compile beta Python sources
+        run: python3 -m compileall -q moonraker_mcp_safeprint_beta
+      - name: Offline print-control regression tests
+        run: python3 -m unittest discover -s moonraker_mcp_safeprint_beta -p 'test_*.py' -v
+  image-build:
+    runs-on: ubuntu-latest
+    needs: validate
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [amd64, arm64]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - name: Build catalog beta image without publishing
+        run: |
+          docker buildx build --platform linux/${{ matrix.arch }} \
+            --progress=plain --load \
+            --tag "moonraker-safeprint-catalog-ci:${{ matrix.arch }}" \
+            moonraker_mcp_safeprint_beta
+      - name: Fail closed without bearer token
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/options"
+          printf '%s\n' '{"moonraker_url":"http://127.0.0.1:9","mcp_http_token":"","enable_write_actions":false,"allow_gcode_upload":false,"allow_print_start":false,"enable_tunnel":false}' > "$RUNNER_TEMP/options/options.json"
+          set +e
+          output="$(timeout 15 docker run --rm --network none --platform linux/${{ matrix.arch }} -v "$RUNNER_TEMP/options:/data:ro" "moonraker-safeprint-catalog-ci:${{ matrix.arch }}" 2>&1)"
+          status=$?
+          set -e
+          test "$status" -ne 0
+          test "$status" -ne 124
+          printf '%s\n' "$output" | grep -Fq 'Configure a nonempty MCP HTTP token'
