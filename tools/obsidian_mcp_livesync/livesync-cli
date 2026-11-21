@@ -1,0 +1,5 @@
+#!/bin/sh
+set -eu
+base=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
+runtime="$base/livesync-runtime"
+exec "$runtime/node" "$runtime/dist/index.cjs" "${LIVESYNC_DB_PATH:?LiveSync database path is required}" "$@"

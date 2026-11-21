@@ -35,6 +35,10 @@ https://github.com/sergey08/homeassistant-addons
 
 **Obsidian Client — 0.1.0-dev2 (experimental)** and **Moonraker MCP — v0.1.0** — see folders in this repository.
 
+### Obsidian MCP integration
+
+[Integration setup and migration (development)](./OBSIDIAN_MCP_INTEGRATION.md).
+
 ### Contributing and security
 
 Use **Issues** and **Pull requests**. Do not publish secrets or private vault contents.
@@ -44,6 +48,8 @@ Use **Issues** and **Pull requests**. Do not publish secrets or private vault co
 **Obsidian MCP for Home Assistant — 0.2.6 (estable)** y **Obsidian MCP for Home Assistant (Beta) — 0.2.7-beta.1 (opcional)** aparecen como **dos aplicaciones distintas** en Home Assistant.
 
 La beta añade MCP remoto autenticado para Grok y no sustituye la estable.
+
+[Configuración y migración de la integración Obsidian MCP (en desarrollo)](./OBSIDIAN_MCP_INTEGRATION.md#español).
 
 ---
 

@@ -1,0 +1,81 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Configuración de Obsidian MCP",
+        "description": "Selecciona la bóveda y los servicios opcionales. Actívalos cuando sus archivos estén preparados. {detail}",
+        "data": {
+          "storage_mode": "Modo de almacenamiento",
+          "vault_path": "Bóveda local existente dentro de /share",
+          "livesync_shared_vault_path": "Bóveda compartida de LiveSync existente dentro de /share",
+          "enable_livesync": "Activar LiveSync",
+          "livesync_interval": "Intervalo de LiveSync (segundos)",
+          "enable_tunnel": "Activar el túnel privado de OpenAI",
+          "tunnel_id": "ID del túnel de OpenAI",
+          "enable_remote_mcp": "Activar MCP remoto autenticado",
+          "remote_mcp_api_key": "Token Bearer (32 caracteres o más)"
+        }
+      },
+      "reconfigure": {
+        "title": "Reconfigurar Obsidian MCP",
+        "description": "Deja el token en blanco para conservar el actual mientras el acceso remoto esté habilitado. {detail}",
+        "data": {
+          "storage_mode": "Modo de almacenamiento",
+          "vault_path": "Bóveda local existente dentro de /share",
+          "livesync_shared_vault_path": "Bóveda compartida de LiveSync existente dentro de /share",
+          "enable_livesync": "Activar LiveSync",
+          "livesync_interval": "Intervalo de LiveSync (segundos)",
+          "enable_tunnel": "Activar el túnel privado de OpenAI",
+          "tunnel_id": "ID del túnel de OpenAI",
+          "enable_remote_mcp": "Activar MCP remoto autenticado",
+          "remote_mcp_api_key": "Token Bearer (32 caracteres o más)"
+        }
+      }
+    },
+    "error": {
+      "invalid_configuration": "Comprueba los valores y los archivos requeridos."
+    },
+    "abort": {
+      "single_instance_allowed": "Obsidian MCP ya está configurado.",
+      "reconfigure_successful": "Obsidian MCP se ha reconfigurado."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Preparación y comprobaciones de Obsidian MCP",
+        "menu_options": {
+          "status": "Ver el estado de la bóveda y los servicios",
+          "import_livesync": "Importar ajustes de LiveSync",
+          "save_tunnel_key": "Guardar la clave del túnel de OpenAI",
+          "check_couchdb": "Comprobar la conexión con CouchDB"
+        }
+      },
+      "import_livesync": {
+        "title": "Importar ajustes de LiveSync",
+        "description": "Pega la exportación JSON de LiveSync CLI. Se conservan los ajustes existentes. {detail}",
+        "data": {
+          "value": "Ajustes JSON de LiveSync CLI"
+        }
+      },
+      "save_tunnel_key": {
+        "title": "Guardar la clave del túnel",
+        "description": "Introduce la clave de ejecución de OpenAI. Se conserva la clave existente. {detail}",
+        "data": {
+          "value": "Clave de ejecución del túnel"
+        }
+      },
+      "check_couchdb": {
+        "title": "Comprobar CouchDB",
+        "description": "Prueba la conexión sin iniciar la sincronización. {detail}"
+      }
+    },
+    "error": {
+      "provisioning_failed": "No se pudo completar la operación."
+    },
+    "abort": {
+      "provisioning_done": "{detail}",
+      "runtime_status": "Bóveda: {vault}. LiveSync: {livesync}. Túnel de OpenAI: {tunnel}. El estado del proceso no verifica la conexión remota."
+    }
+  }
+}

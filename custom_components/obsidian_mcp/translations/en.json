@@ -1,0 +1,81 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Obsidian MCP configuration",
+        "description": "Select the vault and optional services. Leave the services disabled until their files are ready. {detail}",
+        "data": {
+          "storage_mode": "Storage mode",
+          "vault_path": "Existing local vault under /share",
+          "livesync_shared_vault_path": "Existing shared LiveSync vault under /share",
+          "enable_livesync": "Enable LiveSync",
+          "livesync_interval": "LiveSync interval (seconds)",
+          "enable_tunnel": "Enable the private OpenAI tunnel",
+          "tunnel_id": "OpenAI tunnel ID",
+          "enable_remote_mcp": "Enable authenticated remote MCP",
+          "remote_mcp_api_key": "Remote Bearer token (32 characters or more)"
+        }
+      },
+      "reconfigure": {
+        "title": "Reconfigure Obsidian MCP",
+        "description": "Leave the token blank to retain the current token while remote access is enabled. {detail}",
+        "data": {
+          "storage_mode": "Storage mode",
+          "vault_path": "Existing local vault under /share",
+          "livesync_shared_vault_path": "Existing shared LiveSync vault under /share",
+          "enable_livesync": "Enable LiveSync",
+          "livesync_interval": "LiveSync interval (seconds)",
+          "enable_tunnel": "Enable the private OpenAI tunnel",
+          "tunnel_id": "OpenAI tunnel ID",
+          "enable_remote_mcp": "Enable authenticated remote MCP",
+          "remote_mcp_api_key": "Remote Bearer token (32 characters or more)"
+        }
+      }
+    },
+    "error": {
+      "invalid_configuration": "Check the values and availability of the vault and required files."
+    },
+    "abort": {
+      "single_instance_allowed": "Obsidian MCP is already configured.",
+      "reconfigure_successful": "Obsidian MCP was reconfigured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Obsidian MCP setup and checks",
+        "menu_options": {
+          "import_livesync": "Import LiveSync settings",
+          "save_tunnel_key": "Save OpenAI tunnel runtime key",
+          "check_couchdb": "Check the CouchDB connection",
+          "status": "Show vault and service status"
+        }
+      },
+      "import_livesync": {
+        "title": "Import LiveSync settings",
+        "description": "Paste the trusted LiveSync CLI JSON export. Existing settings are preserved. {detail}",
+        "data": {
+          "value": "LiveSync CLI settings JSON"
+        }
+      },
+      "save_tunnel_key": {
+        "title": "Save the OpenAI tunnel runtime key",
+        "description": "Enter the runtime API key for the tunnel. An existing key is preserved. {detail}",
+        "data": {
+          "value": "Runtime API key"
+        }
+      },
+      "check_couchdb": {
+        "title": "Check CouchDB",
+        "description": "Check the configured database without starting synchronization. {detail}"
+      }
+    },
+    "error": {
+      "provisioning_failed": "The action could not be completed."
+    },
+    "abort": {
+      "provisioning_done": "{detail}",
+      "runtime_status": "Vault: {vault}. LiveSync: {livesync}. OpenAI tunnel: {tunnel}. Process status does not verify the remote connection."
+    }
+  }
+}
