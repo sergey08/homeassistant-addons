@@ -96,10 +96,23 @@ class PrintControlTests(unittest.TestCase):
         with patch("moonraker_print_control._state", return_value={
             "state": "printing", "filename": "test.gcode"
         }):
-            with self.assertRaises(URLError):
+            with self.assertRaisesRegex(PrintControlError, "outcome unknown"):
                 execute_print_action(
                     "http://127.0.0.1:7125", "", "pause", "CONFIRM_PAUSE",
                     opener=fake_open)
+
+    def test_resume_timeout_is_uncertain_and_not_retried(self):
+        calls = []
+        def fake_open(req, timeout=10):
+            calls.append(req.full_url)
+            raise TimeoutError("response lost")
+        with patch("moonraker_print_control._state", return_value={
+            "state": "paused", "filename": "test.gcode"
+        }):
+            with self.assertRaisesRegex(PrintControlError, "outcome unknown"):
+                execute_print_action("http://127.0.0.1:7125", "", "resume",
+                                     "CONFIRM_RESUME", opener=fake_open)
+        self.assertEqual(len(calls), 1)
 
 if __name__ == "__main__":
     unittest.main()
