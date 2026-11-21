@@ -5,6 +5,7 @@ bundle=$(realpath "$1")
 data=$(mktemp -d)
 cleanup() {
     docker logs obsidian-livesync-smoke 2>&1 | tail -50 || true
+    docker logs obsidian-couchdb 2>&1 | tail -20 || true
     docker rm -f obsidian-livesync-smoke obsidian-couchdb >/dev/null 2>&1 || true
     docker network rm obsidian-livesync-ci >/dev/null 2>&1 || true
     rm -r -- "$data"
@@ -21,7 +22,7 @@ docker network create obsidian-livesync-ci
 couchdb=$(docker run -d --name obsidian-couchdb --network obsidian-livesync-ci \
     -p 127.0.0.1::5984 -e COUCHDB_USER=testadmin -e COUCHDB_PASSWORD=ci-password couchdb:3.4)
 couch="http://$(docker port "$couchdb" 5984/tcp)"
-curl -fsS --retry 25 --retry-connrefused --retry-delay 2 --max-time 3 "$couch/_up"
+curl -fsS --retry 25 --retry-all-errors --retry-delay 2 --max-time 3 "$couch/_up"
 curl -fsS -u testadmin:ci-password -H 'Content-Type: application/json' \
     --data '{"action":"enable_single_node","bind_address":"0.0.0.0","username":"testadmin","password":"ci-password","port":5984}' \
     "$couch/_cluster_setup"
