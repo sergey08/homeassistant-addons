@@ -1,5 +1,5 @@
 name: "Moonraker MCP Safe Print BETA"
-version: "0.1.5-beta.6"
+version: "0.1.5-beta.7"
 slug: "moonraker_mcp_safeprint_beta"
 description: "MCP bridge to Moonraker / Puente MCP para Moonraker"
 url: "https://github.com/sergey08/homeassistant-addons"
