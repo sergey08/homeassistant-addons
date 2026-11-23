@@ -1,0 +1,11 @@
+name: "Nod isolation preflight"
+version: "0.1.0-dev.1"
+slug: "nod_preflight"
+description: "Checks whether Nod's workspace can be isolated under Supervisor protection"
+url: "https://github.com/sergey08/homeassistant-addons/pull/139"
+arch:
+  - amd64
+startup: application
+boot: manual
+init: false
+stage: experimental
