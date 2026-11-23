@@ -1,0 +1,33 @@
+name: Build Nod isolation preflight
+
+on:
+  pull_request:
+    paths:
+      - 'nod_preflight/**'
+      - '.github/workflows/nod-preflight.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build diagnostic app
+        run: docker build --tag nod-preflight:ci nod_preflight
+      - name: Verify the probe runs and reports its outcome
+        run: |
+          docker run --detach --name nod-preflight nod-preflight:ci
+          for attempt in {1..15}; do
+            docker logs nod-preflight > probe.log 2>&1
+            if grep -Fq 'Probe finished.' probe.log; then
+              cat probe.log
+              grep -Eq '^(PASS|FAIL):' probe.log
+              exit $?
+            fi
+            sleep 1
+          done
+          cat probe.log
+          exit 1
