@@ -103,6 +103,7 @@ for expected in 'NOD_VM_DISK_(WRITTEN|READ)' NOD_VM_DISK_READ; do
         exit 1
     fi
 done
+/usr/local/bin/nod-engine-probe
 printf '%s\n' 'PASS: Linux guest recovered the disk marker after reboot and reached the restricted virtual gateway.'
 sleep infinity &
 idle_pid=$!
