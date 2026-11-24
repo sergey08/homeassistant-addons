@@ -12,18 +12,18 @@ permissions:
 jobs:
   guest-boot:
     runs-on: ubuntu-latest
-    timeout-minutes: 12
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - run: docker build -t nod-vm-preflight:ci nod_vm_preflight
       - name: Require guest boot marker
         run: |
           docker run -d --name nod-vm-preflight --network=none -e NOD_PROBE_ONLINE=0 nod-vm-preflight:ci
-          for attempt in {1..75}; do
+          for attempt in {1..180}; do
             docker logs nod-vm-preflight > guest.log 2>&1
             if grep -Eq '^(PASS|FAIL):' guest.log; then
               cat guest.log
-              grep -q '^PASS:' guest.log
+              grep -q '^PASS:' guest.log && grep -q '^NOD_ENGINE_PROBE_OK' guest.log
               exit $?
             fi
             sleep 2
