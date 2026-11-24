@@ -2,6 +2,8 @@
 set -eu
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 export DOCKER_HOST=unix:///run/docker.sock
+export COMPOSE_ANSI=never
+export COMPOSE_PROGRESS=plain
 trap 'rc=$?; if [ "$rc" -ne 0 ]; then echo "NOD_GUEST_FAILURE=$rc"; tail -n 40 /tmp/dockerd.log || true; fi; /bin/busybox poweroff -f; while :; do sleep 60; done' EXIT
 mount -t proc proc /proc
 mount -t sysfs sysfs /sys
@@ -56,7 +58,7 @@ for n in $(seq 1 10); do
 done
 grep -Fxq NOD_COMPOSE_PERSIST_V1 /tmp/response
 echo NOD_COMPOSE_NETWORK_OK
-docker compose down
+docker compose down --timeout 2
 kill -TERM "$daemon_pid"
 wait "$daemon_pid" || true
 sync
