@@ -6,6 +6,13 @@ trap 'exit 0' TERM INT
 trap 'rm -rf -- "$work"' EXIT
 mkdir -p "$work/root/bin" "$work/root/dev" "$work/root/modules" "$work/root/sys" "$work/root/proc" /data
 cp /bin/busybox "$work/root/bin/busybox"
+mkdir -p "$work/root/etc/ssl/certs" "$work/root/usr/bin"
+cp /usr/bin/curl "$work/root/usr/bin/curl"
+ldd /usr/bin/curl | awk '{for(i=1;i<=NF;i++) if ($i ~ /^\//) print $i}' | sort -u | while read -r lib; do
+    mkdir -p "$work/root$(dirname "$lib")"
+    cp -L "$lib" "$work/root$lib"
+done
+cp /etc/ssl/certs/ca-certificates.crt "$work/root/etc/ssl/certs/"
 
 set -- /boot/vmlinuz-*
 kernel=$1
@@ -44,6 +51,7 @@ else
     "$b" printf '%s\n' "$marker" | "$b" dd of=/dev/vda conv=fsync
     "$b" echo NOD_VM_DISK_WRITTEN
 fi
+"$b" mount -t proc proc /proc
 "$b" mount -t sysfs sysfs /sys
 iface=
 for attempt in 1 2 3 4 5; do
@@ -59,6 +67,12 @@ done
 "$b" ip route add default via 10.0.2.2
 "$b" ping -c 1 -W 3 10.0.2.2
 "$b" echo NOD_VM_GATEWAY_OK
+if "$b" grep -q nod_online=1 /proc/cmdline; then
+    /usr/bin/curl --fail --silent --show-error --max-time 20 --noproxy '*' --resolve cloudflare-dns.com:443:10.0.2.100 -H 'accept: application/dns-json' 'https://cloudflare-dns.com/dns-query?name=example.com&type=A' > /dns.json
+    "$b" grep -Eq '"Status"[[:space:]]*:[[:space:]]*0' /dns.json
+    "$b" grep -q '"Answer"' /dns.json
+    "$b" echo NOD_VM_DOH_HTTPS_OK
+fi
 "$b" poweroff -f
 GUEST
 chmod 0755 "$work/root/init"
@@ -68,14 +82,24 @@ disk=/data/nod-vm-probe.raw
 if [ ! -e "$disk" ]; then
     truncate -s 8M "$disk"
 fi
+network='user,model=virtio-net-pci,restrict=on'
+online=0
+if [ "${NOD_PROBE_ONLINE:-1}" = 1 ]; then
+    network="$network,guestfwd=tcp:10.0.2.100:443-cmd:/usr/bin/socat STDIO TCP:1.1.1.1:443"
+    online=1
+fi
 for expected in 'NOD_VM_DISK_(WRITTEN|READ)' NOD_VM_DISK_READ; do
     timeout 120 qemu-system-x86_64 -accel tcg -m 256 -smp 1 -display none -serial stdio \
-        -monitor none -nic user,model=virtio-net-pci,restrict=on -no-reboot -kernel "$kernel" -initrd "$work/initramfs.cpio" \
+        -monitor none -nic "$network" -no-reboot -kernel "$kernel" -initrd "$work/initramfs.cpio" \
         -drive "file=$disk,format=raw,if=virtio" \
-        -append 'console=ttyS0 quiet rdinit=/init panic=1' > "$work/guest.log" 2>&1 || true
+        -append "console=ttyS0 quiet rdinit=/init panic=1 nod_online=$online" > "$work/guest.log" 2>&1 || true
     tail -n 20 "$work/guest.log"
     if ! grep -Eq "^$expected[[:space:]]*$" "$work/guest.log" || ! grep -Eq "^NOD_VM_GATEWAY_OK[[:space:]]*$" "$work/guest.log"; then
         printf '%s\n' 'FAIL: Linux guest did not produce the expected disk and gateway markers.'
+        exit 1
+    fi
+    if [ "$online" = 1 ] && ! grep -Eq "^NOD_VM_DOH_HTTPS_OK[[:space:]]*$" "$work/guest.log"; then
+        echo 'FAIL: Restricted DNS-over-HTTPS probe failed.'
         exit 1
     fi
 done
