@@ -16,6 +16,12 @@ First evaluate running the upstream stack behind an isolated container engine on
 
 Test direct private HTTPS first. [Home Assistant Ingress](https://contributors.home-assistant.io/apps/guides/ingress/) serves a prefixed URL and [Nod requires an HTTPS origin without a path](https://nod.n8n.io/docs/deploy/configuration/) for remote access. Verify assets, session and callback behavior before enabling Ingress.
 
+### Model connection: ChatGPT subscription
+
+The primary beta acceptance target is the upstream OpenAI / ChatGPT sign-in using an existing ChatGPT Plus account, not an API key. Follow [upstream model setup](https://nod.n8n.io/docs/connect/models/). Do not collect or log OAuth tokens, passwords or callback URLs containing credentials. The owner completes sign-in in the official browser flow. Test model availability, a harmless chat, restart persistence and scheduled execution within the subscription limits. Do not claim access or zero additional charges until the actual connection has been verified. Use the documented private access mechanism before attempting Ingress.
+
+The next engineering gate is the VM disk probe on actual HA, followed by guest networking with no host Docker socket, host filesystem mounts or inbound public exposure. Upstream recommends two cores, 8 GB RAM and 50 GB disk as a starting point; measure available resources before provisioning the full guest.
+
 ### Beta acceptance
 
 1. Install and start from the app repository on an HA OS amd64 test instance. Check startup without host Docker or HA file mounts.
@@ -38,6 +44,12 @@ La [distribución de servidor de Nod](https://nod.n8n.io/docs/deploy/self-host/)
 Evaluar primero si el conjunto original puede arrancar con un motor de contenedores aislado dentro de un HA OS amd64 desechable. Comprobar si funciona con la protección del Supervisor activa, sin acceso al Docker del host ni a los archivos de HA. Conservar la separación entre servicios y redes de Nod. Si la prueba de aislamiento falla, mantener el conjunto original en una máquina virtual Linux separada y decidir aparte cómo integrarlo con HA.
 
 Probar primero el acceso privado por HTTPS. [Ingress de Home Assistant](https://contributors.home-assistant.io/apps/guides/ingress/) sirve la aplicación bajo una ruta, y [Nod exige un origen HTTPS sin ruta](https://nod.n8n.io/docs/deploy/configuration/) para el acceso remoto. Verificar carga de recursos, sesión y retornos de autenticación antes de activar Ingress.
+
+### Conexión del modelo: suscripción ChatGPT
+
+El objetivo prioritario de la beta es iniciar sesión con una cuenta ChatGPT Plus existente mediante la opción original OpenAI / ChatGPT, sin clave API. Seguir la [configuración oficial](https://nod.n8n.io/docs/connect/models/). No recopilar ni registrar tokens OAuth, contraseñas ni URL de retorno con credenciales. El propietario completa la autenticación en el navegador oficial. Comprobar modelos disponibles, una conversación inocua, persistencia tras reinicio y ejecución programada dentro de los límites de la suscripción. No garantizar acceso ni ausencia de cargos adicionales sin validar la conexión real. Utilizar el acceso privado documentado antes de probar Ingress.
+
+La siguiente fase técnica es comprobar el disco de la VM en HA real y después la red del invitado sin socket Docker del host, montajes de sus archivos ni exposición pública entrante. El proyecto original recomienda dos núcleos, 8 GB de RAM y 50 GB de disco como punto de partida; medir recursos disponibles antes de aprovisionar el invitado completo.
 
 ### Criterios de aceptación de la beta
 
