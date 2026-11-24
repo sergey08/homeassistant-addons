@@ -1,5 +1,5 @@
 name: "Nod VM preflight"
-version: "0.1.0-dev.13"
+version: "0.1.0-dev.14"
 slug: "nod_vm_preflight"
 description: "Tests booting an isolated Linux guest for Nod"
 url: "https://github.com/sergey08/homeassistant-addons/pull/139"
@@ -13,3 +13,6 @@ stage: experimental
 map:
   - type: addon_config
     read_only: true
+
+devices:
+  - /dev/kvm
