@@ -18,7 +18,7 @@ jobs:
       - run: docker build -t nod-vm-preflight:ci nod_vm_preflight
       - name: Require guest boot marker
         run: |
-          docker run -d --name nod-vm-preflight --network=none nod-vm-preflight:ci
+          docker run -d --name nod-vm-preflight --network=none -e NOD_PROBE_ONLINE=0 nod-vm-preflight:ci
           for attempt in {1..75}; do
             docker logs nod-vm-preflight > guest.log 2>&1
             if grep -Eq '^(PASS|FAIL):' guest.log; then
