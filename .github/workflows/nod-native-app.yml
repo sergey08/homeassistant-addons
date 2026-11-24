@@ -1,0 +1,35 @@
+name: Verify Nod native Home Assistant app
+on:
+  pull_request:
+    paths:
+      - 'nod_native_preflight/**'
+      - '.github/workflows/nod-native-app.yml'
+permissions:
+  contents: read
+jobs:
+  native-app:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t nod-native-app:ci nod_native_preflight
+      - name: Check native app offline
+        run: |
+          docker run -d --name nod-native-app --network none nod-native-app:ci
+          for attempt in {1..100}; do
+            docker logs nod-native-app > probe.log 2>&1
+            if grep -Eq '^(PASS|FAIL):' probe.log; then
+              cat probe.log
+              grep -q '^PASS:' probe.log && grep -q '^NOD_NATIVE_POSTGRES_OK' probe.log && grep -q '^NOD_NATIVE_SERVER_HEALTH_OK' probe.log
+              exit $?
+            fi
+            if [ "$(docker inspect -f '{{.State.Running}}' nod-native-app)" != true ]; then
+              cat probe.log
+              exit 1
+            fi
+            sleep 2
+          done
+          cat probe.log
+          exit 1
+      - if: always()
+        run: docker rm -f nod-native-app || true
