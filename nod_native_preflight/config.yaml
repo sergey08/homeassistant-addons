@@ -1,5 +1,5 @@
 name: "Nod native preflight"
-version: "0.1.0-dev.3"
+version: "0.1.0-dev.4"
 slug: "nod_native_preflight"
 description: "Experimental native Nod server and database health test"
 url: "https://github.com/sergey08/homeassistant-addons/pull/139"
@@ -15,3 +15,22 @@ ingress_port: 8099
 panel_title: Nod (diagnóstico)
 panel_icon: mdi:robot-outline
 panel_admin: true
+
+# No port is published until the administrator explicitly opts in.
+ports:
+  8443/tcp: null
+ports_description:
+  8443/tcp: "Optional private Nod HTTPS UI"
+map:
+  - type: addon_config
+    read_only: true
+options:
+  https_enabled: false
+  https_origin: "https://nod.home.arpa:8443"
+  lan_cidr: "192.168.1.0/24"
+  https_access_token: ""
+schema:
+  https_enabled: bool
+  https_origin: str
+  lan_cidr: str
+  https_access_token: password
