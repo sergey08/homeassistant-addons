@@ -37,13 +37,31 @@ def extract_members(entries, opener, dest):
 def unpack(source, dest):
     with zipfile.ZipFile(source) as z:
         members = [i for i in z.infolist() if not i.is_dir()]
-        if len(members) == 1 and members[0].filename.endswith((".tar.gz", ".tgz")):
-            i = members[0]
-            if i.file_size > LIMIT:
+        archive_name = "nod-server-linux-amd64-" + REV + ".tar.gz"
+        names = [i.filename for i in members]
+        if sorted(names) == sorted([archive_name, archive_name + ".sha256"]):
+            i = z.getinfo(archive_name)
+            checksum = z.getinfo(archive_name + ".sha256")
+            for item in (i, checksum):
+                if stat.S_IFMT(item.external_attr >> 16) not in (0, stat.S_IFREG):
+                    raise ValueError("Unsafe nested archive member")
+            if i.file_size > LIMIT or checksum.file_size > 4096:
                 raise ValueError("Nested archive size limit")
+            fields = z.read(checksum).decode("ascii").split()
+            if len(fields) != 2 or fields[1].lstrip("*") != archive_name:
+                raise ValueError("Unexpected nested checksum format")
+            digest = fields[0].lower()
+            if len(digest) != 64 or any(c not in "0123456789abcdef" for c in digest):
+                raise ValueError("Invalid nested checksum")
             with tempfile.TemporaryFile(dir=dest.parent) as tmp:
+                h = hashlib.sha256()
                 with z.open(i) as stream:
-                    shutil.copyfileobj(stream, tmp, 1024**2)
+                    while chunk := stream.read(1024**2):
+                        h.update(chunk)
+                        tmp.write(chunk)
+                if h.hexdigest() != digest:
+                    raise ValueError("Nested archive checksum mismatch")
+                print("NOD_NESTED_ARCHIVE_VERIFIED", flush=True)
                 tmp.seek(0)
                 with tarfile.open(fileobj=tmp, mode="r:gz") as t:
                     entries = [(m.name,m.size,m.isfile()) for m in t if not m.isdir()]
