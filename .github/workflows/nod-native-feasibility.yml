@@ -1,0 +1,66 @@
+name: Verify Nod native server feasibility
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/nod-native-feasibility.yml'
+      - 'nod_vm_preflight/NATIVE.md'
+
+permissions:
+  contents: read
+
+jobs:
+  native-server:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Build pinned upstream server without changes
+        run: |
+          docker build -f deployment/self-host/Dockerfile -t nod-native-probe:local https://github.com/n8n-io/nod.git#6670bc233b6b7dddaa75b25b89b4a89f0e92bcac
+      - name: Start PostgreSQL and server in isolated network
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker network create --internal nod-native-probe
+          password=$(openssl rand -hex 32)
+          token=$(openssl rand -hex 32)
+          vault=$(openssl rand -base64 32)
+          echo "::add-mask::$password"
+          echo "::add-mask::$token"
+          echo "::add-mask::$vault"
+          docker run -d --name nod-native-db --network nod-native-probe --network-alias postgres \
+            -e POSTGRES_USER=nod -e POSTGRES_DB=nod -e POSTGRES_PASSWORD="$password" \
+            postgres:17-alpine@sha256:eee6c6e1b0894fa4fe0075eb054af9fd1cf39a35321c2d4110626cfe506411fb
+          for i in {1..60}; do
+            if docker exec nod-native-db pg_isready -U nod -d nod; then break; fi
+            sleep 2
+          done
+          docker exec nod-native-db pg_isready -U nod -d nod
+          docker run -d --name nod-native-server --network nod-native-probe --init \
+            --cap-drop ALL --security-opt no-new-privileges --pids-limit 512 --memory 2g \
+            --read-only --tmpfs /tmp:uid=1000,gid=1000,mode=1777,size=256m \
+            --mount type=volume,source=nod-native-data,target=/var/lib/nod \
+            -e NOD_HOST=127.0.0.1 -e PORT=4310 -e NOD_PUBLIC_URL=http://localhost:4310 \
+            -e NOD_AUTH_TOKEN="$token" -e NOD_VAULT_KEY="$vault" \
+            -e DATABASE_URL="postgresql://nod:$password@postgres:5432/nod" \
+            -e DOCKER_HOST=tcp://127.0.0.1:2375 \
+            -e WORKSPACE_CONTAINER=nod-workspace-unavailable -e BROWSER_CONTAINER=nod-browser-unavailable \
+            nod-native-probe:local
+          for i in {1..90}; do
+            if docker exec nod-native-server node /app/healthcheck.mjs; then
+              echo NOD_NATIVE_SERVER_HEALTH_OK
+              exit 0
+            fi
+            if [ "$(docker inspect -f '{{.State.Running}}' nod-native-server)" != true ]; then break; fi
+            sleep 2
+          done
+          echo 'NOD_NATIVE_SERVER_HEALTH_FAILED'
+          exit 1
+      - name: Collect diagnostics and clean up
+        if: always()
+        run: |
+          docker inspect -f '{{.State.Status}} {{.State.ExitCode}} {{.State.OOMKilled}}' nod-native-server || true
+          docker logs --tail 80 nod-native-server 2>&1 || true
+          docker rm -f nod-native-server nod-native-db || true
+          docker volume rm nod-native-data || true
+          docker network rm nod-native-probe || true
