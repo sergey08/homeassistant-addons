@@ -20,8 +20,11 @@ def extract_members(entries, opener, dest):
         p = pathlib.PurePosixPath(name)
         if p.is_absolute() or ".." in p.parts or not regular:
             raise ValueError("Unsafe archive member")
-        if p.name not in FILES or p.name in seen:
-            raise ValueError("Unexpected or duplicate archive file")
+        if p.name not in FILES:
+            print("NOD_BUNDLE_EXTRA_SKIPPED="+repr(name), flush=True)
+            continue
+        if p.name in seen:
+            raise ValueError("Duplicate required archive file: "+repr(name))
         total += size
         if total > LIMIT or (p.name != "images.tar.gz" and size > 2*1024**2):
             raise ValueError("Archive size limit")
@@ -29,7 +32,7 @@ def extract_members(entries, opener, dest):
             shutil.copyfileobj(src, out, 1024**2)
         seen.add(p.name)
     if seen != FILES:
-        raise ValueError("Incomplete server bundle")
+        raise ValueError("Missing bundle files: "+repr(sorted(FILES-seen)))
 
 def unpack(source, dest):
     with zipfile.ZipFile(source) as z:
@@ -50,8 +53,10 @@ def unpack(source, dest):
     checks = {}
     for line in (dest/"checksums.sha256").read_text().splitlines():
         digest, name = line.split()
-        if name in checks or name not in FILES - {"checksums.sha256"}:
-            raise ValueError("Unexpected checksum entry")
+        if name not in FILES - {"checksums.sha256"}:
+            continue
+        if name in checks:
+            raise ValueError("Duplicate checksum entry")
         checks[name] = digest
     if set(checks) != FILES - {"checksums.sha256"}:
         raise ValueError("Incomplete checksums")
