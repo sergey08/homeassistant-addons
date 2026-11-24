@@ -5,9 +5,14 @@ root=/data/nod-native-v1
 mkdir -p "$root"
 chmod 0711 "$root"
 server_pid=
+ingress_pid=
 socket=$(mktemp -d /tmp/nod-pg.XXXXXX)
 chown postgres:postgres "$socket"
 cleanup() {
+    if [ -n "$ingress_pid" ]; then
+        kill "$ingress_pid" 2>/dev/null || true
+        wait "$ingress_pid" 2>/dev/null || true
+    fi
     if [ -n "$server_pid" ]; then
         kill "$server_pid" 2>/dev/null || true
         wait "$server_pid" 2>/dev/null || true
@@ -65,8 +70,16 @@ server_pid=$!
 for attempt in $(seq 1 90); do
     if gosu node node /app/healthcheck.mjs >/dev/null 2>&1; then
         echo NOD_NATIVE_SERVER_HEALTH_OK
+        env -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/home/node gosu node node /app/ingress.mjs &
+        ingress_pid=$!
+        for i in $(seq 1 10); do
+            if node -e 'fetch("http://127.0.0.1:8099/").then(r=>{process.exit(r.status===403?0:1)}).catch(()=>process.exit(1))'; then break; fi
+            sleep 1
+        done
+        node -e 'fetch("http://127.0.0.1:8099/").then(r=>{process.exit(r.status===403?0:1)}).catch(()=>process.exit(1))' || { echo 'FAIL: ingress access restriction'; exit 1; }
+        echo NOD_NATIVE_INGRESS_DIRECT_DENIED
         echo 'PASS: native Nod and PostgreSQL running persistently on loopback'
-        while kill -0 "$server_pid" 2>/dev/null && gosu postgres pg_ctl -D "$root/db" status >/dev/null 2>&1; do
+        while kill -0 "$server_pid" 2>/dev/null && kill -0 "$ingress_pid" 2>/dev/null && gosu postgres pg_ctl -D "$root/db" status >/dev/null 2>&1; do
             sleep 5 &
             wait $!
         done
