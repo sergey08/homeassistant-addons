@@ -58,6 +58,7 @@ jobs:
           chmod 0755 "$RUNNER_TEMP/nod-https-run.sh"
           grep -q 'NOD_PUBLIC_URL=https://nod.test:8443' "$RUNNER_TEMP/nod-https-run.sh"
           start_and_check NOD_NATIVE_STORAGE_REUSED --mount "type=bind,source=$RUNNER_TEMP/nod-https-run.sh,target=/usr/local/bin/nod-native-preflight,readonly"
+          docker cp nod_native_preflight/https-relay.mjs nod-native-app:/tmp/nod-https-relay.mjs
           docker exec -i nod-native-app node --input-type=module < nod_native_preflight/check-https.mjs
       - if: always()
         run: |
