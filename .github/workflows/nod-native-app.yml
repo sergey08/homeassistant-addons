@@ -18,7 +18,8 @@ jobs:
           set -euo pipefail
           docker volume create nod-native-ci-data
           start_and_check() {
-            docker run -d --name nod-native-app --network none -v nod-native-ci-data:/data nod-native-app:ci
+            local marker="$1"; shift
+            docker run -d --name nod-native-app --network none -v nod-native-ci-data:/data "$@" nod-native-app:ci
             for attempt in {1..110}; do
               docker logs nod-native-app > probe.log 2>&1
               if grep -q '^FAIL:' probe.log; then cat probe.log; return 1; fi
@@ -28,7 +29,7 @@ jobs:
                 grep -q '^NOD_NATIVE_SERVER_HEALTH_OK' probe.log
                 grep -q '^NOD_NATIVE_INGRESS_LISTENING' probe.log
                 grep -q '^NOD_NATIVE_INGRESS_DIRECT_DENIED' probe.log
-                grep -q "^$1" probe.log
+                grep -q "^$marker" probe.log
                 return
               fi
               if [ "$(docker inspect -f '{{.State.Running}}' nod-native-app)" != true ]; then cat probe.log; return 1; fi
@@ -50,6 +51,14 @@ jobs:
           value=$(docker exec nod-native-app sh -ec 'socket=$(find /tmp -maxdepth 1 -type d -name "nod-pg.*" | head -n 1); gosu postgres psql -h "$socket" -U postgres -d postgres -Atc "SELECT value FROM nod_native_ci_probe"')
           test "$value" = 42
           echo NOD_NATIVE_RESTART_PERSISTENCE_OK
+          # Test a dedicated HTTPS origin without altering the deployed run script.
+          docker stop -t 30 nod-native-app
+          docker rm nod-native-app
+          sed 's@NOD_PUBLIC_URL=http://localhost:4310@NOD_PUBLIC_URL=https://nod.test:8443@' nod_native_preflight/run.sh > "$RUNNER_TEMP/nod-https-run.sh"
+          chmod 0755 "$RUNNER_TEMP/nod-https-run.sh"
+          grep -q 'NOD_PUBLIC_URL=https://nod.test:8443' "$RUNNER_TEMP/nod-https-run.sh"
+          start_and_check NOD_NATIVE_STORAGE_REUSED --mount "type=bind,source=$RUNNER_TEMP/nod-https-run.sh,target=/usr/local/bin/nod-native-preflight,readonly"
+          docker exec -i nod-native-app node --input-type=module < nod_native_preflight/check-https.mjs
       - if: always()
         run: |
           docker rm -f nod-native-app || true
