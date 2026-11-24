@@ -6,9 +6,16 @@ mkdir -p "$root"
 chmod 0711 "$root"
 server_pid=
 ingress_pid=
+relay_pid=
+relay_origin=
 socket=$(mktemp -d /tmp/nod-pg.XXXXXX)
 chown postgres:postgres "$socket"
 cleanup() {
+    if [ -n "$relay_pid" ]; then
+        kill "$relay_pid" 2>/dev/null || true
+        wait "$relay_pid" 2>/dev/null || true
+    fi
+    rm -rf /run/nod-relay
     if [ -n "$ingress_pid" ]; then
         kill "$ingress_pid" 2>/dev/null || true
         wait "$ingress_pid" 2>/dev/null || true
@@ -61,6 +68,14 @@ gosu postgres pg_ctl -D "$root/db" -l "$root/db/server.log" -o "-h 127.0.0.1 -p 
 } | gosu postgres psql -h "$socket" -U postgres -v ON_ERROR_STOP=1 -q postgres >/dev/null
 echo NOD_NATIVE_POSTGRES_OK
 export NODE_ENV=production NOD_ENVIRONMENT=production NOD_HOST=127.0.0.1 PORT=4310 NOD_PUBLIC_URL=http://localhost:4310
+if [ -f /data/options.json ]; then
+    relay_origin=$(node /app/relay-config.mjs) || { echo 'FAIL: invalid HTTPS configuration'; exit 1; }
+fi
+if [ -n "$relay_origin" ]; then
+    NOD_PUBLIC_URL="$relay_origin"
+    token=$(cat /run/nod-relay/token)
+    rm -f /run/nod-relay/token
+fi
 export NOD_DATA_ROOT="$root/nod" NOD_AUTH_TOKEN="$token" NOD_VAULT_KEY="$vault"
 export DATABASE_URL="postgresql://nod:$password@127.0.0.1:5432/nod"
 export DOCKER_HOST=tcp://127.0.0.1:2375 WORKSPACE_CONTAINER=nod-workspace-unavailable BROWSER_CONTAINER=nod-browser-unavailable
@@ -70,6 +85,15 @@ server_pid=$!
 for attempt in $(seq 1 90); do
     if gosu node node /app/healthcheck.mjs >/dev/null 2>&1; then
         echo NOD_NATIVE_SERVER_HEALTH_OK
+        if [ -n "$relay_origin" ]; then
+            env -i PATH=/usr/local/bin:/usr/bin:/bin gosu nodrelay node /app/relay-start.mjs &
+            relay_pid=$!
+            for i in $(seq 1 10); do
+                if node -e 'const s=require("node:net").connect(8443,"127.0.0.1");s.on("connect",()=>{s.destroy();process.exit(0)});s.on("error",()=>process.exit(1))'; then break; fi
+                sleep 1
+            done
+            node -e 'const s=require("node:net").connect(8443,"127.0.0.1");s.on("connect",()=>{s.destroy();process.exit(0)});s.on("error",()=>process.exit(1))' || { echo 'FAIL: HTTPS relay not listening'; exit 1; }
+        fi
         env -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/home/node gosu node node /app/ingress.mjs &
         ingress_pid=$!
         for i in $(seq 1 10); do
@@ -79,7 +103,7 @@ for attempt in $(seq 1 90); do
         node -e 'fetch("http://127.0.0.1:8099/").then(r=>{process.exit(r.status===403?0:1)}).catch(()=>process.exit(1))' || { echo 'FAIL: ingress access restriction'; exit 1; }
         echo NOD_NATIVE_INGRESS_DIRECT_DENIED
         echo 'PASS: native Nod and PostgreSQL running persistently on loopback'
-        while kill -0 "$server_pid" 2>/dev/null && kill -0 "$ingress_pid" 2>/dev/null && gosu postgres pg_ctl -D "$root/db" status >/dev/null 2>&1; do
+        while kill -0 "$server_pid" 2>/dev/null && kill -0 "$ingress_pid" 2>/dev/null && { [ -z "$relay_pid" ] || kill -0 "$relay_pid" 2>/dev/null; } && gosu postgres pg_ctl -D "$root/db" status >/dev/null 2>&1; do
             sleep 5 &
             wait $!
         done
