@@ -13,8 +13,8 @@ isolation_check() {
 
 if [ "${1:-}" = "--engine" ]; then
     export XDG_RUNTIME_DIR=/home/probe/runtime
-    podman --storage-driver=vfs import /usr/local/share/nod-probe-rootfs.tar localhost/nod-preflight:probe
-    podman --storage-driver=vfs run --rm --pull=never --network=none --cgroups=disabled \
+    podman --storage-driver=vfs --storage-opt vfs.ignore_chown_errors=true import /usr/local/share/nod-probe-rootfs.tar localhost/nod-preflight:probe
+    podman --storage-driver=vfs --storage-opt vfs.ignore_chown_errors=true run --rm --pull=never --network=none --cgroups=disabled \
         --cap-drop=all localhost/nod-preflight:probe /bin/busybox echo NOD_ENGINE_OK
     exit 0
 fi
@@ -30,7 +30,7 @@ if [ -S /var/run/docker.sock ] || [ -S /run/docker.sock ]; then
 elif su -s /bin/sh probe -c '/usr/local/bin/nod-preflight --probe'; then
     printf '%s\n' 'PASS: a non-root process created a private network namespace and installed IPv4 filtering rules.'
     if timeout 90 su -s /bin/sh probe -c '/usr/local/bin/nod-preflight --engine'; then
-        printf '%s\n' 'PASS: rootless Podman launched an offline OCI container.'
+        printf '%s\n' 'PASS: single-UID rootless Podman launched an offline OCI container.'
     else
         printf '%s\n' 'FAIL: rootless Podman could not launch the OCI container. See the error above.'
     fi
