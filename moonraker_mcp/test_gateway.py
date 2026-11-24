@@ -324,9 +324,9 @@ class GatewayTests(unittest.TestCase):
         self.assertNotIn("moonraker_spoolman_status", history)
         all_profiles = extend_allowed(
             self.allowed, ["history", "sensors", "spoolman", "power"])
-        self.assertEqual(len(all_profiles), 15)
+        self.assertEqual(len(all_profiles), 16)
         self.assertIn("moonraker_spoolman_inventory", all_profiles)
-        self.assertEqual(len(extend_allowed(self.allowed, ["jobqueue", "objects", "history", "sensors", "spoolman", "power"])), 18)
+        self.assertEqual(len(extend_allowed(self.allowed, ["jobqueue", "objects", "history", "sensors", "spoolman", "power"])), 19)
         for invalid in (["admin"], ["history", "admin"], "history", [None]):
             with self.subTest(invalid=invalid), self.assertRaises(PolicyError):
                 extend_allowed(self.allowed, invalid)
@@ -354,6 +354,30 @@ class GatewayTests(unittest.TestCase):
                 check_message({"jsonrpc": "2.0", "id": 2, "method": "tools/call",
                                "params": {"name": "moonraker_spoolman_inventory",
                                           "arguments": arguments}}, enabled)
+
+    def test_filament_preflight_requires_spoolman_profile_and_strict_mapping(self):
+        from gateway import LOCAL_PREFLIGHT_TOOL
+        self.assertNotIn(LOCAL_PREFLIGHT_TOOL, self.allowed)
+        enabled = extend_allowed(self.allowed, ["spoolman"])
+        upstream = {"result": {"tools": []}}
+        self.assertNotIn(LOCAL_PREFLIGHT_TOOL,
+                         [t["name"] for t in filter_reply("tools/list", upstream, self.allowed)["result"]["tools"]])
+        self.assertEqual(sum(t["name"] == LOCAL_PREFLIGHT_TOOL for t in
+                             filter_reply("tools/list", upstream, enabled)["result"]["tools"]), 1)
+        args = {"requirements_g": {"T0": 150}, "spool_ids": {"T0": 12}}
+        def msg(v):
+            return {"jsonrpc": "2.0", "id": 99, "method": "tools/call",
+                    "params": {"name": LOCAL_PREFLIGHT_TOOL, "arguments": v}}
+        self.assertEqual(check_message(msg(args), enabled), "tools/call")
+        with self.assertRaises(PolicyError):
+            check_message(msg(args), self.allowed)
+        for bad in ({"requirements_g": {"T4": 40}, "spool_ids": {}},
+                    {"requirements_g": {"T0": -1}, "spool_ids": {}},
+                    {"requirements_g": {"T0": 50}, "spool_ids": {"T0": True}},
+                    {"requirements_g": {"T0": 50}, "spool_ids": {}, "url": "https://example.com"},
+                    {"requirements_g": {"T0": 50}, "spool_ids": {"T1": 2}}):
+            with self.subTest(bad=bad), self.assertRaises((PolicyError, ValueError)):
+                check_message(msg(bad), enabled)
 
     def test_u1_status_tools_opt_in_and_no_arbitrary_arguments(self):
         from gateway import LOCAL_U1_TOOLS

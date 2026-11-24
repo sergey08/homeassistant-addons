@@ -14,7 +14,7 @@ OPTIONAL_PROFILES = {
     "history": frozenset(("moonraker_history_list", "moonraker_history_job", "moonraker_history_totals")),
     "sensors": frozenset(("moonraker_sensors_info", "moonraker_sensors_list", "moonraker_sensors_measurements")),
     "spoolman": frozenset(("moonraker_spoolman_status", "moonraker_spoolman_get_spool",
-                           "moonraker_spoolman_inventory")),
+                           "moonraker_spoolman_inventory", "moonraker_filament_preflight")),
     "power": frozenset(("moonraker_power_status",)),
     "u1_status": frozenset(("moonraker_print_snapshot", "moonraker_filament_slots")),
     "print_pause": frozenset(("moonraker_safe_print_pause",)),
