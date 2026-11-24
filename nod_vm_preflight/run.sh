@@ -18,16 +18,7 @@ timeout 120 qemu-system-x86_64 -accel tcg -m 256 -smp 1 -display none -serial st
     -monitor none -nic none -no-reboot -kernel "$1" -initrd "$work/initramfs.cpio" \
     -append 'console=ttyS0 quiet rdinit=/init panic=1' > "$work/guest.log" 2>&1 || true
 tail -n 20 "$work/guest.log"
-if grep -q '^NOD_VM_GUEST_BOOTED[[:space:]]* "$work/guest.log"; then
-    printf '%s\n' 'PASS: QEMU booted a Linux guest under software emulation.'
-else
-    printf '%s\n' 'FAIL: Linux guest boot marker missing.'
-fi
-sleep infinity &
-idle_pid=$!
-trap 'kill "$idle_pid" 2>/dev/null || true; exit 0' TERM INT
-wait "$idle_pid"
- "$work/guest.log"; then
+if grep -q '^NOD_VM_GUEST_BOOTED[[:space:]]*$' "$work/guest.log"; then
     printf '%s\n' 'PASS: QEMU booted a Linux guest under software emulation.'
 else
     printf '%s\n' 'FAIL: Linux guest boot marker missing.'
