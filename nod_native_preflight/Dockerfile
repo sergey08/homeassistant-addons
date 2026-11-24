@@ -18,6 +18,8 @@ COPY --from=build --chown=node:node /app/dist ./dist
 COPY --from=build --chown=node:node /app/docs/src/content/docs ./docs/src/content/docs
 COPY --from=build /app/deployment/self-host/healthcheck.mjs ./healthcheck.mjs
 COPY --from=build /app/LICENSE /usr/share/doc/nod/LICENSE
+COPY ingress.mjs /app/ingress.mjs
+RUN node --check /app/ingress.mjs
 COPY run.sh /usr/local/bin/nod-native-preflight
 RUN chmod 0755 /usr/local/bin/nod-native-preflight && sh -n /usr/local/bin/nod-native-preflight && node --version && postgres --version
 ENTRYPOINT ["/usr/local/bin/nod-native-preflight"]
