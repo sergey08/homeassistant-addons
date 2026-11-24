@@ -21,6 +21,8 @@ mkdirSync(root,{recursive:true,mode:0o750});chownSync(root,0,gid);chmodSync(root
 for(const [name,data] of [['cert.pem',cert],['key.pem',key],['settings.json',JSON.stringify({origin:origin.origin,cidr:opts.lan_cidr})]]){
   const file=root+'/'+name;
   writeFileSync(file,data,{mode:0o640,flag:'wx'});chownSync(file,0,gid);
+  // The entrypoint has umask 077: explicitly grant only the dedicated relay group read access.
+  chmodSync(file,0o640);
 }
 writeFileSync(root+'/token',opts.https_access_token,{mode:0o600,flag:'wx'});
 process.stdout.write(origin.origin);
