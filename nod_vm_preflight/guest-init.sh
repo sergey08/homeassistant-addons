@@ -67,6 +67,24 @@ done
 [ -n "$iface" ]
 ip link set "$iface" up
 ip addr add 10.0.2.15/24 dev "$iface"
+# A fixed relay tests TLS from a disposable container, not unrestricted routing.
+if grep -qw nod_online=1 /proc/cmdline; then
+    mkdir -p /tmp/nod-tls/bin /tmp/nod-tls/usr/bin /tmp/nod-tls/etc/ssl/certs
+    cp /usr/bin/curl /tmp/nod-tls/usr/bin/
+    cp /etc/ssl/certs/ca-certificates.crt /tmp/nod-tls/etc/ssl/certs/
+    ldd /usr/bin/curl | awk '{for(i=1;i<=NF;i++) if ($i ~ /^\//) print $i}' | sort -u | while read -r lib; do
+        mkdir -p "/tmp/nod-tls$(dirname "$lib")"
+        cp -L "$lib" "/tmp/nod-tls$lib"
+    done
+    tar -C /tmp/nod-tls -cf /tmp/nod-tls.tar .
+    docker import /tmp/nod-tls.tar nod-tls-probe:local >/dev/null
+    docker run --rm --network host nod-tls-probe:local /usr/bin/curl --noproxy '*' --fail --silent --show-error --max-time 20 --resolve cloudflare-dns.com:443:10.0.2.100 -H 'accept: application/dns-json' 'https://cloudflare-dns.com/dns-query?name=example.com&type=A' > /tmp/nod-doh.json
+    grep -Eq '"Status"[[:space:]]*:[[:space:]]*0' /tmp/nod-doh.json
+    grep -q '"Answer"' /tmp/nod-doh.json
+    echo NOD_CONTAINER_TLS_OK
+else
+    echo NOD_CONTAINER_TLS_OFFLINE
+fi
 mkdir -p /tmp/nod-http
 printf '%s\n' NOD_HTTP_TRANSPORT_V1 > /tmp/nod-http/index.html
 docker run -d --name nod-http-probe --network host -v /tmp/nod-http:/www:ro nod-probe:local /bin/busybox httpd -f -p 10.0.2.15:4310 -h /www >/dev/null
