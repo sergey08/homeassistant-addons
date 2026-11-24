@@ -23,7 +23,7 @@ jobs:
             docker logs nod-vm-preflight > guest.log 2>&1
             if grep -Eq '^(PASS|FAIL):' guest.log; then
               cat guest.log
-              grep -q '^PASS:' guest.log && grep -q '^NOD_ENGINE_PROBE_OK' guest.log && grep -q '^NOD_COMPOSE_VOLUME_READ' guest.log && test "$(grep -c '^NOD_HTTP_TRANSPORT_OK' guest.log)" -eq 2
+              grep -q '^PASS:' guest.log && grep -q '^NOD_ENGINE_PROBE_OK' guest.log && grep -q '^NOD_COMPOSE_VOLUME_READ' guest.log && test "$(grep -c '^NOD_HTTP_TRANSPORT_OK' guest.log)" -eq 2 && test "$(grep -c '^NOD_CONTAINER_TLS_OFFLINE' guest.log)" -eq 2
               exit $?
             fi
             sleep 2
