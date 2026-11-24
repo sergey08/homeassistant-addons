@@ -23,6 +23,29 @@ for n in $(seq 1 60); do
 done
 if ! docker version --format '{{.Server.Version}}'; then cat /tmp/docker-version.log; exit 1; fi
 printf "%s\n" NOD_GUEST_DOCKER_READY
+if grep -qw nod_bundle=1 /proc/cmdline; then
+    cd /opt/nod-bundle
+    docker image load --input images.tar.gz
+    count=0
+    for kind in server browser workspace; do
+        line=$(awk -v prefix="nod-$kind:bundle-" 'index($1,prefix)==1 {print}' images.txt)
+        [ "$(printf '%s\n' "$line" | wc -l)" = 1 ]
+        read -r reference config target <<EOF
+$line
+EOF
+        actual=$(docker image inspect --format '{{.Id}} {{.Os}}/{{.Architecture}} {{index .Config.Labels "org.opencontainers.image.revision"}}' "$reference")
+        rev=6670bc233b6b7dddaa75b25b89b4a89f0e92bcac
+        [ "$actual" = "$config linux/amd64 $rev" ] || [ "$actual" = "$target linux/amd64 $rev" ]
+        echo "NOD_IMAGE_VERIFIED=$kind"
+        count=$((count+1))
+    done
+    [ "$count" = 3 ]
+    kill -TERM "$daemon_pid"
+    wait "$daemon_pid" || true
+    sync
+    echo NOD_REAL_IMAGES_OK
+    exit 0
+fi
 cp /bin/busybox /tmp/nod-root/bin/busybox
 tar -C /tmp/nod-root -cf /tmp/nod-root.tar .
 docker import /tmp/nod-root.tar nod-probe:local >/dev/null
