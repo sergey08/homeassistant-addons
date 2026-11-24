@@ -58,6 +58,21 @@ for n in $(seq 1 10); do
 done
 grep -Fxq NOD_COMPOSE_PERSIST_V1 /tmp/response
 echo NOD_COMPOSE_NETWORK_OK
+# Exercise the production-facing HTTP transport without exposing a host port.
+modprobe virtio_net
+iface=
+for dev in /sys/class/net/*; do
+    case "${dev##*/}" in eth*|en*) iface=${dev##*/};; esac
+done
+[ -n "$iface" ]
+ip link set "$iface" up
+ip addr add 10.0.2.15/24 dev "$iface"
+mkdir -p /tmp/nod-http
+printf '%s\n' NOD_HTTP_TRANSPORT_V1 > /tmp/nod-http/index.html
+docker run -d --name nod-http-probe --network host -v /tmp/nod-http:/www:ro nod-probe:local /bin/busybox httpd -f -p 10.0.2.15:4310 -h /www >/dev/null
+echo NOD_HTTP_GUEST_READY
+sleep 25
+docker rm -f nod-http-probe >/dev/null
 docker compose down --timeout 2
 kill -TERM "$daemon_pid"
 wait "$daemon_pid" || true
