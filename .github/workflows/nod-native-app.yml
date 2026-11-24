@@ -13,23 +13,41 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: docker build -t nod-native-app:ci nod_native_preflight
-      - name: Check native app offline
+      - name: Check persistent native app across container replacement
         run: |
-          docker run -d --name nod-native-app --network none nod-native-app:ci
-          for attempt in {1..100}; do
-            docker logs nod-native-app > probe.log 2>&1
-            if grep -Eq '^(PASS|FAIL):' probe.log; then
-              cat probe.log
-              grep -q '^PASS:' probe.log && grep -q '^NOD_NATIVE_POSTGRES_OK' probe.log && grep -q '^NOD_NATIVE_SERVER_HEALTH_OK' probe.log
-              exit $?
-            fi
-            if [ "$(docker inspect -f '{{.State.Running}}' nod-native-app)" != true ]; then
-              cat probe.log
-              exit 1
-            fi
-            sleep 2
-          done
-          cat probe.log
-          exit 1
+          set -euo pipefail
+          docker volume create nod-native-ci-data
+          start_and_check() {
+            docker run -d --name nod-native-app --network none -v nod-native-ci-data:/data nod-native-app:ci
+            for attempt in {1..110}; do
+              docker logs nod-native-app > probe.log 2>&1
+              if grep -q '^FAIL:' probe.log; then cat probe.log; return 1; fi
+              if grep -q '^PASS:' probe.log; then
+                cat probe.log
+                grep -q '^NOD_NATIVE_POSTGRES_OK' probe.log
+                grep -q '^NOD_NATIVE_SERVER_HEALTH_OK' probe.log
+                grep -q "^$1" probe.log
+                return
+              fi
+              if [ "$(docker inspect -f '{{.State.Running}}' nod-native-app)" != true ]; then cat probe.log; return 1; fi
+              sleep 2
+            done
+            cat probe.log
+            return 1
+          }
+          start_and_check NOD_NATIVE_STORAGE_CREATED
+          docker exec nod-native-app gosu postgres psql -h 127.0.0.1 -U postgres -d postgres -c 'SELECT 1' >/dev/null 2>&1 || true
+          docker exec nod-native-app sh -ec 'socket=$(find /tmp -maxdepth 1 -type d -name "nod-pg.*" | head -n 1); gosu postgres psql -h "$socket" -U postgres -v ON_ERROR_STOP=1 -d postgres -c "CREATE TABLE nod_native_ci_probe (value integer); INSERT INTO nod_native_ci_probe VALUES (42);"'
+          fingerprint=$(docker exec nod-native-app sha256sum /data/nod-native-v1/secrets)
+          docker stop -t 30 nod-native-app
+          test "$(docker inspect -f '{{.State.ExitCode}}' nod-native-app)" = 0
+          docker rm nod-native-app
+          start_and_check NOD_NATIVE_STORAGE_REUSED
+          test "$fingerprint" = "$(docker exec nod-native-app sha256sum /data/nod-native-v1/secrets)"
+          value=$(docker exec nod-native-app sh -ec 'socket=$(find /tmp -maxdepth 1 -type d -name "nod-pg.*" | head -n 1); gosu postgres psql -h "$socket" -U postgres -d postgres -Atc "SELECT value FROM nod_native_ci_probe"')
+          test "$value" = 42
+          echo NOD_NATIVE_RESTART_PERSISTENCE_OK
       - if: always()
-        run: docker rm -f nod-native-app || true
+        run: |
+          docker rm -f nod-native-app || true
+          docker volume rm nod-native-ci-data || true
