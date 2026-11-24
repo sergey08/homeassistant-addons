@@ -2,6 +2,8 @@
 
 ## English
 
+Version 0.1.0-dev.7 adds a persistent, dedicated 3 GiB Debian probe disk in /data, Docker Compose, two local test containers on an internal Docker network, HTTP service discovery and a named volume tested across two guest boots. The guest still has no external NIC. The disk is a test artifact, not a production Nod disk; this version does not test upgrade migration.
+
 Version 0.1.0-dev.6 tests one virtual CPU with single-threaded TCG and a hard timeout after the real HA dev.5 guest reported CPU stalls and containerd startup timeout. No change to Supervisor protection.
 
 Version 0.1.0-dev.5 additionally boots a disposable Debian guest with 2 GiB RAM, two virtual CPUs and an ephemeral 3 GiB disk, starts its own Docker daemon with networking disabled, and runs a locally imported BusyBox container. This is an offline engine test, not Nod or persistent guest storage.
@@ -11,6 +13,8 @@ Version 0.1.0-dev.4 adds a TLS-verified DNS-over-HTTPS query for example.com via
 Version 0.1.0-dev.3 boots a minimal QEMU Linux guest (one virtual CPU, 256 MiB RAM), checks the persistent 8 MiB disk across two boots, and tests the restricted virtual gateway at 10.0.2.2. QEMU user networking uses restrict=on without port forwarding. No host Docker socket, host devices or other app data are mounted. This is not an Internet, DNS, HTTPS or full security test. Start manually with Supervisor protection enabled, check the PASS marker in the logs, then stop the app. Nod itself is not included.
 
 ## Español
+
+La versión 0.1.0-dev.7 añade un disco de prueba Debian dedicado y persistente de 3 GiB en /data, Docker Compose, dos contenedores locales en una red interna, descubrimiento de servicio HTTP y un volumen comprobado en dos arranques. El invitado sigue sin interfaz de red externa. El disco es de pruebas, no de producción de Nod; no se valida la migración entre versiones.
 
 La versión 0.1.0-dev.6 prueba una CPU virtual y TCG de un solo hilo con límite de tiempo forzado tras los bloqueos de CPU y el timeout de containerd de dev.5 en HA real. No cambia la protección del Supervisor.
 
