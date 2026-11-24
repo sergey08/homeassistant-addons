@@ -2,6 +2,8 @@
 
 ## English
 
+Dev.10 stages the official AMD64 artifact 14920995103, revision 6670bc233b6b7dddaa75b25b89b4a89f0e92bcac, from the app-only read-only /config folder into /data/nod-bundles. Requires original ZIP name nod-server-linux-amd64-6670bc233b6b7dddaa75b25b89b4a89f0e92bcac.zip. Verifies size and pinned SHA-256 before atomic cache publication. Missing package reports NOD_BUNDLE_PENDING; invalid package fails. No extraction or execution of bundle yet.
+
 Dev.9 tests certificate-verified HTTPS from a disposable Docker container using guest host networking and a fixed QEMU relay to 1.1.1.1:443. Offline CI checks the offline marker only; real HA must report NOD_CONTAINER_TLS_OK twice. No general egress, bridge NAT, or LAN access is enabled. A new dedicated probe disk preserves earlier disks.
 
 Dev.8 tests guest HTTP access through a QEMU loopback-only forwarding rule (127.0.0.1:14310), still with restrict=on and no general egress. Uses a new dedicated test disk; preserves the dev.7 disk. Nod upstream revision reviewed: 40956c97754477cfecbeccf26f212b33d4e709d3, deployment/self-host. Actual Nod, external access, and HA Ingress path compatibility are not yet tested.
@@ -17,6 +19,8 @@ Version 0.1.0-dev.4 adds a TLS-verified DNS-over-HTTPS query for example.com via
 Version 0.1.0-dev.3 boots a minimal QEMU Linux guest (one virtual CPU, 256 MiB RAM), checks the persistent 8 MiB disk across two boots, and tests the restricted virtual gateway at 10.0.2.2. QEMU user networking uses restrict=on without port forwarding. No host Docker socket, host devices or other app data are mounted. This is not an Internet, DNS, HTTPS or full security test. Start manually with Supervisor protection enabled, check the PASS marker in the logs, then stop the app. Nod itself is not included.
 
 ## Español
+
+Dev.10 prepara el artefacto oficial AMD64 14920995103 desde /config (solo lectura y exclusivo de la aplicación) hacia /data/nod-bundles. Nombre ZIP original nod-server-linux-amd64-6670bc233b6b7dddaa75b25b89b4a89f0e92bcac.zip. Comprueba tamaño y SHA-256 fijado antes de publicar la copia en caché de forma atómica. Si falta, emite NOD_BUNDLE_PENDING; si es inválido, falla. Todavía no extrae ni ejecuta Nod.
 
 Dev.9 comprueba HTTPS con validación de certificado desde un contenedor Docker desechable con red del invitado y relé QEMU fijo a 1.1.1.1:443. CI sin red solo comprueba la marca offline; HA real debe emitir NOD_CONTAINER_TLS_OK dos veces. No habilita salida general, NAT de redes bridge ni acceso LAN. Nuevo disco de prueba dedicado que conserva los anteriores.
 
