@@ -105,6 +105,12 @@ for expected in 'NOD_VM_DISK_(WRITTEN|READ)' NOD_VM_DISK_READ; do
     fi
 done
 /usr/local/bin/nod-engine-probe
+bundle=/data/nod-bundles/nod-server-linux-amd64-6670bc233b6b7dddaa75b25b89b4a89f0e92bcac.zip
+if [ -f "$bundle" ]; then
+    /usr/local/bin/nod-bundle-probe "$bundle"
+else
+    echo NOD_REAL_IMAGES_PENDING
+fi
 printf '%s\n' 'PASS: Linux guest recovered the disk marker after reboot and reached the restricted virtual gateway.'
 sleep infinity &
 idle_pid=$!
