@@ -26,6 +26,8 @@ jobs:
                 cat probe.log
                 grep -q '^NOD_NATIVE_POSTGRES_OK' probe.log
                 grep -q '^NOD_NATIVE_SERVER_HEALTH_OK' probe.log
+                grep -q '^NOD_NATIVE_INGRESS_LISTENING' probe.log
+                grep -q '^NOD_NATIVE_INGRESS_DIRECT_DENIED' probe.log
                 grep -q "^$1" probe.log
                 return
               fi
