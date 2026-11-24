@@ -107,7 +107,7 @@ done
 /usr/local/bin/nod-engine-probe
 bundle=/data/nod-bundles/nod-server-linux-amd64-6670bc233b6b7dddaa75b25b89b4a89f0e92bcac.zip
 if [ -f "$bundle" ]; then
-    /usr/local/bin/nod-bundle-probe "$bundle"
+    /usr/local/bin/nod-engine-probe --bundle "$bundle"
 else
     echo NOD_REAL_IMAGES_PENDING
 fi
