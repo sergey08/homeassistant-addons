@@ -1,6 +1,7 @@
 #!/bin/sh
 set -eu
 
+python3 /usr/local/bin/nod-stage-bundle.py || { echo 'FAIL: bundle verification'; exit 1; }
 work=$(mktemp -d)
 trap 'exit 0' TERM INT
 trap 'rm -rf -- "$work"' EXIT
