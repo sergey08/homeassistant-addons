@@ -39,14 +39,27 @@ INIT
 chmod 0755 "$work/init/init"
 (cd "$work/init" && find . -print | cpio -o -H newc) > "$work/init.cpio"
 mkdir -p /data
-disk=/data/nod-compose-probe-v1.raw
+disk=/data/nod-compose-probe-v2.raw
 if [ ! -e "$disk" ]; then
     truncate -s 3G "$work/guest.raw"
     mke2fs -q -F -t ext4 -d /opt/nod-guest-root "$work/guest.raw"
     mv "$work/guest.raw" "$disk"
 fi
 for expected in 'NOD_COMPOSE_VOLUME_(WRITTEN|READ)' NOD_COMPOSE_VOLUME_READ; do
-    timeout -k 10s 240s qemu-system-x86_64 -accel tcg,thread=single -cpu max -m 2048 -smp 1 -display none -serial stdio -monitor none -nic none -no-reboot -kernel "$kernel" -initrd "$work/init.cpio" -drive "file=$disk,format=raw,if=virtio" -append 'console=ttyS0 quiet rdinit=/init panic=1' > "$work/guest.log" 2>&1 || { tail -n 120 "$work/guest.log"; echo 'FAIL: guest exit status'; exit 1; }
+    timeout -k 10s 240s qemu-system-x86_64 -accel tcg,thread=single -cpu max -m 2048 -smp 1 -display none -serial stdio -monitor none -nic user,model=virtio-net-pci,restrict=on,hostfwd=tcp:127.0.0.1:14310-10.0.2.15:4310 -no-reboot -kernel "$kernel" -initrd "$work/init.cpio" -drive "file=$disk,format=raw,if=virtio" -append 'console=ttyS0 quiet rdinit=/init panic=1' > "$work/guest.log" 2>&1 &
+    vm_pid=$!
+    http_ok=0
+    for attempt in $(seq 1 180); do
+        if curl --noproxy '*' --fail --silent --max-time 1 http://127.0.0.1:14310/ | grep -Fxq NOD_HTTP_TRANSPORT_V1; then
+            http_ok=1
+            break
+        fi
+        kill -0 "$vm_pid" 2>/dev/null || break
+        sleep 1
+    done
+    wait "$vm_pid" || { tail -n 120 "$work/guest.log"; echo 'FAIL: guest exit status'; exit 1; }
+    [ "$http_ok" = 1 ] || { tail -n 120 "$work/guest.log"; echo 'FAIL: private HTTP transport'; exit 1; }
+    echo NOD_HTTP_TRANSPORT_OK
     tail -n 120 "$work/guest.log"
     for marker in NOD_GUEST_CONTAINER_OK NOD_COMPOSE_NETWORK_OK NOD_COMPOSE_PROBE_OK "$expected"; do
         grep -Eq "^$marker[[:space:]]*$" "$work/guest.log" || { echo "FAIL: missing $marker"; exit 1; }
