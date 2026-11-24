@@ -79,6 +79,34 @@ GUEST
 chmod 0755 "$work/root/init"
 (cd "$work/root" && find . -print | cpio -o -H newc) > "$work/initramfs.cpio"
 
+# Test actual KVM guest boot without mounting any persistent disk or network.
+if [ "${NOD_PROBE_ONLINE:-1}" = 1 ]; then
+    if [ ! -c /dev/kvm ]; then
+        echo 'FAIL: NOD_KVM_DEVICE_MISSING'
+        exit 1
+    fi
+    mkdir -p "$work/kvm/bin" "$work/kvm/dev"
+    cp /bin/busybox "$work/kvm/bin/busybox"
+    cat > "$work/kvm/init" <<'KVM'
+#!/bin/busybox sh
+/bin/busybox echo NOD_KVM_GUEST_BOOT_OK
+/bin/busybox poweroff -f
+KVM
+    chmod 0755 "$work/kvm/init"
+    (cd "$work/kvm" && find . -print | cpio -o -H newc) > "$work/kvm.cpio"
+    echo NOD_KVM_PROBE_START
+    timeout -k 5s 60s qemu-system-x86_64 -accel kvm -cpu host -m 256 -smp 2 -display none -serial stdio -monitor none -nic none -no-reboot -kernel "$kernel" -initrd "$work/kvm.cpio" -append 'console=ttyS0 quiet rdinit=/init panic=1' > "$work/kvm.log" 2>&1 || { cat "$work/kvm.log"; echo 'FAIL: NOD_KVM_BOOT'; exit 1; }
+    cat "$work/kvm.log"
+    grep -Fq NOD_KVM_GUEST_BOOT_OK "$work/kvm.log" || { echo 'FAIL: NOD_KVM_MARKER_MISSING'; exit 1; }
+    echo 'PASS: NOD_KVM_HARDWARE_OK'
+    sleep infinity & 
+    idle_pid=$!
+    trap 'kill "$idle_pid" 2>/dev/null || true; exit 0' TERM INT
+    wait "$idle_pid"
+    exit 0
+fi
+echo NOD_KVM_CI_OFFLINE_SKIP
+
 disk=/data/nod-vm-probe.raw
 if [ ! -e "$disk" ]; then
     truncate -s 8M "$disk"
