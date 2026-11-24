@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
-import {request as httpRequest} from 'node:http';
 import {readFileSync} from 'node:fs';
 
-import {createServer, request as httpsRequest} from 'node:https';
+import {request as httpsRequest} from 'node:https';
+import {createNodRelay, privateNetwork} from '/tmp/nod-https-relay.mjs';
 import {mkdtempSync, rmSync} from 'node:fs';
 import {execFileSync} from 'node:child_process';
 import {once} from 'node:events';
@@ -11,15 +11,15 @@ execFileSync('openssl', ['req','-x509','-newkey','rsa:2048','-nodes','-days','1'
   '-subj','/CN=nod.test','-addext','subjectAltName=DNS:nod.test',
   '-keyout',dir+'/key.pem','-out',dir+'/cert.pem'], {stdio:'ignore'});
 const cert = readFileSync(dir+'/cert.pem');
-const proxy = createServer({key:readFileSync(dir+'/key.pem'),cert},(req,res)=>{
-  // CI-only loopback relay: preserve the original Host and Origin, never inject credentials.
-  const upstream = httpRequest({hostname:'127.0.0.1',port:4310,path:req.url,
-    method:req.method,headers:req.headers}, reply=>{
-      res.writeHead(reply.statusCode,reply.headers);
-      reply.pipe(res);
-    });
-  upstream.on('error',()=>{if(!res.headersSent) res.writeHead(502);res.end();});
-  req.pipe(upstream);
+assert.equal(privateNetwork('192.168.1.0/24')('192.168.1.99'),true);
+assert.equal(privateNetwork('192.168.1.0/24')('::ffff:192.168.1.99'),true);
+assert.equal(privateNetwork('192.168.1.0/24')('192.168.2.99'),false);
+assert.throws(()=>privateNetwork('0.0.0.0/0'));
+assert.throws(()=>privateNetwork('8.8.8.0/24'));
+assert.throws(()=>privateNetwork('192.168.1.5/24'));
+const proxy = createNodRelay({
+  key:readFileSync(dir+'/key.pem'),cert,origin:'https://nod.test:8443',
+  allowPeer: ip=>ip==='127.0.0.1'
 });
 proxy.listen(8443,'127.0.0.1');
 await once(proxy,'listening');
@@ -77,7 +77,10 @@ assert.match(cookie,/SameSite=Strict/i);
 assert.match(cookie,/; Secure(?:;|$)/i);
 assert.equal((await request('/api/session',{headers:{cookie:cookie.split(';')[0],'sec-fetch-site':'cross-site'}})).status,403);
 assert.equal((await request('/api/session',{headers:{cookie:cookie.split(';')[0]}})).status,200);
+assert.equal((await request('/api/webhooks/telegram',{method:'POST',headers:{authorization:'Bearer '+token}})).status,403);
+assert.equal((await request('/api/session',{headers:{'x-forwarded-for':'192.168.1.99'}})).status,401);
 console.log('NOD_NATIVE_HTTPS_AUTH_OK');
+console.log('NOD_NATIVE_RESTRICTED_RELAY_OK');
  } finally {
   proxy.closeAllConnections();
   await new Promise(resolve=>proxy.close(resolve));
