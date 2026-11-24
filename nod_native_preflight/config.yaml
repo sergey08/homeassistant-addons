@@ -1,0 +1,11 @@
+name: "Nod native preflight"
+version: "0.1.0-dev.1"
+slug: "nod_native_preflight"
+description: "Experimental native Nod server and database health test"
+url: "https://github.com/sergey08/homeassistant-addons/pull/139"
+arch:
+  - amd64
+startup: application
+boot: manual
+init: false
+stage: experimental
