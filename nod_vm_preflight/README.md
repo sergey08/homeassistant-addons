@@ -2,6 +2,8 @@
 
 ## English
 
+Dev.13 handles the observed official ZIP layout containing the revision-specific tar.gz and its detached SHA-256. Both the nested archive and required internal files must verify before image import.
+
 Dev.11 validates inner bundle checksums and architecture, extracts only expected regular files, creates a dedicated 50 GiB persistent guest disk and imports three official Nod images in an offline guest with 4 GiB RAM and one vCPU. It verifies image IDs and source revision without starting Nod services. Real bundle import is not exercised by offline CI.
 
 Dev.10 stages the official AMD64 artifact 14920995103, revision 6670bc233b6b7dddaa75b25b89b4a89f0e92bcac, from the app-only read-only /config folder into /data/nod-bundles. Requires original ZIP name nod-server-linux-amd64-6670bc233b6b7dddaa75b25b89b4a89f0e92bcac.zip. Verifies size and pinned SHA-256 before atomic cache publication. Missing package reports NOD_BUNDLE_PENDING; invalid package fails. No extraction or execution of bundle yet.
@@ -21,6 +23,8 @@ Version 0.1.0-dev.4 adds a TLS-verified DNS-over-HTTPS query for example.com via
 Version 0.1.0-dev.3 boots a minimal QEMU Linux guest (one virtual CPU, 256 MiB RAM), checks the persistent 8 MiB disk across two boots, and tests the restricted virtual gateway at 10.0.2.2. QEMU user networking uses restrict=on without port forwarding. No host Docker socket, host devices or other app data are mounted. This is not an Internet, DNS, HTTPS or full security test. Start manually with Supervisor protection enabled, check the PASS marker in the logs, then stop the app. Nod itself is not included.
 
 ## Español
+
+Dev.13 admite el formato real del ZIP oficial: tar.gz de la revisión y SHA-256 separado. Verifica ambos niveles antes de importar imágenes.
 
 Dev.11 valida checksums internos y arquitectura, extrae solo ficheros regulares esperados, crea un disco persistente dedicado de 50 GiB e importa tres imágenes oficiales en un invitado sin red, con 4 GiB RAM y una vCPU. Verifica IDs y revisión sin arrancar servicios Nod. CI sin paquete no prueba la importación real.
 
