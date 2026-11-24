@@ -4,12 +4,12 @@ set -eu
 work=$(mktemp -d)
 trap 'exit 0' TERM INT
 trap 'rm -rf -- "$work"' EXIT
-mkdir -p "$work/root/bin" "$work/root/dev" "$work/root/modules" /data
+mkdir -p "$work/root/bin" "$work/root/dev" "$work/root/modules" "$work/root/sys" "$work/root/proc" /data
 cp /bin/busybox "$work/root/bin/busybox"
 
 set -- /boot/vmlinuz-*
 kernel=$1
-modules=$(modprobe --set-version "${kernel##*/vmlinuz-}" --show-depends virtio_pci virtio_blk --all)
+modules=$(modprobe --set-version "${kernel##*/vmlinuz-}" --show-depends virtio_pci virtio_blk virtio_net --all)
 printf '%s\n' "$modules" | awk '!seen[$0]++' | (
     index=0
     while read -r action module; do
@@ -44,6 +44,21 @@ else
     "$b" printf '%s\n' "$marker" | "$b" dd of=/dev/vda conv=fsync
     "$b" echo NOD_VM_DISK_WRITTEN
 fi
+"$b" mount -t sysfs sysfs /sys
+iface=
+for attempt in 1 2 3 4 5; do
+    for dev in /sys/class/net/*; do
+        [ "${dev##*/}" = lo ] || iface=${dev##*/}
+    done
+    [ -z "$iface" ] || break
+    "$b" sleep 1
+done
+[ -n "$iface" ]
+"$b" ip link set "$iface" up
+"$b" ip addr add 10.0.2.15/24 dev "$iface"
+"$b" ip route add default via 10.0.2.2
+"$b" ping -c 1 -W 3 10.0.2.2
+"$b" echo NOD_VM_GATEWAY_OK
 "$b" poweroff -f
 GUEST
 chmod 0755 "$work/root/init"
@@ -55,16 +70,16 @@ if [ ! -e "$disk" ]; then
 fi
 for expected in 'NOD_VM_DISK_(WRITTEN|READ)' NOD_VM_DISK_READ; do
     timeout 120 qemu-system-x86_64 -accel tcg -m 256 -smp 1 -display none -serial stdio \
-        -monitor none -nic none -no-reboot -kernel "$kernel" -initrd "$work/initramfs.cpio" \
+        -monitor none -nic user,model=virtio-net-pci,restrict=on -no-reboot -kernel "$kernel" -initrd "$work/initramfs.cpio" \
         -drive "file=$disk,format=raw,if=virtio" \
         -append 'console=ttyS0 quiet rdinit=/init panic=1' > "$work/guest.log" 2>&1 || true
     tail -n 20 "$work/guest.log"
-    if ! grep -Eq "^$expected[[:space:]]*$" "$work/guest.log"; then
-        printf '%s\n' 'FAIL: Linux guest did not produce the expected disk marker.'
+    if ! grep -Eq "^$expected[[:space:]]*$" "$work/guest.log" || ! grep -Eq "^NOD_VM_GATEWAY_OK[[:space:]]*$" "$work/guest.log"; then
+        printf '%s\n' 'FAIL: Linux guest did not produce the expected disk and gateway markers.'
         exit 1
     fi
 done
-printf '%s\n' 'PASS: Linux guest recovered the disk marker after reboot.'
+printf '%s\n' 'PASS: Linux guest recovered the disk marker after reboot and reached the restricted virtual gateway.'
 sleep infinity &
 idle_pid=$!
 trap 'kill "$idle_pid" 2>/dev/null || true; exit 0' TERM INT
