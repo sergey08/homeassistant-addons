@@ -19,11 +19,11 @@ jobs:
       - name: Require guest boot marker
         run: |
           docker run -d --name nod-vm-preflight --network=none -e NOD_PROBE_ONLINE=0 nod-vm-preflight:ci
-          for attempt in {1..180}; do
+          for attempt in {1..330}; do
             docker logs nod-vm-preflight > guest.log 2>&1
             if grep -Eq '^(PASS|FAIL):' guest.log; then
               cat guest.log
-              grep -q '^PASS:' guest.log && grep -q '^NOD_ENGINE_PROBE_OK' guest.log
+              grep -q '^PASS:' guest.log && grep -q '^NOD_ENGINE_PROBE_OK' guest.log && grep -q '^NOD_COMPOSE_VOLUME_READ' guest.log
               exit $?
             fi
             sleep 2
