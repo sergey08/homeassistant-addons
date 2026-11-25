@@ -2,18 +2,26 @@
 import net from 'node:net';
 import {spawn} from 'node:child_process';
 import {chmodSync} from 'node:fs';
+import {openCommandSession} from './command-session.mjs';
+const commandsEnabled=process.argv.includes('--commands');
 const path='/run/nod-workspace/control.sock';
 const server=net.createServer(socket=>{
-  let buffer='',child,started=false,cancelled=false,closed=false;
+  let buffer=Buffer.alloc(0),child,started=false,cancelled=false,closed=false,commandSession;
   const stop=()=>{if(child&&child.exitCode===null&&child.signalCode===null)child.kill('SIGKILL');};
   socket.setTimeout(15000,()=>socket.destroy());
   socket.on('error',()=>socket.destroy());
   socket.on('close',()=>{closed=true;stop();});
   socket.on('data',chunk=>{
-    buffer+=chunk.toString('utf8');
-    if(buffer.length>128)return socket.destroy();
-    for(let i;(i=buffer.indexOf('\n'))>=0;){
-      const line=buffer.slice(0,i);buffer=buffer.slice(i+1);
+    if(commandSession)return commandSession(chunk);
+    buffer=Buffer.concat([buffer,chunk]);
+    const first=buffer.indexOf(10);
+    if((first<0&&buffer.length>4096)||first>4096)return socket.destroy();
+    for(let i;(i=buffer.indexOf(10))>=0;){
+      const line=buffer.subarray(0,i).toString('utf8');buffer=buffer.subarray(i+1);
+      if(!started&&commandsEnabled&&line.startsWith('{')){
+        try{commandSession=openCommandSession(socket,JSON.parse(line));commandSession(buffer);buffer=Buffer.alloc(0);}catch{socket.destroy();}
+        return;
+      }
       if(started){
         if(line!=='cancel'||cancelled||!child)return socket.destroy();
         cancelled=true;stop();continue;

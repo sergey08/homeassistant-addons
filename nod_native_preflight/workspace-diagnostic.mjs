@@ -41,6 +41,7 @@ try{
   console.log('NOD_WORKSPACE_DIAGNOSTIC_ARBITRARY_REJECTED');
   if(await request('probe')!=='result:42\nexit:0\n')throw Error();
   console.log('NOD_WORKSPACE_DIAGNOSTIC_RECOVERY_OK');
+  if(config.commandProbe===true)await import('./workspace-command-diagnostic.mjs');
 }catch{
   console.error('NOD_WORKSPACE_DIAGNOSTIC_FAILED');
   process.exitCode=1;

@@ -13,13 +13,14 @@ try{
     process.exit(0);
   }
   parsePsk(options.workspace_key);
+  if(options.workspace_command_probe_enabled!==undefined&&typeof options.workspace_command_probe_enabled!=='boolean')throw Error();
   if(options.workspace_key===options.browser_key||options.workspace_key===options.https_access_token)throw Error();
   const host=options.workspace_host;
   if(typeof host!=='string'||!/^[a-z0-9-]+-nod-workspace-preflight$/.test(host))throw Error();
   const dir='/run/nod-workspace-client';
   mkdirSync(dir,{mode:0o711});
   const file=dir+'/settings.json';
-  writeFileSync(file,JSON.stringify({psk:options.workspace_key,host}),{mode:0o600,flag:'wx'});
+  writeFileSync(file,JSON.stringify({psk:options.workspace_key,host,commandProbe:options.workspace_command_probe_enabled===true}),{mode:0o600,flag:'wx'});
   chownSync(file,1000,1000);
   chmodSync(file,0o400);
   chmodSync(dir,0o711);

@@ -63,11 +63,12 @@ jobs:
           docker rm -f nod-workspace-peer nod-workspace-probe
           docker build -t nod-workspace-server:ci nod_native_preflight
           docker volume create nod-workspace-server-data
-          docker run --rm --network none -v nod-workspace-server-data:/data --entrypoint node nod-workspace-server:ci -e 'require("node:fs").writeFileSync("/data/options.json",JSON.stringify({workspace_probe_enabled:true,workspace_key:"a".repeat(64),workspace_host:"ci-nod-workspace-preflight",browser_key:"b".repeat(64),https_enabled:false}),{mode:384})'
+          docker run --rm --network none -v nod-workspace-server-data:/data --entrypoint node nod-workspace-server:ci -e 'require("node:fs").writeFileSync("/data/options.json",JSON.stringify({workspace_probe_enabled:true,workspace_command_probe_enabled:true,workspace_key:"a".repeat(64),workspace_host:"ci-nod-workspace-preflight",browser_key:"b".repeat(64),https_enabled:false}),{mode:384})'
+          docker run --rm --network none -v nod-workspace-probe-data:/data --entrypoint node nod-workspace:ci -e 'require("node:fs").writeFileSync("/data/options.json",JSON.stringify({remote_enabled:true,remote_key:"a".repeat(64),server_host:"ci-nod-native-preflight",command_enabled:true}),{mode:384})'
           docker run -d --name nod-workspace-server --network nod-workspace-ci --network-alias ci-nod-native-preflight -v nod-workspace-server-data:/data nod-workspace-server:ci
           docker run -d --name nod-workspace-probe --network nod-workspace-ci --network-alias ci-nod-workspace-preflight --cap-drop ALL --cap-add NET_ADMIN --cap-add CHOWN --cap-add SETUID --cap-add SETGID --cap-add DAC_OVERRIDE --cap-add SETPCAP --cap-add FOWNER --cap-add KILL --security-opt no-new-privileges --pids-limit 128 --memory 2g -v nod-workspace-probe-data:/data nod-workspace:ci
-          for i in {1..80}; do
-            if docker logs nod-workspace-server 2>&1 | grep NOD_WORKSPACE_DIAGNOSTIC_RECOVERY_OK >/dev/null; then break; fi
+          for i in {1..100}; do
+            if docker logs nod-workspace-server 2>&1 | grep NOD_WORKSPACE_PROTOCOL_RECOVERY_OK >/dev/null; then break; fi
             sleep 2
           done
           docker logs nod-workspace-server 2>&1 | grep NOD_NATIVE_SERVER_HEALTH_OK
@@ -77,6 +78,9 @@ jobs:
           docker logs nod-workspace-server 2>&1 | grep NOD_WORKSPACE_DIAGNOSTIC_RECOVERY_OK
           if docker logs nod-workspace-server 2>&1 | grep NOD_WORKSPACE_DIAGNOSTIC_FAILED >/dev/null; then exit 1; fi
           docker exec nod-workspace-server gosu nodrelay test ! -r /run/nod-workspace-client/settings.json
+          for marker in FRAMES_OK STREAMING_OK CANCEL_CONFIRMED LIMITS_OK FILES_OK DISCONNECT_RECOVERED SYMLINK_REJECTED RECOVERY_OK; do
+            docker logs nod-workspace-server 2>&1 | grep "NOD_WORKSPACE_PROTOCOL_$marker"
+          done
           echo NOD_WORKSPACE_PACKAGED_SERVER_OK
       - name: Logs and cleanup
         if: always()

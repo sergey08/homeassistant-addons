@@ -17,7 +17,7 @@ export function parsePsk(value){
 function negotiated(socket){
   return socket.getProtocol()==='TLSv1.2'&&socket.getCipher()?.name===cipher;
 }
-export function createGateway({psk,socketPath='/run/nod-workspace/control.sock',maxConnections=4}){
+export function createGateway({psk,socketPath='/run/nod-workspace/control.sock',maxConnections=4,idleTimeoutMs=20000}){
   const key=parsePsk(psk);
   const connections=new Set();
   const server=tls.createServer({
@@ -31,7 +31,7 @@ export function createGateway({psk,socketPath='/run/nod-workspace/control.sock',
     socket.on('error',stop);worker.on('error',stop);
     socket.on('close',()=>{connections.delete(socket);worker.destroy();});
     worker.on('close',()=>{if(!worker.readableEnded)socket.destroy();});
-    socket.setTimeout(20000,stop);
+    socket.setTimeout(idleTimeoutMs,stop);
     socket.pipe(worker);
     worker.pipe(socket);
   });
@@ -82,7 +82,7 @@ if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){
     // Secrets are read from an owner-controlled file, never CLI arguments.
     const config=JSON.parse(readFileSync(process.argv[3],'utf8'));
     if(mode==='gateway'){
-      const gateway=createGateway({psk:config.psk});
+      const gateway=createGateway({psk:config.psk,idleTimeoutMs:config.commandsEnabled===true?615000:20000});
       gateway.listen(9593,'0.0.0.0',()=>console.log('NOD_WORKSPACE_TRANSPORT_READY'));
       gateway.on('error',()=>{console.error('Workspace transport unavailable');process.exit(1);});
     }else if(mode==='client'){

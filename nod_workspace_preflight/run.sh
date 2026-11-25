@@ -4,7 +4,11 @@ set -eu
 export XTABLES_LOCKFILE=/tmp/nod-workspace-xtables.lock
 [ "$(ls /sys/class/net | sort | tr '\n' ' ')" = 'eth0 lo ' ] || { echo 'FAIL: unexpected workspace network interfaces'; exit 1; }
 rm -rf /run/nod-workspace-gateway /run/nod-workspace
-peer=$(node /app/prepare-config.mjs) || exit 1
+peer_config=$(node /app/prepare-config.mjs) || exit 1
+peer=${peer_config%% *}
+mode=${peer_config#* }
+command_flag=
+if [ "$mode" = commands ]; then command_flag=--commands; fi
 ip6tables-restore --wait 10 <<'RULES'
 *filter
 :INPUT DROP [0:0]
@@ -66,7 +70,7 @@ cleanup() {
 }
 trap cleanup EXIT
 trap 'exit 0' TERM INT
-env -i PATH=/opt/nod-artifacts/bin:/usr/local/bin:/usr/bin:/bin HOME=/data/workspace-home LANG=C.UTF-8 setpriv --reuid=1000 --regid=1000 --clear-groups --no-new-privs --bounding-set=-all --inh-caps=-all --ambient-caps=-all node /app/probe-worker.mjs &
+env -i PATH=/opt/nod-artifacts/bin:/usr/local/bin:/usr/bin:/bin HOME=/data/workspace-home LANG=C.UTF-8 setpriv --reuid=1000 --regid=1000 --clear-groups --no-new-privs --bounding-set=-all --inh-caps=-all --ambient-caps=-all node /app/probe-worker.mjs "$command_flag" &
 worker_pid=$!
 for i in $(seq 1 15); do
     if as_worker test -S /run/nod-workspace/control.sock; then break; fi
