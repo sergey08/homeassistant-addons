@@ -1,5 +1,5 @@
 name: "Nod native preflight"
-version: "0.1.0-dev.13"
+version: "0.1.0-dev.14"
 slug: "nod_native_preflight"
 description: "Experimental native Nod server and database health test"
 url: "https://github.com/sergey08/homeassistant-addons/pull/139"
@@ -34,6 +34,8 @@ options:
   browser_host: ""
   browser_key: ""
   workspace_command_probe_enabled: false
+  workspace_runtime_enabled: false
+  workspace_runtime_probe_enabled: false
   workspace_probe_enabled: false
   workspace_host: ""
   workspace_key: ""
@@ -47,6 +49,8 @@ schema:
   browser_host: str
   browser_key: password
   workspace_command_probe_enabled: bool
+  workspace_runtime_enabled: bool
+  workspace_runtime_probe_enabled: bool
   workspace_probe_enabled: bool
   workspace_host: str
   workspace_key: password

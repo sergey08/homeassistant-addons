@@ -1,4 +1,4 @@
-// Optional fixed-command diagnostic only. No runtime launcher or model access.
+// Optional Workspace runtime and synthetic diagnostics. Keys never leave private files.
 import {readFileSync,mkdirSync,writeFileSync,chownSync,chmodSync,lstatSync} from 'node:fs';
 import {parsePsk} from './workspace-transport.mjs';
 try{
@@ -8,7 +8,11 @@ try{
     if(!stat.isFile()||stat.isSymbolicLink()||stat.nlink!==1)throw Error();
     options=JSON.parse(readFileSync('/data/options.json','utf8'));
   }catch(e){if(e.code!=='ENOENT')throw e;}
-  if(options.workspace_probe_enabled!==true){
+  for(const field of ['workspace_probe_enabled','workspace_runtime_enabled','workspace_runtime_probe_enabled']){
+    if(options[field]!==undefined&&typeof options[field]!=='boolean')throw Error();
+  }
+  if(options.workspace_runtime_probe_enabled===true&&(options.workspace_runtime_enabled!==true||options.browser_enabled!==true))throw Error();
+  if(options.workspace_probe_enabled!==true&&options.workspace_runtime_enabled!==true){
     if(options.workspace_probe_enabled!==undefined&&options.workspace_probe_enabled!==false)throw Error();
     process.exit(0);
   }
@@ -20,7 +24,7 @@ try{
   const dir='/run/nod-workspace-client';
   mkdirSync(dir,{mode:0o711});
   const file=dir+'/settings.json';
-  writeFileSync(file,JSON.stringify({psk:options.workspace_key,host,commandProbe:options.workspace_command_probe_enabled===true}),{mode:0o600,flag:'wx'});
+  writeFileSync(file,JSON.stringify({psk:options.workspace_key,host,commandProbe:options.workspace_command_probe_enabled===true,runtimeEnabled:options.workspace_runtime_enabled===true,probeEnabled:options.workspace_probe_enabled===true,runtimeProbe:options.workspace_runtime_probe_enabled===true}),{mode:0o600,flag:'wx'});
   chownSync(file,1000,1000);
   chmodSync(file,0o400);
   chmodSync(dir,0o711);

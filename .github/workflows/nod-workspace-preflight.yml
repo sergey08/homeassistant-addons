@@ -4,6 +4,7 @@ on:
     paths:
       - 'nod_workspace_preflight/**'
       - 'nod_native_preflight/**'
+      - 'nod_browser_preflight/**'
       - '.github/workflows/nod-workspace-preflight.yml'
 permissions:
   contents: read
@@ -63,7 +64,7 @@ jobs:
           docker rm -f nod-workspace-peer nod-workspace-probe
           docker build -t nod-workspace-server:ci nod_native_preflight
           docker volume create nod-workspace-server-data
-          docker run --rm --network none -v nod-workspace-server-data:/data --entrypoint node nod-workspace-server:ci -e 'require("node:fs").writeFileSync("/data/options.json",JSON.stringify({workspace_probe_enabled:true,workspace_command_probe_enabled:true,workspace_key:"a".repeat(64),workspace_host:"ci-nod-workspace-preflight",browser_key:"b".repeat(64),https_enabled:false}),{mode:384})'
+          docker run --rm --network none -v nod-workspace-server-data:/data --entrypoint node nod-workspace-server:ci -e 'require("node:fs").writeFileSync("/data/options.json",JSON.stringify({workspace_probe_enabled:true,workspace_command_probe_enabled:true,workspace_runtime_enabled:true,browser_enabled:true,browser_host:"ci-nod-browser-preflight",workspace_key:"a".repeat(64),workspace_host:"ci-nod-workspace-preflight",browser_key:"b".repeat(64),https_enabled:false}),{mode:384})'
           docker run --rm --network none -v nod-workspace-probe-data:/data --entrypoint node nod-workspace:ci -e 'require("node:fs").writeFileSync("/data/options.json",JSON.stringify({remote_enabled:true,remote_key:"a".repeat(64),server_host:"ci-nod-native-preflight",command_enabled:true}),{mode:384})'
           docker run -d --name nod-workspace-server --network nod-workspace-ci --network-alias ci-nod-native-preflight -v nod-workspace-server-data:/data nod-workspace-server:ci
           docker run -d --name nod-workspace-probe --network nod-workspace-ci --network-alias ci-nod-workspace-preflight --cap-drop ALL --cap-add NET_ADMIN --cap-add CHOWN --cap-add SETUID --cap-add SETGID --cap-add DAC_OVERRIDE --cap-add SETPCAP --cap-add FOWNER --cap-add KILL --security-opt no-new-privileges --pids-limit 128 --memory 2g -v nod-workspace-probe-data:/data nod-workspace:ci
@@ -83,12 +84,30 @@ jobs:
             docker logs nod-workspace-server 2>&1 | grep "NOD_WORKSPACE_PROTOCOL_$marker"
           done
           echo NOD_WORKSPACE_PACKAGED_SERVER_OK
+      - name: Test upstream runtime task with real Workspace and Chromium
+        run: |
+          set -euo pipefail
+          docker build -t nod-runtime-browser:ci nod_browser_preflight
+          docker network create --internal --subnet 93.184.216.0/24 nod-runtime-public
+          docker run -d --name nod-runtime-fixture --network nod-runtime-public --ip 93.184.216.34 --entrypoint node nod-runtime-browser:ci -e 'require("node:http").createServer((q,r)=>{r.writeHead(200,{"content-type":"text/html"});r.end("<html><title>Nod runtime browser fixture</title><h1>Nod runtime browser fixture</h1></html>")}).listen(80,"0.0.0.0")'
+          docker volume create nod-runtime-browser-data
+          docker run --rm --network none -v nod-runtime-browser-data:/data --entrypoint node nod-runtime-browser:ci -e 'require("node:fs").writeFileSync("/data/options.json",JSON.stringify({remote_enabled:true,remote_key:"b".repeat(64),server_host:"ci-nod-native-preflight"}),{mode:384})'
+          docker run -d --name nod-runtime-browser --network nod-workspace-ci --network-alias ci-nod-browser-preflight --cap-drop ALL --cap-add NET_ADMIN --cap-add SETUID --cap-add SETGID --cap-add SETPCAP --cap-add CHOWN --cap-add FOWNER --cap-add KILL --security-opt no-new-privileges --pids-limit 1024 --memory 3g --shm-size 512m -v nod-runtime-browser-data:/data nod-runtime-browser:ci
+          for i in {1..50}; do
+            if docker logs nod-runtime-browser 2>&1 | grep NOD_BROWSER_TRANSPORT_READY >/dev/null; then break; fi
+            sleep 2
+          done
+          docker logs nod-runtime-browser 2>&1 | grep NOD_BROWSER_TRANSPORT_READY
+          docker network connect nod-runtime-public nod-runtime-browser
+          docker logs nod-workspace-server 2>&1 | grep NOD_HA_WORKSPACE_RUNTIME_CONNECTED
+          docker exec --user node -e NOD_HA_BROWSER_REMOTE=1 nod-workspace-server node --import tsx /app/check-workspace-runtime.mjs --ci
       - name: Logs and cleanup
         if: always()
         run: |
           docker logs nod-workspace-test 2>&1 || true
           docker logs nod-workspace-probe 2>&1 || true
           docker logs nod-workspace-server 2>&1 || true
-          docker rm -f nod-workspace-server nod-workspace-test nod-workspace-fixture nod-workspace-probe nod-workspace-peer || true
-          docker volume rm nod-workspace-ci-data nod-workspace-probe-data nod-workspace-server-data || true
-          docker network rm nod-workspace-ci || true
+          docker logs nod-runtime-browser 2>&1 || true
+          docker rm -f nod-runtime-browser nod-runtime-fixture nod-workspace-server nod-workspace-test nod-workspace-fixture nod-workspace-probe nod-workspace-peer || true
+          docker volume rm nod-workspace-ci-data nod-workspace-probe-data nod-workspace-server-data nod-runtime-browser-data || true
+          docker network rm nod-workspace-ci nod-runtime-public || true
