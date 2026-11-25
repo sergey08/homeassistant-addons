@@ -63,10 +63,40 @@ jobs:
           docker exec --user node nod-browser-guard-ci node -e 'const a=require("node:assert/strict"); (async()=>{a.match(await(await fetch("http://93.184.216.34/",{signal:AbortSignal.timeout(3000)})).text(),/Nod browser CI fixture/);await a.rejects(fetch("http://10.223.80.34/",{signal:AbortSignal.timeout(3000)}));console.log("NOD_BROWSER_NETWORK_GUARD_OK")})().catch(e=>{console.error(e);process.exit(1)})'
           docker exec --user node nod-browser-guard-ci sh -ec 'for p in /proc/[0-9]*/status; do if grep -q "^Name:.*node" "$p"; then grep -q "^CapEff:[[:space:]]*0000000000000000$" "$p"; grep -q "^CapBnd:[[:space:]]*0000000000000000$" "$p"; grep -q "^NoNewPrivs:[[:space:]]*1$" "$p"; fi; done'
           if docker logs nod-browser-private-fixture 2>&1 | grep -q PRIVATE_REQUEST; then echo 'Private target received traffic'; exit 1; fi
+      - name: Verify separate client container and restricted return traffic
+        run: |
+          set -euo pipefail
+          # CI-only addresses. Do not reuse these firewall commands on the HA host.
+          peer=10.223.80.35
+          gateway_ip="$(docker inspect -f '{{(index .NetworkSettings.Networks "nod-browser-private-ci").IPAddress}}' nod-browser-guard-ci)"
+          test -n "$gateway_ip"
+          # Allow only this peer to initiate TLS connections. Replies must belong
+          # to an established flow from the gateway port, not a new connection.
+          docker exec nod-browser-guard-ci iptables -I INPUT 1 -s "$peer/32" -p tcp --dport 9592 -m conntrack --ctstate NEW,ESTABLISHED -j ACCEPT
+          docker exec nod-browser-guard-ci iptables -I OUTPUT 1 -d "$peer/32" -p tcp --sport 9592 -m conntrack --ctstate ESTABLISHED -j ACCEPT
+          dir="$(mktemp -d)"
+          trap 'rm -rf "$dir"' EXIT
+          chmod 700 "$dir"
+          node -e 'const fs=require("fs"),c=require("crypto");fs.writeFileSync(process.argv[1],JSON.stringify({psk:c.randomBytes(32).toString("hex"),host:process.argv[2]}),{mode:0o600})' "$dir/client.json" "$gateway_ip"
+          docker exec -i --user node nod-browser-guard-ci sh -c 'umask 077; cat >/tmp/ci-browser-config.json' < "$dir/client.json"
+          docker exec -d --user node nod-browser-guard-ci node /test/transport.mjs gateway /tmp/ci-browser-config.json
+          docker run -d --name nod-browser-client-ci --network nod-browser-private-ci --ip "$peer" --cap-drop ALL --security-opt no-new-privileges --read-only -v "$GITHUB_WORKSPACE/nod_browser_validation:/test:ro" -v "$dir:/test-config:ro" --entrypoint node nod-browser:ci -e 'require("node:http").createServer((q,r)=>r.end("PRIVATE_AGENT")).listen(80,"0.0.0.0")'
+          # The synthetic key file is owned by the CI runner uid 1001; root
+          # inside the disposable client has no additional capabilities.
+          chmod 755 "$dir"
+          chmod 644 "$dir/client.json"
+          for attempt in {1..20}; do
+            if docker exec --user node nod-browser-guard-ci node -e 'const s=require("node:net").connect(9592,"127.0.0.1");s.on("connect",()=>{s.destroy();process.exit(0)});s.on("error",()=>process.exit(1))'; then break; fi
+            sleep 1
+          done
+          docker exec nod-browser-client-ci node /test/check-remote-worker.mjs
+          docker exec --user node nod-browser-guard-ci node -e 'const a=require("node:assert/strict");a.rejects(fetch("http://10.223.80.35/",{signal:AbortSignal.timeout(3000)})).then(()=>console.log("NOD_BROWSER_PEER_OUTBOUND_BLOCKED")).catch(e=>{console.error(e);process.exit(1)})'
+          docker exec nod-browser-private-fixture node -e 'const s=require("node:net").connect(9592,process.argv[1]);s.setTimeout(3000,()=>{s.destroy();process.exit(0)});s.on("connect",()=>{s.destroy();process.exit(1)});s.on("error",()=>process.exit(0))' "$gateway_ip"
+          if docker logs nod-browser-private-fixture 2>&1 | grep -q PRIVATE_REQUEST; then exit 1; fi
       - if: always()
         run: |
           docker logs nod-browser-ci 2>/dev/null || true
           docker logs nod-browser-guard-ci 2>/dev/null || true
-          docker rm -f nod-browser-guard-ci nod-browser-ci nod-browser-public-fixture nod-browser-private-fixture || true
+          docker rm -f nod-browser-client-ci nod-browser-guard-ci nod-browser-ci nod-browser-public-fixture nod-browser-private-fixture || true
           docker volume rm nod-browser-ci-data nod-browser-guard-data || true
           docker network rm nod-browser-public-ci nod-browser-private-ci || true
