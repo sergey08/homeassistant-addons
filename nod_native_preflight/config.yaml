@@ -1,5 +1,5 @@
 name: "Nod native preflight"
-version: "0.1.0-dev.7"
+version: "0.1.0-dev.8"
 slug: "nod_native_preflight"
 description: "Experimental native Nod server and database health test"
 url: "https://github.com/sergey08/homeassistant-addons/pull/139"
@@ -30,9 +30,15 @@ options:
   lan_cidr: "192.168.1.0/24"
   https_access_token: ""
   ha_embed_origin: ""
+  browser_enabled: false
+  browser_host: ""
+  browser_key: ""
 schema:
   https_enabled: bool
   https_origin: str
   lan_cidr: str
   https_access_token: password
   ha_embed_origin: str
+  browser_enabled: bool
+  browser_host: str
+  browser_key: password
