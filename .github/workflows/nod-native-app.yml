@@ -65,7 +65,7 @@ jobs:
           docker rm nod-native-app
           mkdir -p "$RUNNER_TEMP/nod-cert"
           openssl req -x509 -newkey rsa:2048 -nodes -days 1 -subj /CN=nod.test -addext subjectAltName=DNS:nod.test -keyout "$RUNNER_TEMP/nod-cert/nod-privkey.pem" -out "$RUNNER_TEMP/nod-cert/nod-fullchain.pem" >/dev/null 2>&1
-          docker run --rm --network none -v nod-native-ci-data:/data --entrypoint node nod-native-app:ci -e 'require("fs").writeFileSync("/data/options.json",JSON.stringify({https_enabled:true,https_origin:"https://nod.test:8443",lan_cidr:"10.222.77.0/24",https_access_token:"x".repeat(64)}),{mode:384})'
+          docker run --rm --network none -v nod-native-ci-data:/data --entrypoint node nod-native-app:ci -e 'require("fs").writeFileSync("/data/options.json",JSON.stringify({https_enabled:true,https_origin:"https://nod.test:8443",lan_cidr:"10.222.77.0/24",https_access_token:"x".repeat(64),ha_embed_origin:"https://ha.test:9443"}),{mode:384})'
           docker network create --internal --subnet 10.222.77.0/24 nod-native-private-ci
           docker run -d --name nod-native-app --network nod-native-private-ci --network-alias nod.test -v nod-native-ci-data:/data -v "$RUNNER_TEMP/nod-cert:/config:ro" nod-native-app:ci
           for attempt in {1..110}; do
@@ -79,8 +79,22 @@ jobs:
           grep -q '^PASS:' probe.log
           docker run --rm --network nod-native-private-ci -v "$RUNNER_TEMP/nod-cert/nod-fullchain.pem:/tmp/ca.pem:ro" -e NODE_EXTRA_CA_CERTS=/tmp/ca.pem --entrypoint node nod-native-app:ci -e 'const assert=require("node:assert/strict"); (async()=>{const base="https://nod.test:8443"; assert.equal((await fetch(base+"/")).status,200); assert.equal((await fetch(base+"/api/session")).status,401); const r=await fetch(base+"/api/session",{headers:{authorization:"Bearer "+"x".repeat(64)}}); assert.equal(r.status,200); console.log("NOD_NATIVE_OPT_IN_HTTPS_OK")})().catch(e=>{console.error(e);process.exit(1)})'
           docker exec nod-native-app node -e 'const h=require("node:https"); const r=h.get({hostname:"127.0.0.1",port:8443,servername:"nod.test",headers:{host:"nod.test:8443"},ca:require("fs").readFileSync("/run/nod-relay/cert.pem")},res=>{res.resume();process.exit(res.statusCode===403?0:1)});r.on("error",()=>process.exit(1))'
+      - name: Test isolated nested panel in real Chromium
+        run: |
+          set -euo pipefail
+          npm install --prefix "$RUNNER_TEMP/nod-browser" --no-save --no-package-lock --ignore-scripts playwright@1.56.1
+          docker pull mcr.microsoft.com/playwright:v1.56.1-noble
+          docker network create --internal --subnet 172.30.32.0/24 nod-ingress-ci
+          docker network connect --ip 172.30.32.3 --alias nod-ingress nod-ingress-ci nod-native-app
+          ip=$(docker inspect -f '{{(index .NetworkSettings.Networks "nod-native-private-ci").IPAddress}}' nod-native-app)
+          docker create --name nod-native-browser --network nod-native-private-ci --shm-size=1g -e NOD_TEST_IP="$ip" -v "$RUNNER_TEMP/nod-browser:/test:ro" -v "$RUNNER_TEMP/nod-cert:/cert:ro" -v "$GITHUB_WORKSPACE/nod_native_preflight/check-embedded.mjs:/check-embedded.mjs:ro" --entrypoint node mcr.microsoft.com/playwright:v1.56.1-noble /check-embedded.mjs
+          docker network connect --ip 172.30.32.2 nod-ingress-ci nod-native-browser
+          docker start -a nod-native-browser
+          test "$(docker inspect -f '{{.State.ExitCode}}' nod-native-browser)" = 0
       - if: always()
         run: |
+          docker rm -f nod-native-browser || true
           docker rm -f nod-native-app || true
           docker volume rm nod-native-ci-data || true
           docker network rm nod-native-private-ci || true
+          docker network rm nod-ingress-ci || true
