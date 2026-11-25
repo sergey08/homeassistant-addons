@@ -25,11 +25,12 @@ try{
   const peer=peers[0].address;
   if(!isIPv4(peer)||! /^(10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[01])\.)/.test(peer))throw Error();
   const dir='/run/nod-browser-gateway';
-  mkdirSync(dir,{mode:0o700});
+  mkdirSync(dir,{mode:0o711});
+  chmodSync(dir,0o711);
   const destination=dir+'/settings.json';
   writeFileSync(destination,JSON.stringify({psk:options.remote_key}),{mode:0o600,flag:'wx'});
   chownSync(destination,1001,1000);
-  chownSync(dir,1001,1000);
+  chmodSync(destination,0o400);
   console.log(peer);
 }catch{
   console.error('FAIL: invalid or unavailable browser peer configuration');
