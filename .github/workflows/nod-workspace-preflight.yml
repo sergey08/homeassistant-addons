@@ -21,7 +21,7 @@ jobs:
           docker network create --internal --subnet 10.223.81.0/24 nod-workspace-ci
           docker run -d --name nod-workspace-fixture --network nod-workspace-ci --ip 10.223.81.34 --entrypoint node nod-workspace:ci -e 'require("node:http").createServer((q,r)=>{console.log("PRIVATE_REQUEST");r.end("fixture")}).listen(80,"0.0.0.0")'
           docker volume create nod-workspace-ci-data
-          docker run -d --name nod-workspace-test --network nod-workspace-ci --cap-drop ALL --cap-add NET_ADMIN --cap-add CHOWN --cap-add SETUID --cap-add SETGID --cap-add DAC_OVERRIDE --cap-add SETPCAP --cap-add FOWNER --security-opt no-new-privileges --pids-limit 128 --memory 2g -v nod-workspace-ci-data:/data nod-workspace:ci
+          docker run -d --name nod-workspace-test --network nod-workspace-ci --cap-drop ALL --cap-add NET_ADMIN --cap-add CHOWN --cap-add SETUID --cap-add SETGID --cap-add DAC_OVERRIDE --cap-add SETPCAP --cap-add FOWNER --cap-add KILL --security-opt no-new-privileges --pids-limit 128 --memory 2g -v nod-workspace-ci-data:/data nod-workspace:ci
           for i in {1..45}; do
             if docker logs nod-workspace-test 2>&1 | grep NOD_WORKSPACE_UNPRIVILEGED_READY >/dev/null; then break; fi
             sleep 2
@@ -45,7 +45,7 @@ jobs:
           docker run -d --name nod-workspace-peer --network nod-workspace-ci --network-alias ci-nod-native-preflight --entrypoint sleep nod-workspace:ci infinity
           docker volume create nod-workspace-probe-data
           docker run --rm --network none -v nod-workspace-probe-data:/data --entrypoint node nod-workspace:ci -e 'require("node:fs").writeFileSync("/data/options.json",JSON.stringify({remote_enabled:true,remote_key:"a".repeat(64),server_host:"ci-nod-native-preflight"}),{mode:384})'
-          docker run -d --name nod-workspace-probe --network nod-workspace-ci --network-alias nod-workspace-ci-worker --cap-drop ALL --cap-add NET_ADMIN --cap-add CHOWN --cap-add SETUID --cap-add SETGID --cap-add DAC_OVERRIDE --cap-add SETPCAP --cap-add FOWNER --security-opt no-new-privileges --pids-limit 128 --memory 2g -v nod-workspace-probe-data:/data nod-workspace:ci
+          docker run -d --name nod-workspace-probe --network nod-workspace-ci --network-alias nod-workspace-ci-worker --cap-drop ALL --cap-add NET_ADMIN --cap-add CHOWN --cap-add SETUID --cap-add SETGID --cap-add DAC_OVERRIDE --cap-add SETPCAP --cap-add FOWNER --cap-add KILL --security-opt no-new-privileges --pids-limit 128 --memory 2g -v nod-workspace-probe-data:/data nod-workspace:ci
           for i in {1..30}; do
             if docker logs nod-workspace-probe 2>&1 | grep NOD_WORKSPACE_TRANSPORT_READY >/dev/null; then break; fi
             sleep 2
@@ -65,7 +65,7 @@ jobs:
           docker volume create nod-workspace-server-data
           docker run --rm --network none -v nod-workspace-server-data:/data --entrypoint node nod-workspace-server:ci -e 'require("node:fs").writeFileSync("/data/options.json",JSON.stringify({workspace_probe_enabled:true,workspace_key:"a".repeat(64),workspace_host:"ci-nod-workspace-preflight",browser_key:"b".repeat(64),https_enabled:false}),{mode:384})'
           docker run -d --name nod-workspace-server --network nod-workspace-ci --network-alias ci-nod-native-preflight -v nod-workspace-server-data:/data nod-workspace-server:ci
-          docker run -d --name nod-workspace-probe --network nod-workspace-ci --network-alias ci-nod-workspace-preflight --cap-drop ALL --cap-add NET_ADMIN --cap-add CHOWN --cap-add SETUID --cap-add SETGID --cap-add DAC_OVERRIDE --cap-add SETPCAP --cap-add FOWNER --security-opt no-new-privileges --pids-limit 128 --memory 2g -v nod-workspace-probe-data:/data nod-workspace:ci
+          docker run -d --name nod-workspace-probe --network nod-workspace-ci --network-alias ci-nod-workspace-preflight --cap-drop ALL --cap-add NET_ADMIN --cap-add CHOWN --cap-add SETUID --cap-add SETGID --cap-add DAC_OVERRIDE --cap-add SETPCAP --cap-add FOWNER --cap-add KILL --security-opt no-new-privileges --pids-limit 128 --memory 2g -v nod-workspace-probe-data:/data nod-workspace:ci
           for i in {1..80}; do
             if docker logs nod-workspace-server 2>&1 | grep NOD_WORKSPACE_DIAGNOSTIC_RECOVERY_OK >/dev/null; then break; fi
             sleep 2
