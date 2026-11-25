@@ -40,6 +40,7 @@ jobs:
           }
           start_and_check NOD_NATIVE_STORAGE_CREATED
           docker exec -i nod-native-app node --input-type=module < nod_native_preflight/check-web.mjs
+          docker exec -i nod-native-app node --input-type=module < nod_native_preflight/check-ha-mcp.mjs
           docker exec nod-native-app gosu postgres psql -h 127.0.0.1 -U postgres -d postgres -c 'SELECT 1' >/dev/null 2>&1 || true
           docker exec nod-native-app sh -ec 'socket=$(find /tmp -maxdepth 1 -type d -name "nod-pg.*" | head -n 1); gosu postgres psql -h "$socket" -U postgres -v ON_ERROR_STOP=1 -d postgres -c "CREATE TABLE nod_native_ci_probe (value integer); INSERT INTO nod_native_ci_probe VALUES (42);"'
           fingerprint=$(docker exec nod-native-app sha256sum /data/nod-native-v1/secrets)
