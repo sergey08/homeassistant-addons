@@ -9,17 +9,22 @@ permissions:
 jobs:
   native-app:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - run: docker build -t nod-native-app:ci nod_native_preflight
-      - name: Check persistent native app across container replacement
+      - uses: actions/checkout@v4
+        with:
+          ref: 7fe396100922152e581921d5df1c327423254f70
+          path: previous-port
+      - run: docker build -t nod-native-app:previous previous-port/nod_native_preflight
+      - name: Check persistent data across the upstream upgrade
         run: |
           set -euo pipefail
           docker volume create nod-native-ci-data
           start_and_check() {
             local marker="$1"; shift
-            docker run -d --name nod-native-app --network none -v nod-native-ci-data:/data "$@" nod-native-app:ci
+            docker run -d --name nod-native-app --network none -v nod-native-ci-data:/data "$@" "$image"
             for attempt in {1..110}; do
               docker logs nod-native-app > probe.log 2>&1
               if grep -q '^FAIL:' probe.log; then cat probe.log; return 1; fi
@@ -38,6 +43,7 @@ jobs:
             cat probe.log
             return 1
           }
+          image=nod-native-app:previous
           start_and_check NOD_NATIVE_STORAGE_CREATED
           docker exec -i nod-native-app node --input-type=module < nod_native_preflight/check-web.mjs
           docker exec -i nod-native-app node --input-type=module < nod_native_preflight/check-ha-mcp.mjs
@@ -47,6 +53,7 @@ jobs:
           docker stop -t 30 nod-native-app
           test "$(docker inspect -f '{{.State.ExitCode}}' nod-native-app)" = 0
           docker rm nod-native-app
+          image=nod-native-app:ci
           start_and_check NOD_NATIVE_STORAGE_REUSED
           test "$fingerprint" = "$(docker exec nod-native-app sha256sum /data/nod-native-v1/secrets)"
           value=$(docker exec nod-native-app sh -ec 'socket=$(find /tmp -maxdepth 1 -type d -name "nod-pg.*" | head -n 1); gosu postgres psql -h "$socket" -U postgres -d postgres -Atc "SELECT value FROM nod_native_ci_probe"')
