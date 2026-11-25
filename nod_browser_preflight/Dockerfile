@@ -10,8 +10,8 @@ COPY --from=upstream /src/package.json /src/pnpm-lock.yaml /src/pnpm-workspace.y
 COPY --from=upstream /src/patches ./patches
 RUN corepack enable && pnpm install --frozen-lockfile && pnpm store prune
 COPY --from=upstream /src/src ./src
-COPY patch-worker.mjs /tmp/patch-worker.mjs
-RUN node /tmp/patch-worker.mjs
+COPY patch-worker.mjs patch-public-dns.mjs /tmp/
+RUN node /tmp/patch-worker.mjs && node /tmp/patch-public-dns.mjs
 RUN node_modules/.bin/esbuild src/providers/container-browser/worker.ts src/providers/container-browser/bridge.ts --bundle --platform=node --format=esm --outdir=/out --out-extension:.js=.mjs \
     && agent="node_modules/agent-browser/bin/agent-browser-linux-$(node -p process.arch)" \
     && install -D -m 555 "$agent" "/out/$agent" \
@@ -39,8 +39,8 @@ USER root
 RUN apt-get update && apt-get install -y --no-install-recommends iptables util-linux && rm -rf /var/lib/apt/lists/*
 COPY --from=upstream /src/LICENSE /usr/share/doc/nod/LICENSE
 RUN groupadd -g 1001 nodgateway && useradd -M -u 1001 -g 1001 -s /usr/sbin/nologin nodgateway
-COPY prepare-config.mjs transport.mjs /app/
-RUN node --check /app/prepare-config.mjs && node --check /app/transport.mjs
+COPY prepare-config.mjs transport.mjs egress-probe.mjs /app/
+RUN node --check /app/prepare-config.mjs && node --check /app/transport.mjs && node --check /app/egress-probe.mjs
 COPY --chmod=555 run.sh /app/ha-browser-run.sh
 RUN sh -n /app/ha-browser-run.sh
 ENTRYPOINT ["/app/ha-browser-run.sh"]
