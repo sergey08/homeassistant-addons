@@ -20,6 +20,46 @@ export function privateNetwork(cidr) {
   return value=>{const ip=ipv4(value);return ip!==null && ((ip&mask)>>>0)===base;};
 }
 
+export function embeddedAncestor(value, nodOrigin) {
+  if (!value) return '';
+  const url = new URL(value);
+  if (url.protocol !== 'https:' || url.origin !== value || url.origin === nodOrigin ||
+      url.hostname === new URL(nodOrigin).hostname)
+    throw new Error('Expected a distinct, exact HTTPS Home Assistant origin');
+  return url.origin;
+}
+
+const embedCookie = '__Host-nod-embedded-4310';
+const normalCookie = 'nod-access-4310';
+const publicPages = new Set(['/', '/tasks', '/memory', '/usage', '/vault', '/trust', '/apps',
+  '/onboarding', '/connected.html', '/channels', '/settings', '/settings/models',
+  '/settings/apps', '/settings/memory', '/browser', '/privacy', '/privacy/']);
+
+function embeddedRequest(headers, origin) {
+  return headers['x-nod-embedded'] === '1' && headers['sec-fetch-site'] === 'same-origin' &&
+    (!headers.origin || headers.origin === origin);
+}
+
+function mapEmbeddedCookie(headers) {
+  const parts = String(headers.cookie || '').split(';').map(x => x.trim()).filter(Boolean);
+  const values = parts.filter(x => x.startsWith(embedCookie + '='));
+  const other = parts.filter(x => !x.startsWith(normalCookie + '=') && !x.startsWith(embedCookie + '='));
+  if (values.length === 1 && /^[A-Za-z0-9_-]{43,}$/.test(values[0].slice(embedCookie.length + 1)))
+    other.push(normalCookie + '=' + values[0].slice(embedCookie.length + 1));
+  if (other.length) headers.cookie = other.join('; ');
+  else delete headers.cookie;
+}
+
+function partitionLogin(headers) {
+  const cookies = headers['set-cookie'] || [];
+  headers['set-cookie'] = cookies.map(cookie => {
+    if (!cookie.startsWith(normalCookie + '=')) return cookie;
+    const match = /^nod-access-4310=([A-Za-z0-9_-]{43,}); Path=\/; HttpOnly; SameSite=Strict; Max-Age=34560000; Secure$/.exec(cookie);
+    if (!match) throw new Error('Unexpected upstream access cookie');
+    return embedCookie + '=' + match[1] + '; Path=/; HttpOnly; SameSite=None; Max-Age=34560000; Secure; Partitioned';
+  });
+}
+
 function end(res,status) {
   res.writeHead(status,{'Cache-Control':'no-store','Content-Type':'text/plain; charset=utf-8'});
   res.end(status===403?'Forbidden':'Unavailable');
@@ -36,10 +76,11 @@ function cleanHeaders(headers) {
 
 // The caller must provision a dedicated certificate and restrict the listening network.
 // No owner token injection, origin rewriting, or public forwarding.
-export function createNodRelay({key,cert,origin,allowPeer}) {
+export function createNodRelay({key,cert,origin,allowPeer,haAncestor=''}) {
   const url=new URL(origin);
   if(url.protocol!=='https:' || url.origin!==origin || typeof allowPeer!=='function')
     throw new Error('Expected a dedicated HTTPS origin and peer allowlist');
+  const ancestor = embeddedAncestor(haAncestor, origin);
   const server=createServer({key,cert,minVersion:'TLSv1.2'},(req,res)=>{
     if(!allowPeer(req.socket.remoteAddress) || req.headers.host!==url.host ||
       (req.headers.origin && req.headers.origin!==origin)) return end(res,403);
@@ -49,11 +90,25 @@ export function createNodRelay({key,cert,origin,allowPeer}) {
     const pathname=new URL(req.url,origin).pathname;
     if(pathname==='/api/webhooks' || pathname.startsWith('/api/webhooks/')) return end(res,403);
     const headers=cleanHeaders(req.headers);
+    const marked = !!ancestor && embeddedRequest(req.headers, origin);
+    delete headers['x-nod-embedded'];
+    if (marked) mapEmbeddedCookie(headers);
+    // Adapt only public HTML navigation. API routes retain upstream Fetch Metadata checks.
+    if (ancestor && req.method === 'GET' && publicPages.has(pathname) &&
+        headers['sec-fetch-mode'] === 'navigate' && headers['sec-fetch-dest'] === 'iframe')
+      headers['sec-fetch-dest'] = 'document';
     // Forward the validated original authority. Never add credentials.
     headers.host=url.host;
     const upstream=request({hostname:'127.0.0.1',port:4310,path:req.url,
       method:req.method,headers},reply=>{
-      res.writeHead(reply.statusCode,cleanHeaders(reply.headers));
+      const out=cleanHeaders(reply.headers);
+      if (ancestor && out['content-security-policy'] === "frame-ancestors 'none'")
+        out['content-security-policy'] = 'frame-ancestors ' + ancestor;
+      if (marked && req.method === 'POST' && pathname === '/api/access' &&
+          req.headers.origin === origin && reply.statusCode === 204) {
+        try { partitionLogin(out); } catch { reply.resume(); end(res,502); return; }
+      }
+      res.writeHead(reply.statusCode,out);
       reply.pipe(res);
       reply.on('error',()=>res.destroy());
     });
