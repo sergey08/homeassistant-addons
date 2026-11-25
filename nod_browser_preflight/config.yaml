@@ -1,7 +1,7 @@
 name: "Nod Browser (experimental)"
-version: "0.1.0-dev.2"
+version: "0.1.0-dev.3"
 slug: "nod_browser_preflight"
-description: "Isolated upstream Nod browser worker, no remote control enabled yet"
+description: "Isolated upstream Nod browser worker with optional authenticated internal transport"
 url: "https://github.com/sergey08/homeassistant-addons/pull/139"
 arch:
   - amd64
@@ -18,5 +18,11 @@ homeassistant_api: false
 ingress: false
 privileged:
   - NET_ADMIN
-options: {}
-schema: {}
+options:
+  remote_enabled: false
+  remote_key: ""
+  server_host: ""
+schema:
+  remote_enabled: bool
+  remote_key: password
+  server_host: str
