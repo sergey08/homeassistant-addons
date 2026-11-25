@@ -28,9 +28,12 @@ ENV PIPX_BIN_DIR=/home/node/.local/bin
 ENV PATH=/opt/nod-artifacts/bin:/home/node/.local/bin:$PATH
 WORKDIR /workspace
 
-# HA preflight: no remote execution endpoint or host mounts.
+# HA preflight: optional fixed probe only; no host mounts.
 RUN apt-get update && apt-get install -y --no-install-recommends util-linux && rm -rf /var/lib/apt/lists/*
 COPY --from=upstream /src/LICENSE /usr/share/doc/nod/LICENSE
+RUN groupadd -g 1001 nodgateway && useradd -M -u 1001 -g 1001 -s /usr/sbin/nologin nodgateway
+COPY prepare-config.mjs transport.mjs probe-worker.mjs /app/
+RUN node --check /app/prepare-config.mjs && node --check /app/transport.mjs && node --check /app/probe-worker.mjs
 COPY --chmod=555 run.sh /usr/local/bin/nod-ha-workspace-preflight
 COPY --chmod=444 selftest.py /opt/nod-workspace-selftest.py
 RUN sh -n /usr/local/bin/nod-ha-workspace-preflight
