@@ -6,7 +6,7 @@ import {randomUUID,randomBytes} from 'node:crypto';
 import {once} from 'node:events';
 const namespace='sk-'+'a'.repeat(24);
 const threadId='browser-ci';
-const socketPath='/data/control.sock';
+const socketPath=process.env.NOD_TEST_SOCKET||'/data/control.sock';
 let gateway, psk, transport;
 if(process.env.NOD_TEST_TLS==='1'){
   transport=await import('./transport.mjs');
