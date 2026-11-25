@@ -90,7 +90,15 @@ export function createNodRelay({key,cert,origin,allowPeer,haAncestor=''}) {
     const pathname=new URL(req.url,origin).pathname;
     if(pathname==='/api/webhooks' || pathname.startsWith('/api/webhooks/')) return end(res,403);
     const headers=cleanHeaders(req.headers);
-    const marked = !!ancestor && embeddedRequest(req.headers, origin);
+    // EventSource cannot set custom headers. Permit the same partitioned cookie
+    // mapping only on the exact read-only SSE route and same-origin browser requests.
+    const query = new URL(req.url,origin).searchParams;
+    const markedEvent = req.method === 'GET' && pathname === '/api/events' &&
+      query.getAll('nod_embedded').length === 1 && query.get('nod_embedded') === '1' &&
+      req.headers['sec-fetch-site'] === 'same-origin' &&
+      req.headers['sec-fetch-mode'] === 'cors' && req.headers['sec-fetch-dest'] === 'empty' &&
+      String(req.headers.accept || '').split(',').some(x => x.trim() === 'text/event-stream');
+    const marked = !!ancestor && (embeddedRequest(req.headers, origin) || markedEvent);
     delete headers['x-nod-embedded'];
     if (marked) mapEmbeddedCookie(headers);
     // Adapt only public HTML navigation. API routes retain upstream Fetch Metadata checks.
