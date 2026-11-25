@@ -1,6 +1,29 @@
 # Nod native preflight
 
-Experimental amd64-only Home Assistant app. It compiles upstream Nod at revision `6670bc233b6b7dddaa75b25b89b4a89f0e92bcac` and checks its authenticated health endpoint against PostgreSQL 17. Both services listen only on loopback, run as separate unprivileged users and remain running after the health check. Version dev.2 stores data and generated credentials under the app's private `/data/nod-native-v1` directory. CI checks database and key persistence across container replacement. Dev.3 adds a read-only Ingress status page, not the original Nod UI. Only the Supervisor ingress source 172.30.32.2 is accepted. Dev.4 adds an optional dedicated HTTPS UI, disabled by default, with no mapped port by default. No host Docker socket, additional permissions, browser or workspace. Not a usable agent yet. Upstream Nod is Apache-2.0 licensed by n8n GmbH; its license is included in the image.
+Experimental amd64-only Home Assistant app. It compiles upstream Nod at revision `6670bc233b6b7dddaa75b25b89b4a89f0e92bcac` and checks its authenticated health endpoint against PostgreSQL 17. Both services listen only on loopback, run as separate unprivileged users and remain running after the health check. Version dev.2 stores data and generated credentials under the app's private `/data/nod-native-v1` directory. CI checks database and key persistence across container replacement. Dev.3 adds a read-only Ingress status page, not the original Nod UI. Only the Supervisor ingress source 172.30.32.2 is accepted. Dev.4 adds an optional dedicated HTTPS UI, disabled by default, with no mapped port by default. No host Docker socket, additional permissions, browser or workspace. The current dev.14 status and validation are described below; the version-specific setup sections also retain historical validation notes. Upstream Nod is Apache-2.0 licensed by n8n GmbH; its license is included in the image.
+
+## Dev.14: real task runtime connected
+
+Server dev.14 connects the remote Workspace launcher to Nod's original command workspace and agent runtime. The actual composition and a real model-driven task have been validated on Home Assistant with Workspace dev.3 and Browser dev.4. The task opened the public IANA Example Domains page, returned a screenshot and attached a synthetic text file.
+
+- Enable `workspace_runtime_enabled` on Server and `command_enabled` on Workspace to use general task commands. Defaults remain disabled.
+- Browser tools retain upstream task/background gating: ask Nod to create and execute a task; ordinary conversation does not register the browser tool.
+- Connected CLI execution remains unavailable. Commands are offline in the dedicated Workspace; public browsing runs through the separate Browser.
+- `workspace_runtime_probe_enabled` is an optional synthetic end-to-end startup diagnostic requiring runtime and browser to be enabled. Disable it after validation; it is not needed for normal tasks.
+- The runtime forwards the original pinned supervisor with verified hashes, real task-directory creation, cancellation, a 10-minute command timeout and a 16 MiB output limit.
+- Per-process limits and a shared executor UID are not aggregate cgroup CPU/RAM limits or separate security principals per task. Those limitations and upstream upgrade validation remain open.
+
+All six CI workflows passed for functional commit `671bf1265833b3b9ea7227f15de5c25a2eec097a`. The installed HA configuration keeps runtime enabled and automatic diagnostics disabled. Supervisor protection remains enabled, with no host Docker socket, host network or new published ports. This is an experimental branch, not a stable release.
+
+### Español
+
+La dev.14 conecta el Workspace remoto con las herramientas reales del agente. En HA se ha completado una tarea real que abrió IANA con el navegador, mostró la captura y adjuntó `prueba_nod.txt` con `Nod Workspace OK`.
+
+Activa `workspace_runtime_enabled` en Server y `command_enabled` en Workspace para las órdenes generales de tareas (desactivados por defecto). El navegador conserva la condición original de ejecución en tareas: pide crear y ejecutar una tarea; no se registra en una conversación ordinaria. Las CLI conectadas siguen deshabilitadas. Las órdenes del Workspace no tienen acceso a Internet; la consulta pública usa el Browser separado.
+
+El diagnóstico `workspace_runtime_probe_enabled` es opcional, requiere runtime y navegador activos y debe desactivarse tras la comprobación. La instalación validada conserva el runtime activo y los diagnósticos automáticos desactivados. Los límites por proceso y el usuario compartido no sustituyen límites agregados de CPU/RAM ni aislamiento por usuario entre tareas. Continúa siendo experimental, con protección Supervisor activa.
+
+## Historical version-specific setup
 
 ## Dev.4 optional HTTPS setup
 
