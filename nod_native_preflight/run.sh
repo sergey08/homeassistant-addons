@@ -8,12 +8,17 @@ server_pid=
 ingress_pid=
 relay_pid=
 bridge_pid=
+diagnostic_pid=
 relay_origin=
 ha_ancestor=
 ingress_origin=
 socket=$(mktemp -d /tmp/nod-pg.XXXXXX)
 chown postgres:postgres "$socket"
 cleanup() {
+    if [ -n "$diagnostic_pid" ]; then
+        kill "$diagnostic_pid" 2>/dev/null || true
+        wait "$diagnostic_pid" 2>/dev/null || true
+    fi
     if [ -n "$bridge_pid" ]; then
         kill "$bridge_pid" 2>/dev/null || true
         wait "$bridge_pid" 2>/dev/null || true
@@ -126,6 +131,10 @@ for attempt in $(seq 1 90); do
         node -e 'fetch("http://127.0.0.1:8099/").then(r=>{process.exit(r.status===403?0:1)}).catch(()=>process.exit(1))' || { echo 'FAIL: ingress access restriction'; exit 1; }
         echo NOD_NATIVE_INGRESS_DIRECT_DENIED
         echo 'PASS: native Nod and PostgreSQL running persistently on loopback'
+        if [ "$NOD_HA_BROWSER_REMOTE" = 1 ]; then
+            env -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/home/node NOD_HA_BROWSER_REMOTE=1 gosu node node --import tsx /app/browser-diagnostic.mjs &
+            diagnostic_pid=$!
+        fi
         while kill -0 "$bridge_pid" 2>/dev/null && kill -0 "$server_pid" 2>/dev/null && kill -0 "$ingress_pid" 2>/dev/null && { [ -z "$relay_pid" ] || kill -0 "$relay_pid" 2>/dev/null; } && gosu postgres pg_ctl -D "$root/db" status >/dev/null 2>&1; do
             sleep 5 &
             wait $!
