@@ -21,8 +21,8 @@ COPY --from=build --chown=node:node /app/docs/src/content/docs ./docs/src/conten
 COPY --from=build /app/deployment/self-host/healthcheck.mjs ./healthcheck.mjs
 COPY --from=build /app/LICENSE /usr/share/doc/nod/LICENSE
 COPY ingress.mjs /app/ingress.mjs
-COPY https-relay.mjs relay-config.mjs relay-start.mjs /app/
-RUN node --check /app/ingress.mjs && node --check /app/https-relay.mjs && node --check /app/relay-config.mjs && node --check /app/relay-start.mjs
+COPY https-relay.mjs relay-config.mjs relay-start.mjs ha-mcp-bridge.mjs /app/
+RUN node --check /app/ingress.mjs && node --check /app/https-relay.mjs && node --check /app/relay-config.mjs && node --check /app/relay-start.mjs && node --check /app/ha-mcp-bridge.mjs
 COPY run.sh /usr/local/bin/nod-native-preflight
 RUN chmod 0755 /usr/local/bin/nod-native-preflight && sh -n /usr/local/bin/nod-native-preflight && node --version && postgres --version
 ENTRYPOINT ["/usr/local/bin/nod-native-preflight"]
