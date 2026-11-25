@@ -47,7 +47,7 @@ jobs:
             sleep 2
           done
           docker exec -i nod-browser-ci node --input-type=module < nod_browser_validation/check-worker.mjs
-          if docker logs nod-browser-private-fixture 2>&1 | grep -q PRIVATE_REQUEST; then echo 'Private target received traffic'; exit 1; fi
+          if docker logs nod-browser-private-fixture 2>&1 | grep PRIVATE_REQUEST >/dev/null; then echo 'Private target received traffic'; exit 1; fi
       - name: Test network enforcement outside Chromium
         run: |
           set -euo pipefail
@@ -57,13 +57,13 @@ jobs:
             if docker exec --user node nod-browser-guard-ci node -e 'const s=require("node:net").connect("/run/nod-browser/control.sock");s.on("connect",()=>{s.end();process.exit(0)});s.on("error",()=>process.exit(1))'; then break; fi
             sleep 2
           done
-          docker logs nod-browser-guard-ci 2>&1 | grep -q NOD_BROWSER_FIREWALL_READY
+          docker logs nod-browser-guard-ci 2>&1 | grep NOD_BROWSER_FIREWALL_READY >/dev/null
           docker network connect nod-browser-private-ci nod-browser-guard-ci
           docker exec --user node -e NOD_TEST_SOCKET=/run/nod-browser/control.sock -i nod-browser-guard-ci node --input-type=module < nod_browser_validation/check-worker.mjs
           docker exec --user node -e NOD_TEST_TLS=1 -e NOD_TEST_SOCKET=/run/nod-browser/control.sock nod-browser-guard-ci node /test/check-worker.mjs
           docker exec --user node nod-browser-guard-ci node -e 'const a=require("node:assert/strict"); (async()=>{a.match(await(await fetch("http://93.184.216.34/",{signal:AbortSignal.timeout(3000)})).text(),/Nod browser CI fixture/);await a.rejects(fetch("http://10.223.80.34/",{signal:AbortSignal.timeout(3000)}));console.log("NOD_BROWSER_NETWORK_GUARD_OK")})().catch(e=>{console.error(e);process.exit(1)})'
           docker exec --user node nod-browser-guard-ci sh -ec 'for p in /proc/[0-9]*/status; do if grep -q "^Name:.*node" "$p"; then grep -q "^CapEff:[[:space:]]*0000000000000000$" "$p"; grep -q "^CapBnd:[[:space:]]*0000000000000000$" "$p"; grep -q "^NoNewPrivs:[[:space:]]*1$" "$p"; fi; done'
-          if docker logs nod-browser-private-fixture 2>&1 | grep -q PRIVATE_REQUEST; then echo 'Private target received traffic'; exit 1; fi
+          if docker logs nod-browser-private-fixture 2>&1 | grep PRIVATE_REQUEST >/dev/null; then echo 'Private target received traffic'; exit 1; fi
       - name: Verify separate client container and restricted return traffic
         run: |
           set -euo pipefail
@@ -93,7 +93,7 @@ jobs:
           docker exec nod-browser-client-ci node /test/check-remote-worker.mjs
           docker exec --user node nod-browser-guard-ci node -e 'const a=require("node:assert/strict");a.rejects(fetch("http://10.223.80.35/",{signal:AbortSignal.timeout(3000)})).then(()=>console.log("NOD_BROWSER_PEER_OUTBOUND_BLOCKED")).catch(e=>{console.error(e);process.exit(1)})'
           docker exec nod-browser-private-fixture node -e 'const s=require("node:net").connect(9592,process.argv[1]);s.setTimeout(3000,()=>{s.destroy();process.exit(0)});s.on("connect",()=>{s.destroy();process.exit(1)});s.on("error",()=>process.exit(0))' "$gateway_ip"
-          if docker logs nod-browser-private-fixture 2>&1 | grep -q PRIVATE_REQUEST; then exit 1; fi
+          if docker logs nod-browser-private-fixture 2>&1 | grep PRIVATE_REQUEST >/dev/null; then exit 1; fi
       - name: Test actual configured HA browser and server launcher
         run: |
           set -euo pipefail
@@ -107,12 +107,12 @@ jobs:
           docker run -d --name nod-server-enabled-ci --network nod-browser-private-ci --network-alias ci-nod-native-preflight --init -v nod-server-enabled-data:/data nod-native-browser-test:ci
           docker run -d --name nod-browser-enabled-ci --network nod-browser-private-ci --network-alias ci-nod-browser-preflight --init --cap-drop ALL --cap-add NET_ADMIN --cap-add SETUID --cap-add SETGID --cap-add SETPCAP --cap-add CHOWN --cap-add FOWNER --cap-add KILL --security-opt no-new-privileges --read-only --pids-limit 1024 --memory 3g --shm-size 512m --tmpfs /tmp:size=512m --tmpfs /run:size=16m --tmpfs /home/node:uid=1000,gid=1000,mode=700,size=256m -v nod-browser-enabled-data:/data nod-browser-guard:ci
           for attempt in {1..90}; do
-            if docker logs nod-browser-enabled-ci 2>&1 | grep -q NOD_BROWSER_TRANSPORT_READY && docker logs nod-server-enabled-ci 2>&1 | grep -q NOD_NATIVE_SERVER_HEALTH_OK; then break; fi
+            if docker logs nod-browser-enabled-ci 2>&1 | grep NOD_BROWSER_TRANSPORT_READY >/dev/null && docker logs nod-server-enabled-ci 2>&1 | grep NOD_NATIVE_SERVER_HEALTH_OK >/dev/null; then break; fi
             sleep 2
           done
-          docker logs nod-browser-enabled-ci 2>&1 | grep -q NOD_BROWSER_TRANSPORT_READY || { docker logs nod-browser-enabled-ci 2>&1; exit 1; }
-          docker logs nod-server-enabled-ci 2>&1 | grep -q NOD_BROWSER_CLIENT_CONFIGURED
-          docker logs nod-server-enabled-ci 2>&1 | grep -q NOD_NATIVE_SERVER_HEALTH_OK
+          docker logs nod-browser-enabled-ci 2>&1 | grep NOD_BROWSER_TRANSPORT_READY >/dev/null || { docker logs nod-browser-enabled-ci 2>&1; exit 1; }
+          docker logs nod-server-enabled-ci 2>&1 | grep NOD_BROWSER_CLIENT_CONFIGURED >/dev/null
+          docker logs nod-server-enabled-ci 2>&1 | grep NOD_NATIVE_SERVER_HEALTH_OK >/dev/null
           docker network connect nod-browser-public-ci nod-browser-enabled-ci
           docker exec --user 1000:1000 nod-browser-enabled-ci sh -ec 'test ! -r /data/options.json; test ! -w /data; test ! -r /run/nod-browser-gateway/settings.json; test ! -w /run/nod-browser-gateway; echo NOD_BROWSER_KEY_ISOLATED'
           docker exec --user 1001:1000 nod-browser-enabled-ci sh -ec 'test -r /run/nod-browser-gateway/settings.json; test ! -r /data/options.json; test ! -r /data/browser; test -S /run/nod-browser/control.sock'
@@ -130,7 +130,7 @@ jobs:
             console.log('NOD_HA_PACKAGED_BROWSER_CLIENT_OK');
           } finally { await browser.dispose(); }
           JS
-          if docker logs nod-browser-private-fixture 2>&1 | grep -q PRIVATE_REQUEST; then exit 1; fi
+          if docker logs nod-browser-private-fixture 2>&1 | grep PRIVATE_REQUEST >/dev/null; then exit 1; fi
       - if: always()
         run: |
           docker logs nod-browser-ci 2>/dev/null || true
