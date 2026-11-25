@@ -1,0 +1,22 @@
+name: "Nod Browser (experimental)"
+version: "0.1.0-dev.1"
+slug: "nod_browser_preflight"
+description: "Isolated upstream Nod browser worker, no remote control enabled yet"
+url: "https://github.com/sergey08/homeassistant-addons/pull/139"
+arch:
+  - amd64
+startup: application
+boot: manual
+init: false
+stage: experimental
+host_network: false
+host_pid: false
+host_ipc: false
+docker_api: false
+hassio_api: false
+homeassistant_api: false
+ingress: false
+privileged:
+  - NET_ADMIN
+options: {}
+schema: {}
