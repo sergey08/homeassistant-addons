@@ -1,7 +1,7 @@
 name: "Nod Workspace (experimental)"
-version: "0.1.0-dev.1"
+version: "0.1.0-dev.2"
 slug: "nod_workspace_preflight"
-description: "Offline isolated Nod workspace feasibility test; no remote execution yet"
+description: "Isolated Nod workspace with optional authenticated fixed-command diagnostic; no general remote execution"
 url: "https://github.com/sergey08/homeassistant-addons/pull/139"
 arch:
   - amd64
@@ -18,5 +18,11 @@ homeassistant_api: false
 ingress: false
 privileged:
   - NET_ADMIN
-options: {}
-schema: {}
+options:
+  remote_enabled: false
+  remote_key: ""
+  server_host: ""
+schema:
+  remote_enabled: bool
+  remote_key: password
+  server_host: str
