@@ -23,7 +23,7 @@ function request(command,{cancel=false}={}){
     socket.on('close',hadError=>finish(hadError));
   });
 }
-let ready=false;
+let ready=false,phase='FIXED';
 for(let attempt=0;attempt<5&&!ready;attempt++){
   try{
     if(await request('probe')!=='result:42\nexit:0\n')throw Error();
@@ -41,8 +41,8 @@ try{
   console.log('NOD_WORKSPACE_DIAGNOSTIC_ARBITRARY_REJECTED');
   if(await request('probe')!=='result:42\nexit:0\n')throw Error();
   console.log('NOD_WORKSPACE_DIAGNOSTIC_RECOVERY_OK');
-  if(config.commandProbe===true)await import('./workspace-command-diagnostic.mjs');
-}catch{
-  console.error('NOD_WORKSPACE_DIAGNOSTIC_FAILED');
+  if(config.commandProbe===true){phase='UPSTREAM';await import('./workspace-command-diagnostic.mjs');}
+}catch(error){
+  console.error('NOD_WORKSPACE_DIAGNOSTIC_FAILED '+phase+' '+String(error?.code??error?.name??'Error').replace(/[^A-Za-z0-9_]/g,''));
   process.exitCode=1;
 }

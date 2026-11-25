@@ -69,6 +69,7 @@ jobs:
           docker run -d --name nod-workspace-probe --network nod-workspace-ci --network-alias ci-nod-workspace-preflight --cap-drop ALL --cap-add NET_ADMIN --cap-add CHOWN --cap-add SETUID --cap-add SETGID --cap-add DAC_OVERRIDE --cap-add SETPCAP --cap-add FOWNER --cap-add KILL --security-opt no-new-privileges --pids-limit 128 --memory 2g -v nod-workspace-probe-data:/data nod-workspace:ci
           for i in {1..100}; do
             if docker logs nod-workspace-server 2>&1 | grep NOD_WORKSPACE_PROTOCOL_RECOVERY_OK >/dev/null; then break; fi
+            if docker logs nod-workspace-server 2>&1 | grep NOD_WORKSPACE_DIAGNOSTIC_FAILED >/dev/null; then break; fi
             sleep 2
           done
           docker logs nod-workspace-server 2>&1 | grep NOD_NATIVE_SERVER_HEALTH_OK

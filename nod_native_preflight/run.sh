@@ -144,7 +144,7 @@ for attempt in $(seq 1 90); do
         echo 'PASS: native Nod and PostgreSQL running persistently on loopback'
         # Public browser startup probing is retired; keep diagnostics synthetic.
         if [ "$workspace_probe" = 1 ]; then
-            env -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/home/node gosu node node /app/workspace-diagnostic.mjs &
+            env -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/home/node gosu node node --import tsx /app/workspace-diagnostic.mjs &
             workspace_diagnostic_pid=$!
         fi
         while kill -0 "$bridge_pid" 2>/dev/null && kill -0 "$server_pid" 2>/dev/null && kill -0 "$ingress_pid" 2>/dev/null && { [ -z "$relay_pid" ] || kill -0 "$relay_pid" 2>/dev/null; } && gosu postgres pg_ctl -D "$root/db" status >/dev/null 2>&1; do
