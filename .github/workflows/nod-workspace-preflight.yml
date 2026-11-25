@@ -38,10 +38,29 @@ jobs:
           test "$(docker logs nod-workspace-test 2>&1 | grep -c NOD_WORKSPACE_UNPRIVILEGED_READY)" -ge 2
           docker exec --user 1000:1000 nod-workspace-test sh -ec 'test "$(cat /workspace/ci-persistence)" = synthetic'
           echo NOD_WORKSPACE_PERSISTENCE_OK
+      - name: Test optional authenticated probe in actual workspace container
+        run: |
+          set -euo pipefail
+          docker run -d --name nod-workspace-peer --network nod-workspace-ci --network-alias ci-nod-native-preflight --entrypoint sleep nod-workspace:ci infinity
+          docker volume create nod-workspace-probe-data
+          docker run --rm --network none -v nod-workspace-probe-data:/data --entrypoint node nod-workspace:ci -e 'require("node:fs").writeFileSync("/data/options.json",JSON.stringify({remote_enabled:true,remote_key:"a".repeat(64),server_host:"ci-nod-native-preflight"}),{mode:384})'
+          docker run -d --name nod-workspace-probe --network nod-workspace-ci --network-alias nod-workspace-ci-worker --cap-drop ALL --cap-add NET_ADMIN --cap-add CHOWN --cap-add SETUID --cap-add SETGID --cap-add DAC_OVERRIDE --cap-add SETPCAP --cap-add FOWNER --security-opt no-new-privileges --pids-limit 128 --memory 2g -v nod-workspace-probe-data:/data nod-workspace:ci
+          for i in {1..30}; do
+            if docker logs nod-workspace-probe 2>&1 | grep NOD_WORKSPACE_TRANSPORT_READY >/dev/null; then break; fi
+            sleep 2
+          done
+          docker logs nod-workspace-probe 2>&1 | grep NOD_WORKSPACE_TRANSPORT_READY
+          docker cp nod_workspace_preflight/test-transport.mjs nod-workspace-peer:/tmp/test-transport.mjs
+          docker exec --user 1000:1000 nod-workspace-peer node /tmp/test-transport.mjs
+          docker exec --user 1000:1000 nod-workspace-probe sh -ec 'test ! -r /run/nod-workspace-gateway/settings.json; test ! -r /data/options.json; ! curl -fsS --connect-timeout 2 --max-time 3 http://10.223.81.34'
+          docker exec nod-workspace-fixture node -e 'const s=require("node:net").connect(9593,"nod-workspace-ci-worker");s.setTimeout(2000);s.on("connect",()=>process.exit(1));s.on("error",()=>process.exit(0));s.on("timeout",()=>{s.destroy();process.exit(0)})'
+          if docker logs nod-workspace-fixture 2>&1 | grep PRIVATE_REQUEST >/dev/null; then exit 1; fi
+          echo NOD_WORKSPACE_PEER_AND_KEY_ISOLATION_OK
       - name: Logs and cleanup
         if: always()
         run: |
           docker logs nod-workspace-test 2>&1 || true
-          docker rm -f nod-workspace-test nod-workspace-fixture || true
-          docker volume rm nod-workspace-ci-data || true
+          docker logs nod-workspace-probe 2>&1 || true
+          docker rm -f nod-workspace-test nod-workspace-fixture nod-workspace-probe nod-workspace-peer || true
+          docker volume rm nod-workspace-ci-data nod-workspace-probe-data || true
           docker network rm nod-workspace-ci || true
