@@ -2,19 +2,28 @@
 // Only synthetic data and an isolated Docker network are used.
 import assert from 'node:assert/strict';
 import {connect} from 'node:net';
-import {randomUUID} from 'node:crypto';
+import {randomUUID,randomBytes} from 'node:crypto';
+import {once} from 'node:events';
 const namespace='sk-'+'a'.repeat(24);
 const threadId='browser-ci';
 const socketPath='/data/control.sock';
+let gateway, psk, transport;
+if(process.env.NOD_TEST_TLS==='1'){
+  transport=await import('./transport.mjs');
+  psk=randomBytes(32).toString('hex');
+  gateway=transport.createGateway({psk,socketPath});
+  gateway.listen(0,'127.0.0.1');
+  await once(gateway,'listening');
+}
 function call(method,extra={}){
   return new Promise((resolve,reject)=>{
     const id=randomUUID();
-    const socket=connect(socketPath);
+    const socket=gateway?transport.connectGateway({psk,host:'127.0.0.1',port:gateway.address().port}):connect(socketPath);
     let buffer='';
     const timer=setTimeout(()=>{socket.destroy();reject(Error('Browser worker timeout: '+method));},90000);
     const finish=(error,result)=>{clearTimeout(timer);socket.destroy();error?reject(error):resolve(result);};
     socket.on('error',error=>finish(error));
-    socket.on('connect',()=>socket.write(JSON.stringify({type:'request',request:{id,namespace,method,...extra}})+'\n'));
+    socket.on(gateway?'secureConnect':'connect',()=>socket.write(JSON.stringify({type:'request',request:{id,namespace,method,...extra}})+'\n'));
     socket.on('data',chunk=>{
       buffer+=chunk.toString();
       if(buffer.length>18*1024*1024)return finish(Error('Oversized browser response'));
@@ -40,8 +49,12 @@ try{
     const state=await call('act',{threadId,input:{action:'snapshot'}});
     assert.doesNotMatch(JSON.stringify(state.result),/PRIVATE_FIXTURE_MUST_NOT_LOAD/);
   }
-  console.log('NOD_UPSTREAM_BROWSER_WORKER_OK');
+  console.log(gateway?'NOD_BROWSER_REAL_WORKER_TLS_OK':'NOD_UPSTREAM_BROWSER_WORKER_OK');
 }finally{
-  const closed=await call('dispose');
-  assert.equal(closed.ok,true);
+  try{
+    const closed=await call('dispose');
+    assert.equal(closed.ok,true);
+  }finally{
+    if(gateway)await new Promise(resolve=>gateway.close(resolve));
+  }
 }
