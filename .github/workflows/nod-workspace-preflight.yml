@@ -3,6 +3,7 @@ on:
   pull_request:
     paths:
       - 'nod_workspace_preflight/**'
+      - 'nod_native_preflight/**'
       - '.github/workflows/nod-workspace-preflight.yml'
 permissions:
   contents: read
@@ -56,11 +57,33 @@ jobs:
           docker exec nod-workspace-fixture node -e 'const s=require("node:net").connect(9593,"nod-workspace-ci-worker");s.setTimeout(2000);s.on("connect",()=>process.exit(1));s.on("error",()=>process.exit(0));s.on("timeout",()=>{s.destroy();process.exit(0)})'
           if docker logs nod-workspace-fixture 2>&1 | grep PRIVATE_REQUEST >/dev/null; then exit 1; fi
           echo NOD_WORKSPACE_PEER_AND_KEY_ISOLATION_OK
+      - name: Verify fixed diagnostic from the actual Nod Server package
+        run: |
+          set -euo pipefail
+          docker rm -f nod-workspace-peer nod-workspace-probe
+          docker build -t nod-workspace-server:ci nod_native_preflight
+          docker volume create nod-workspace-server-data
+          docker run --rm --network none -v nod-workspace-server-data:/data --entrypoint node nod-workspace-server:ci -e 'require("node:fs").writeFileSync("/data/options.json",JSON.stringify({workspace_probe_enabled:true,workspace_key:"a".repeat(64),workspace_host:"ci-nod-workspace-preflight",browser_key:"b".repeat(64),https_enabled:false}),{mode:384})'
+          docker run -d --name nod-workspace-server --network nod-workspace-ci --network-alias ci-nod-native-preflight -v nod-workspace-server-data:/data nod-workspace-server:ci
+          docker run -d --name nod-workspace-probe --network nod-workspace-ci --network-alias ci-nod-workspace-preflight --cap-drop ALL --cap-add NET_ADMIN --cap-add CHOWN --cap-add SETUID --cap-add SETGID --cap-add DAC_OVERRIDE --cap-add SETPCAP --cap-add FOWNER --security-opt no-new-privileges --pids-limit 128 --memory 2g -v nod-workspace-probe-data:/data nod-workspace:ci
+          for i in {1..80}; do
+            if docker logs nod-workspace-server 2>&1 | grep NOD_WORKSPACE_DIAGNOSTIC_RECOVERY_OK >/dev/null; then break; fi
+            sleep 2
+          done
+          docker logs nod-workspace-server 2>&1 | grep NOD_NATIVE_SERVER_HEALTH_OK
+          docker logs nod-workspace-server 2>&1 | grep NOD_WORKSPACE_DIAGNOSTIC_EXEC_OK
+          docker logs nod-workspace-server 2>&1 | grep NOD_WORKSPACE_DIAGNOSTIC_CANCEL_OK
+          docker logs nod-workspace-server 2>&1 | grep NOD_WORKSPACE_DIAGNOSTIC_ARBITRARY_REJECTED
+          docker logs nod-workspace-server 2>&1 | grep NOD_WORKSPACE_DIAGNOSTIC_RECOVERY_OK
+          if docker logs nod-workspace-server 2>&1 | grep NOD_WORKSPACE_DIAGNOSTIC_FAILED >/dev/null; then exit 1; fi
+          docker exec nod-workspace-server gosu nodrelay test ! -r /run/nod-workspace-client/settings.json
+          echo NOD_WORKSPACE_PACKAGED_SERVER_OK
       - name: Logs and cleanup
         if: always()
         run: |
           docker logs nod-workspace-test 2>&1 || true
           docker logs nod-workspace-probe 2>&1 || true
-          docker rm -f nod-workspace-test nod-workspace-fixture nod-workspace-probe nod-workspace-peer || true
-          docker volume rm nod-workspace-ci-data nod-workspace-probe-data || true
+          docker logs nod-workspace-server 2>&1 || true
+          docker rm -f nod-workspace-server nod-workspace-test nod-workspace-fixture nod-workspace-probe nod-workspace-peer || true
+          docker volume rm nod-workspace-ci-data nod-workspace-probe-data nod-workspace-server-data || true
           docker network rm nod-workspace-ci || true

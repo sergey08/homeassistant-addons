@@ -8,6 +8,7 @@ server_pid=
 ingress_pid=
 relay_pid=
 bridge_pid=
+workspace_diagnostic_pid=
 diagnostic_pid=
 relay_origin=
 ha_ancestor=
@@ -15,6 +16,10 @@ ingress_origin=
 socket=$(mktemp -d /tmp/nod-pg.XXXXXX)
 chown postgres:postgres "$socket"
 cleanup() {
+    if [ -n "$workspace_diagnostic_pid" ]; then
+        kill "$workspace_diagnostic_pid" 2>/dev/null || true
+        wait "$workspace_diagnostic_pid" 2>/dev/null || true
+    fi
     if [ -n "$diagnostic_pid" ]; then
         kill "$diagnostic_pid" 2>/dev/null || true
         wait "$diagnostic_pid" 2>/dev/null || true
@@ -27,7 +32,7 @@ cleanup() {
         kill "$relay_pid" 2>/dev/null || true
         wait "$relay_pid" 2>/dev/null || true
     fi
-    rm -rf /run/nod-relay /run/nod-browser-client
+    rm -rf /run/nod-relay /run/nod-browser-client /run/nod-workspace-client
     if [ -n "$ingress_pid" ]; then
         kill "$ingress_pid" 2>/dev/null || true
         wait "$ingress_pid" 2>/dev/null || true
@@ -101,6 +106,12 @@ if browser_flag=$(node /app/browser-config.mjs) && [ "$browser_flag" = 1 ]; then
     echo NOD_BROWSER_CLIENT_CONFIGURED
 fi
 export NOD_HA_BROWSER_REMOTE
+rm -rf /run/nod-workspace-client
+workspace_probe=
+if workspace_flag=$(node /app/workspace-config.mjs) && [ "$workspace_flag" = 1 ]; then
+    workspace_probe=1
+    echo NOD_WORKSPACE_CLIENT_CONFIGURED
+fi
 gosu node node --import tsx src/server/index.ts > "$root/server.log" 2>&1 &
 server_pid=$!
 for attempt in $(seq 1 90); do
@@ -131,9 +142,10 @@ for attempt in $(seq 1 90); do
         node -e 'fetch("http://127.0.0.1:8099/").then(r=>{process.exit(r.status===403?0:1)}).catch(()=>process.exit(1))' || { echo 'FAIL: ingress access restriction'; exit 1; }
         echo NOD_NATIVE_INGRESS_DIRECT_DENIED
         echo 'PASS: native Nod and PostgreSQL running persistently on loopback'
-        if [ "$NOD_HA_BROWSER_REMOTE" = 1 ]; then
-            env -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/home/node NOD_HA_BROWSER_REMOTE=1 gosu node node --import tsx /app/browser-diagnostic.mjs &
-            diagnostic_pid=$!
+        # Public browser startup probing is retired; keep diagnostics synthetic.
+        if [ "$workspace_probe" = 1 ]; then
+            env -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/home/node gosu node node /app/workspace-diagnostic.mjs &
+            workspace_diagnostic_pid=$!
         fi
         while kill -0 "$bridge_pid" 2>/dev/null && kill -0 "$server_pid" 2>/dev/null && kill -0 "$ingress_pid" 2>/dev/null && { [ -z "$relay_pid" ] || kill -0 "$relay_pid" 2>/dev/null; } && gosu postgres pg_ctl -D "$root/db" status >/dev/null 2>&1; do
             sleep 5 &
