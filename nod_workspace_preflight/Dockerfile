@@ -1,7 +1,7 @@
 FROM node:24.21.0-bookworm-slim@sha256:d6aa754f16b3197301076f047b5def2f02ea1dbbc2ca920407d46d7ec7f87b20 AS upstream
 RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates && rm -rf /var/lib/apt/lists/*
 WORKDIR /src
-RUN git init && git remote add origin https://github.com/n8n-io/nod.git && git fetch --depth=1 origin 6670bc233b6b7dddaa75b25b89b4a89f0e92bcac && git checkout --detach FETCH_HEAD && test "$(git rev-parse HEAD)" = 6670bc233b6b7dddaa75b25b89b4a89f0e92bcac
+RUN git init && git remote add origin https://github.com/n8n-io/nod.git && git fetch --depth=1 origin 1128fcfd770d619f3391e0bd9f1ca2f9966f2be6 && git checkout --detach FETCH_HEAD && test "$(git rev-parse HEAD)" = 1128fcfd770d619f3391e0bd9f1ca2f9966f2be6
 
 COPY extract-upstream.mjs /tmp/extract-upstream.mjs
 RUN node /tmp/extract-upstream.mjs /src /opt/nod-workspace-programs

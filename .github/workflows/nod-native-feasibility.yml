@@ -16,7 +16,7 @@ jobs:
     steps:
       - name: Build pinned upstream server without changes
         run: |
-          docker build -f deployment/self-host/Dockerfile -t nod-native-probe:local https://github.com/n8n-io/nod.git#6670bc233b6b7dddaa75b25b89b4a89f0e92bcac
+          docker build -f deployment/self-host/Dockerfile -t nod-native-probe:local https://github.com/n8n-io/nod.git#1128fcfd770d619f3391e0bd9f1ca2f9966f2be6
       - name: Start PostgreSQL and server in isolated network
         shell: bash
         run: |
