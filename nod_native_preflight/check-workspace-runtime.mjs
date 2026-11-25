@@ -21,7 +21,7 @@ const ids=[];
 const agent={
   async open(options){
     const browser=options.tools.find(tool=>tool.name==='browser');
-    assert.equal(Boolean(browser),taskMode);
+    assert.ok(browser, "Browser must be registered in chat and tasks");
     assert.equal(options.workspace.runConnectedCli,undefined);
     return{
       resumed:false,abort(){},dispose(){},
@@ -55,7 +55,7 @@ const agent={
             const screenshot=await call({action:'screenshot'});
             assert.ok(screenshot.content.some(item=>item.type==='image'&&item.data.length>1000));
             console.log('NOD_RUNTIME_TASK_BROWSER_SNAPSHOT_AND_SCREENSHOT_OK');
-          }else console.log('NOD_RUNTIME_CONVERSATION_BROWSER_NOT_REGISTERED');
+          }else console.log('NOD_RUNTIME_CONVERSATION_BROWSER_REGISTERED');
           options.onEvent({type:'final',text:'Synthetic runtime fixture completed.'});
         }catch(error){openingError=error;throw error;}
       }
