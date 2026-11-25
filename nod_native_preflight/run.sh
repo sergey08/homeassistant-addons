@@ -22,7 +22,7 @@ cleanup() {
         kill "$relay_pid" 2>/dev/null || true
         wait "$relay_pid" 2>/dev/null || true
     fi
-    rm -rf /run/nod-relay
+    rm -rf /run/nod-relay /run/nod-browser-client
     if [ -n "$ingress_pid" ]; then
         kill "$ingress_pid" 2>/dev/null || true
         wait "$ingress_pid" 2>/dev/null || true
@@ -89,6 +89,13 @@ export NOD_DATA_ROOT="$root/nod" NOD_AUTH_TOKEN="$token" NOD_VAULT_KEY="$vault"
 export DATABASE_URL="postgresql://nod:$password@127.0.0.1:5432/nod"
 export DOCKER_HOST=tcp://127.0.0.1:2375 WORKSPACE_CONTAINER=nod-workspace-unavailable BROWSER_CONTAINER=nod-browser-unavailable
 export HOME=/home/node
+rm -rf /run/nod-browser-client
+NOD_HA_BROWSER_REMOTE=
+if browser_flag=$(node /app/browser-config.mjs) && [ "$browser_flag" = 1 ]; then
+    NOD_HA_BROWSER_REMOTE=1
+    echo NOD_BROWSER_CLIENT_CONFIGURED
+fi
+export NOD_HA_BROWSER_REMOTE
 gosu node node --import tsx src/server/index.ts > "$root/server.log" 2>&1 &
 server_pid=$!
 for attempt in $(seq 1 90); do
