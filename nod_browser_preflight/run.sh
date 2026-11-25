@@ -20,12 +20,12 @@ RULES
 {
   printf '%s\n' '*filter' ':INPUT DROP [0:0]' ':FORWARD DROP [0:0]' ':OUTPUT DROP [0:0]' '-A INPUT -i lo -j ACCEPT' '-A OUTPUT -o lo -j ACCEPT' '-A INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT'
   for range in 0.0.0.0/8 10.0.0.0/8 100.64.0.0/10 127.0.0.0/8 169.254.0.0/16 172.16.0.0/12 192.0.0.0/24 192.0.2.0/24 192.88.99.0/24 192.168.0.0/16 198.18.0.0/15 198.51.100.0/24 203.0.113.0/24 224.0.0.0/3; do
-    printf '%s\n' "-A OUTPUT -d $range -j REJECT"
+    printf '%s\n' "-A OUTPUT -d $range -j DROP"
   done
   for dns in 1.1.1.1 8.8.8.8; do
     printf '%s\n' "-A OUTPUT -d $dns -p udp --dport 53 -j ACCEPT" "-A OUTPUT -d $dns -p tcp --dport 53 -j ACCEPT"
   done
-  printf '%s\n' '-A OUTPUT -p tcp -m multiport --dports 80,443 -j ACCEPT' 'COMMIT'
+  printf '%s\n' '-A OUTPUT -p tcp --dport 80 -j ACCEPT' '-A OUTPUT -p tcp --dport 443 -j ACCEPT' 'COMMIT'
 } | iptables-restore --wait 10
 # Root configures only this app container's firewall, then drops privileges.
 # No browser process starts if either firewall failed.
