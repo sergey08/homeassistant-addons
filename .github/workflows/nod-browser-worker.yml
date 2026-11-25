@@ -49,12 +49,12 @@ jobs:
           docker run -d --name nod-browser-guard-ci --network nod-browser-public-ci --init --cap-drop ALL --cap-add NET_ADMIN --cap-add SETUID --cap-add SETGID --cap-add SETPCAP --security-opt no-new-privileges --read-only --pids-limit 1024 --memory 3g --shm-size 512m --tmpfs /tmp:size=512m --tmpfs /home/node:uid=1000,gid=1000,mode=700,size=256m -v nod-browser-guard-data:/data -v "$GITHUB_WORKSPACE/nod_browser_validation/network-guard.sh:/guard.sh:ro" --entrypoint sh nod-browser-guard:ci /guard.sh
           docker network connect nod-browser-private-ci nod-browser-guard-ci
           for attempt in {1..45}; do
-            if docker exec nod-browser-guard-ci node -e 'const s=require("node:net").connect("/data/control.sock");s.on("connect",()=>{s.end();process.exit(0)});s.on("error",()=>process.exit(1))'; then break; fi
+            if docker exec --user node nod-browser-guard-ci node -e 'const s=require("node:net").connect("/data/control.sock");s.on("connect",()=>{s.end();process.exit(0)});s.on("error",()=>process.exit(1))'; then break; fi
             sleep 2
           done
-          docker exec -i nod-browser-guard-ci node --input-type=module < nod_browser_validation/check-worker.mjs
+          docker exec --user node -i nod-browser-guard-ci node --input-type=module < nod_browser_validation/check-worker.mjs
           docker exec --user node nod-browser-guard-ci node -e 'const a=require("node:assert/strict"); (async()=>{a.match(await(await fetch("http://93.184.216.34/",{signal:AbortSignal.timeout(3000)})).text(),/Nod browser CI fixture/);await a.rejects(fetch("http://10.223.80.34/",{signal:AbortSignal.timeout(3000)}));console.log("NOD_BROWSER_NETWORK_GUARD_OK")})().catch(e=>{console.error(e);process.exit(1)})'
-          docker exec nod-browser-guard-ci sh -ec 'for p in /proc/[0-9]*/status; do if grep -q "^Name:.*node" "$p"; then grep -q "^CapEff:[[:space:]]*0000000000000000$" "$p"; grep -q "^CapBnd:[[:space:]]*0000000000000000$" "$p"; grep -q "^NoNewPrivs:[[:space:]]*1$" "$p"; fi; done'
+          docker exec --user node nod-browser-guard-ci sh -ec 'for p in /proc/[0-9]*/status; do if grep -q "^Name:.*node" "$p"; then grep -q "^CapEff:[[:space:]]*0000000000000000$" "$p"; grep -q "^CapBnd:[[:space:]]*0000000000000000$" "$p"; grep -q "^NoNewPrivs:[[:space:]]*1$" "$p"; fi; done'
           if docker logs nod-browser-private-fixture 2>&1 | grep -q PRIVATE_REQUEST; then echo 'Private target received traffic'; exit 1; fi
       - if: always()
         run: |
