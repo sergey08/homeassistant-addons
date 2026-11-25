@@ -67,6 +67,7 @@ echo NOD_BROWSER_WORKER_READY
 if [ -n "$peer" ]; then
     env -i PATH=/usr/local/bin:/usr/bin:/bin setpriv --reuid=1001 --regid=1000 --clear-groups --no-new-privs --bounding-set=-all --inh-caps=-all --ambient-caps=-all node /app/transport.mjs gateway /run/nod-browser-gateway/settings.json &
     gateway_pid=$!
+    env -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/home/node setpriv --reuid=1000 --regid=1000 --clear-groups --no-new-privs --bounding-set=-all --inh-caps=-all --ambient-caps=-all node /app/egress-probe.mjs &
 fi
 while kill -0 "$worker_pid" 2>/dev/null && { [ -z "$gateway_pid" ] || kill -0 "$gateway_pid" 2>/dev/null; }; do
     sleep 2 &
