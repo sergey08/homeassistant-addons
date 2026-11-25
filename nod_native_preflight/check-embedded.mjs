@@ -43,17 +43,30 @@ try {
   await embedded.getByRole('button',{name:'Connect',exact:true}).click();
   await embedded.getByText('Check your token and try again.').waitFor({timeout:10000});
   await embedded.locator('input[name="token"]').fill(token);
+  const access=page.waitForResponse(r=>r.url()===nod+'/api/access'&&r.status()===204);
   const logged=page.waitForResponse(r=>r.url()===nod+'/api/session'&&r.status()===200);
   await embedded.getByRole('button',{name:'Connect',exact:true}).click();
+  const login=await access;
+  const setCookie=await login.headerValue('set-cookie');
+  assert.ok(setCookie?.startsWith('__Host-nod-embedded-4310='),'Expected dedicated frame cookie');
+  assert.match(setCookie,/; HttpOnly; SameSite=None; Max-Age=34560000; Secure; Partitioned$/);
   await logged;
   const inner=page.frames().find(f=>f.url().startsWith(nod));
   assert.ok(inner);
   const session=await inner.evaluate(async()=>{const r=await fetch('/api/session',{headers:{'X-Nod-Embedded':'1'}});return {status:r.status,body:await r.json()}});
   assert.equal(session.status,200);
   assert.equal(typeof session.body.capabilities.developer,'boolean');
-  const {cookies}=await cdp.send('Storage.getCookies');
+  // Playwright supplies the actual incognito browserContextId to Storage.getCookies.
+  // Calling Storage.getCookies on the page CDP session can inspect the default context instead.
+  const cookies=await context.cookies();
+  const metadata=items=>items.map(({name,domain,httpOnly,secure,sameSite,partitionKey})=>({name,domain,httpOnly,secure,sameSite,partitionKey}));
+  console.log('Embedded cookie metadata:',JSON.stringify(metadata(cookies)));
   const cookie=cookies.find(c=>c.name==='__Host-nod-embedded-4310');
-  assert.ok(cookie?.httpOnly&&cookie.secure&&cookie.partitionKey?.topLevelSite==='https://ha.test');
+  assert.ok(cookie,'Partitioned authentication cookie is present in this browser context');
+  assert.equal(cookie.httpOnly,true);
+  assert.equal(cookie.secure,true);
+  assert.equal(cookie.sameSite,'None');
+  assert.equal(cookie.partitionKey,'https://ha.test');
   assert.ok(!cookies.some(c=>c.name==='nod-access-4310'));
   assert.ok(!(await inner.evaluate(()=>document.cookie)).includes(token));
   const unmarked=await inner.evaluate(async()=> (await fetch('/api/session')).status);
@@ -74,9 +87,10 @@ try {
   const standaloneLogin=standalone.waitForResponse(r=>r.url()===nod+'/api/session'&&r.status()===200);
   await standalone.getByRole('button',{name:'Connect',exact:true}).click();
   await standaloneLogin;
-  const all=(await cdp.send('Storage.getCookies')).cookies;
+  const all=await context.cookies();
+  console.log('Independent cookie metadata:',JSON.stringify(metadata(all)));
   const original=all.find(c=>c.name==='nod-access-4310');
   assert.ok(original?.httpOnly&&original.secure&&original.sameSite==='Strict'&&!original.partitionKey);
-  assert.ok(all.some(c=>c.name==='__Host-nod-embedded-4310'&&c.partitionKey?.topLevelSite==='https://ha.test'));
+  assert.ok(all.some(c=>c.name==='__Host-nod-embedded-4310'&&c.partitionKey==='https://ha.test'));
   console.log('NOD_NATIVE_EMBEDDED_CHROMIUM_OK');
 } finally {await browser.close();await new Promise(resolve=>fixture.close(resolve));}
