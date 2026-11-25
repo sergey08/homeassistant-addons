@@ -8,7 +8,7 @@ const maxBody=8*1024*1024;
 export function createHaMcpBridge({upstreamHost=target,upstreamPort=port}={}){
   return createServer((req,res)=>{
     const reject=(code)=>{res.writeHead(code,{'Cache-Control':'no-store','Content-Type':'text/plain'});res.end('HA MCP adapter rejected request');};
-    if(req.socket.remoteAddress!=='127.0.0.1'||!/^127\.0\.0\.1:\d+$/.test(req.headers.host||'')||req.url!=='/mcp'||!['GET','POST','DELETE'].includes(req.method)||req.headers.origin||req.headers.upgrade){reject(403);return;}
+    if(req.socket.remoteAddress!=='127.0.0.1'||req.headers.host!=='127.0.0.1:'+req.socket.localPort||req.url!=='/mcp'||!['GET','POST','DELETE'].includes(req.method)||req.headers.origin||req.headers.upgrade){reject(403);return;}
     const match=/^Bearer \/?([A-Za-z0-9_-]{16,256})$/.exec(req.headers.authorization||'');
     if(!match){reject(401);return;}
     if(Number(req.headers['content-length']||0)>maxBody){reject(413);return;}
