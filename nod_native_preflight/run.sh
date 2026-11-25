@@ -8,6 +8,8 @@ server_pid=
 ingress_pid=
 relay_pid=
 relay_origin=
+ha_ancestor=
+ingress_origin=
 socket=$(mktemp -d /tmp/nod-pg.XXXXXX)
 chown postgres:postgres "$socket"
 cleanup() {
@@ -73,6 +75,8 @@ if [ -f /data/options.json ]; then
 fi
 if [ -n "$relay_origin" ]; then
     NOD_PUBLIC_URL="$relay_origin"
+    ha_ancestor=$(node -p 'JSON.parse(require("node:fs").readFileSync("/run/nod-relay/settings.json","utf8")).haAncestor || ""')
+    if [ -n "$ha_ancestor" ]; then ingress_origin="$relay_origin"; fi
     token=$(cat /run/nod-relay/token)
     rm -f /run/nod-relay/token
 fi
@@ -94,7 +98,7 @@ for attempt in $(seq 1 90); do
             done
             node -e 'const s=require("node:net").connect(8443,"127.0.0.1");s.on("connect",()=>{s.destroy();process.exit(0)});s.on("error",()=>process.exit(1))' || { echo 'FAIL: HTTPS relay not listening'; exit 1; }
         fi
-        env -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/home/node gosu node node /app/ingress.mjs &
+        env -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/home/node NOD_INGRESS_NOD_ORIGIN="$ingress_origin" NOD_INGRESS_HA_ORIGIN="$ha_ancestor" gosu node node /app/ingress.mjs &
         ingress_pid=$!
         for i in $(seq 1 10); do
             if node -e 'fetch("http://127.0.0.1:8099/").then(r=>{process.exit(r.status===403?0:1)}).catch(()=>process.exit(1))'; then break; fi
