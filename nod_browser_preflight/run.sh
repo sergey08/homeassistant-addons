@@ -54,12 +54,16 @@ RULES
 echo NOD_BROWSER_FIREWALL_READY
 env -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/home/node LANG=C.UTF-8 setpriv --reuid=1000 --regid=1000 --clear-groups --no-new-privs --bounding-set=-all --inh-caps=-all --ambient-caps=-all node /app/worker.mjs &
 worker_pid=$!
+worker_ready() {
+    setpriv --reuid=1000 --regid=1000 --clear-groups --no-new-privs --bounding-set=-all --inh-caps=-all --ambient-caps=-all test -S /run/nod-browser/control.sock
+}
 for attempt in $(seq 1 30); do
-    if [ -S /run/nod-browser/control.sock ]; then break; fi
+    if worker_ready; then break; fi
     kill -0 "$worker_pid" 2>/dev/null || exit 1
     sleep 1
 done
-[ -S /run/nod-browser/control.sock ] || exit 1
+worker_ready || { echo 'FAIL: worker socket unavailable'; exit 1; }
+echo NOD_BROWSER_WORKER_READY
 if [ -n "$peer" ]; then
     env -i PATH=/usr/local/bin:/usr/bin:/bin setpriv --reuid=1001 --regid=1000 --clear-groups --no-new-privs --bounding-set=-all --inh-caps=-all --ambient-caps=-all node /app/transport.mjs gateway /run/nod-browser-gateway/settings.json &
     gateway_pid=$!
