@@ -2,6 +2,7 @@
 import os
 import pathlib
 import signal
+import sys
 import subprocess
 import tempfile
 import time
@@ -33,6 +34,8 @@ with tempfile.TemporaryDirectory(prefix="nod-synthetic-", dir="/workspace") as f
     assert subprocess.check_output(["node", "-e", "console.log(42)"], text=True).strip() == "42"
 print("NOD_WORKSPACE_SYNTHETIC_ARTIFACTS_OK", flush=True)
 print("NOD_WORKSPACE_UNPRIVILEGED_READY", flush=True)
+if sys.argv[1:] == ['--once']:
+    sys.exit(0)
 signal.signal(signal.SIGTERM, lambda *_: exit(0))
 while True:
     time.sleep(5)
