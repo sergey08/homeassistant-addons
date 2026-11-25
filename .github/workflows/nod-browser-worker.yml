@@ -1,0 +1,46 @@
+name: Verify Nod upstream browser worker
+on:
+  pull_request:
+    paths:
+      - 'nod_browser_validation/**'
+      - '.github/workflows/nod-browser-worker.yml'
+permissions:
+  contents: read
+jobs:
+  browser-worker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build exact upstream browser image
+        run: |
+          set -euo pipefail
+          git init "$RUNNER_TEMP/nod-upstream"
+          git -C "$RUNNER_TEMP/nod-upstream" remote add origin https://github.com/n8n-io/nod.git
+          git -C "$RUNNER_TEMP/nod-upstream" fetch --depth=1 origin 6670bc233b6b7dddaa75b25b89b4a89f0e92bcac
+          git -C "$RUNNER_TEMP/nod-upstream" checkout --detach FETCH_HEAD
+          test "$(git -C "$RUNNER_TEMP/nod-upstream" rev-parse HEAD)" = 6670bc233b6b7dddaa75b25b89b4a89f0e92bcac
+          docker build -t nod-browser:ci -f "$RUNNER_TEMP/nod-upstream/Dockerfile.browser" "$RUNNER_TEMP/nod-upstream"
+      - name: Test real browser worker with upstream isolation and synthetic pages
+        run: |
+          set -euo pipefail
+          # These networks are internal, disposable and exist only on the CI runner.
+          # The public-looking IP is a local synthetic fixture, never an Internet request.
+          docker network create --internal --subnet 93.184.216.0/24 nod-browser-public-ci
+          docker network create --internal --subnet 10.223.80.0/24 nod-browser-private-ci
+          docker run -d --name nod-browser-public-fixture --network nod-browser-public-ci --ip 93.184.216.34 --entrypoint node nod-browser:ci -e 'require("node:http").createServer((q,r)=>{r.writeHead(200,{"content-type":"text/html"});r.end("<html><title>Nod browser CI fixture</title><h1>Nod browser CI fixture</h1></html>")}).listen(80,"0.0.0.0")'
+          docker run -d --name nod-browser-private-fixture --network nod-browser-private-ci --ip 10.223.80.34 --entrypoint node nod-browser:ci -e 'require("node:http").createServer((q,r)=>{console.log("PRIVATE_REQUEST");r.writeHead(200,{"content-type":"text/html"});r.end("<h1>PRIVATE_FIXTURE_MUST_NOT_LOAD</h1>")}).listen(80,"0.0.0.0")'
+          docker run -d --name nod-browser-ci --network nod-browser-public-ci --init --cap-drop ALL --security-opt no-new-privileges --read-only --pids-limit 1024 --memory 3g --shm-size 512m --tmpfs /tmp:size=512m --tmpfs /home/node:uid=1000,gid=1000,mode=700,size=256m -v nod-browser-ci-data:/data nod-browser:ci
+          docker network connect nod-browser-private-ci nod-browser-ci
+          for attempt in {1..45}; do
+            if docker exec nod-browser-ci node -e 'const s=require("node:net").connect("/data/control.sock");s.on("connect",()=>{s.end();process.exit(0)});s.on("error",()=>process.exit(1))'; then break; fi
+            sleep 2
+          done
+          docker exec -i nod-browser-ci node --input-type=module < nod_browser_validation/check-worker.mjs
+          if docker logs nod-browser-private-fixture 2>&1 | grep -q PRIVATE_REQUEST; then echo 'Private target received traffic'; exit 1; fi
+      - if: always()
+        run: |
+          docker logs nod-browser-ci 2>/dev/null || true
+          docker rm -f nod-browser-ci nod-browser-public-fixture nod-browser-private-fixture || true
+          docker volume rm nod-browser-ci-data || true
+          docker network rm nod-browser-public-ci nod-browser-private-ci || true
