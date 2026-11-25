@@ -18,15 +18,24 @@ echo NOD_WORKSPACE_OFFLINE_FIREWALL_READY
 [ -d /data ] && [ ! -L /data ] || exit 1
 chown 0:0 /data
 chmod 0711 /data
+if [ -e /data/options.json ]; then
+    [ -f /data/options.json ] && [ ! -L /data/options.json ] || exit 1
+    chown 0:0 /data/options.json
+    chmod 0600 /data/options.json
+fi
 for dir in /data/workspaces /data/workspace-home; do
     [ ! -L "$dir" ] || exit 1
     mkdir -p "$dir"
     chown 1000:1000 "$dir"
     chmod 0700 "$dir"
 done
-[ -d /workspace ] && [ ! -L /workspace ] || exit 1
-rmdir /workspace
-ln -s /data/workspaces /workspace
+if [ -L /workspace ]; then
+    [ "$(readlink /workspace)" = /data/workspaces ] || exit 1
+else
+    [ -d /workspace ] || exit 1
+    rmdir /workspace
+    ln -s /data/workspaces /workspace
+fi
 [ -d /home/node ] && [ ! -L /home/node ] || exit 1
 # Preserve the image home; use a separate private persistent HOME.
 cd /workspace
