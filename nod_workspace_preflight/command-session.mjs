@@ -1,12 +1,13 @@
 // Carries upstream request/output/cancellation frames unchanged. No program upload.
 import {spawn} from 'node:child_process';
 import {readFileSync} from 'node:fs';
+const manifest=JSON.parse(readFileSync('/opt/nod-workspace-programs/manifest.json','utf8'));
 const stopProgram=readFileSync('/opt/nod-workspace-programs/stop.py','utf8');
 const active=new Set();
 let uncertain=false,recovering=false;
 export function openCommandSession(socket,header){
   const recover=header?.type==='recover';
-  if(!header||Object.keys(header).sort().join(',')!==(recover?'type':'threadId,type')||
+  if(!header||header.program!==manifest.command||Object.keys(header).sort().join(',')!==(recover?'program,type':'program,threadId,type')||
     (!recover&&(header.type!=='command'||typeof header.threadId!=='string'||!/^[a-zA-Z0-9_-]{1,100}$/.test(header.threadId))))throw Error();
   let pending=Buffer.alloc(0),child,started=false,closed=false,confirmed=false,stdoutPending='',timer,finished=false;
   const initial=setTimeout(()=>socket.destroy(),5000);

@@ -1,5 +1,7 @@
 // Synthetic upstream-protocol checks. Not connected to runtime task tools.
 import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import {connectGateway} from './workspace-transport.mjs';
 import {randomUUID} from 'node:crypto';
 import {runWorkspaceCommand,WorkspaceCommandError} from './src/providers/docker/command.ts';
 import {createRemoteWorkspaceLauncher} from './workspace-launcher.mjs';
@@ -13,6 +15,16 @@ const checkStopped=async pid=>{
   assert.match(result.stdout.toString().trim(),/^(gone|Z|X)$/);
 };
 try{
+  const config=JSON.parse(readFileSync('/run/nod-workspace-client/settings.json','utf8'));
+  await new Promise((resolve,reject)=>{
+    const socket=connectGateway(config);let received=false;
+    const timer=setTimeout(()=>{socket.destroy();reject(Error('mismatched program did not close'));},8000);
+    socket.on('secureConnect',()=>socket.write(JSON.stringify({type:'command',threadId:id,program:'0'.repeat(64)})+'\n'));
+    socket.on('data',()=>{received=true;});
+    socket.on('error',()=>{});
+    socket.on('close',()=>{clearTimeout(timer);if(received)reject(Error('mismatched program accepted'));else resolve();});
+  });
+  console.log('NOD_WORKSPACE_PROTOCOL_REVISION_MISMATCH_REJECTED');
   const result=await python('import sys; print(42); print("fixture-error",file=sys.stderr); sys.exit(7)');
   assert.equal(result.stdout.toString(),'42\n');assert.equal(result.stderr.toString(),'fixture-error\n');assert.equal(result.exitCode,7);
   const unicode='á'.repeat(40000);

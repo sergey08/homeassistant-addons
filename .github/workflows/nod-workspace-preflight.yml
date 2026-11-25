@@ -78,7 +78,7 @@ jobs:
           docker logs nod-workspace-server 2>&1 | grep NOD_WORKSPACE_DIAGNOSTIC_RECOVERY_OK
           if docker logs nod-workspace-server 2>&1 | grep NOD_WORKSPACE_DIAGNOSTIC_FAILED >/dev/null; then exit 1; fi
           docker exec nod-workspace-server gosu nodrelay test ! -r /run/nod-workspace-client/settings.json
-          for marker in FRAMES_OK STREAMING_OK CANCEL_CONFIRMED LIMITS_OK FILES_OK DISCONNECT_RECOVERED SYMLINK_REJECTED RECOVERY_OK; do
+          for marker in REVISION_MISMATCH_REJECTED FRAMES_OK STREAMING_OK CANCEL_CONFIRMED LIMITS_OK FILES_OK DISCONNECT_RECOVERED SYMLINK_REJECTED RECOVERY_OK; do
             docker logs nod-workspace-server 2>&1 | grep "NOD_WORKSPACE_PROTOCOL_$marker"
           done
           echo NOD_WORKSPACE_PACKAGED_SERVER_OK
