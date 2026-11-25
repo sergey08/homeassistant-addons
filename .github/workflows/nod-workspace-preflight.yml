@@ -1,0 +1,47 @@
+name: Verify Nod offline workspace preflight
+on:
+  pull_request:
+    paths:
+      - 'nod_workspace_preflight/**'
+      - '.github/workflows/nod-workspace-preflight.yml'
+permissions:
+  contents: read
+jobs:
+  offline-workspace:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build upstream-derived workspace
+        run: docker build -t nod-workspace:ci nod_workspace_preflight
+      - name: Check isolation and synthetic artifact creation
+        run: |
+          set -euo pipefail
+          docker network create --internal --subnet 10.223.81.0/24 nod-workspace-ci
+          docker run -d --name nod-workspace-fixture --network nod-workspace-ci --ip 10.223.81.34 --entrypoint node nod-workspace:ci -e 'require("node:http").createServer((q,r)=>{console.log("PRIVATE_REQUEST");r.end("fixture")}).listen(80,"0.0.0.0")'
+          docker volume create nod-workspace-ci-data
+          docker run -d --name nod-workspace-test --network nod-workspace-ci --cap-drop ALL --cap-add NET_ADMIN --cap-add CHOWN --cap-add SETUID --cap-add SETGID --cap-add DAC_OVERRIDE --cap-add SETPCAP --cap-add FOWNER --security-opt no-new-privileges --pids-limit 128 --memory 2g -v nod-workspace-ci-data:/data nod-workspace:ci
+          for i in {1..45}; do
+            if docker logs nod-workspace-test 2>&1 | grep NOD_WORKSPACE_UNPRIVILEGED_READY >/dev/null; then break; fi
+            sleep 2
+          done
+          docker logs nod-workspace-test 2>&1 | grep NOD_WORKSPACE_SYNTHETIC_ARTIFACTS_OK
+          docker logs nod-workspace-test 2>&1 | grep NOD_WORKSPACE_UNPRIVILEGED_READY
+          docker exec --user 1000:1000 nod-workspace-test sh -ec 'test ! -r /data/options.json; test ! -e /var/run/docker.sock; ! curl -fsS --connect-timeout 2 --max-time 3 http://10.223.81.34'
+          if docker logs nod-workspace-fixture 2>&1 | grep PRIVATE_REQUEST >/dev/null; then exit 1; fi
+          docker exec --user 1000:1000 nod-workspace-test sh -ec 'umask 077; printf synthetic > /workspace/ci-persistence'
+          docker restart nod-workspace-test
+          for i in {1..45}; do
+            if [ "$(docker logs nod-workspace-test 2>&1 | grep -c NOD_WORKSPACE_UNPRIVILEGED_READY)" -ge 2 ]; then break; fi
+            sleep 2
+          done
+          test "$(docker logs nod-workspace-test 2>&1 | grep -c NOD_WORKSPACE_UNPRIVILEGED_READY)" -ge 2
+          docker exec --user 1000:1000 nod-workspace-test sh -ec 'test "$(cat /workspace/ci-persistence)" = synthetic'
+          echo NOD_WORKSPACE_PERSISTENCE_OK
+      - name: Logs and cleanup
+        if: always()
+        run: |
+          docker logs nod-workspace-test 2>&1 || true
+          docker rm -f nod-workspace-test nod-workspace-fixture || true
+          docker volume rm nod-workspace-ci-data || true
+          docker network rm nod-workspace-ci || true
