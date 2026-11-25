@@ -1,5 +1,5 @@
 name: "Nod Browser (experimental)"
-version: "0.1.0-dev.3"
+version: "0.1.0-dev.4"
 slug: "nod_browser_preflight"
 description: "Isolated upstream Nod browser worker with optional authenticated internal transport"
 url: "https://github.com/sergey08/homeassistant-addons/pull/139"
