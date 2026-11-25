@@ -2,8 +2,8 @@ FROM node:24.21.0-bookworm-slim@sha256:d6aa754f16b3197301076f047b5def2f02ea1dbbc
 RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 RUN git init && git remote add origin https://github.com/n8n-io/nod.git && git fetch --depth=1 origin 6670bc233b6b7dddaa75b25b89b4a89f0e92bcac && git checkout --detach FETCH_HEAD && test "$(git rev-parse HEAD)" = 6670bc233b6b7dddaa75b25b89b4a89f0e92bcac
-COPY patch-embedded-ui.mjs /tmp/patch-embedded-ui.mjs
-RUN node /tmp/patch-embedded-ui.mjs
+COPY patch-embedded-ui.mjs patch-browser-launcher.mjs /tmp/
+RUN node /tmp/patch-embedded-ui.mjs && node /tmp/patch-browser-launcher.mjs
 RUN corepack enable && pnpm install --frozen-lockfile && pnpm exec vite build && pnpm prune --prod && pnpm store prune
 
 FROM node:24.21.0-bookworm-slim@sha256:d6aa754f16b3197301076f047b5def2f02ea1dbbc2ca920407d46d7ec7f87b20 AS node
@@ -21,8 +21,8 @@ COPY --from=build --chown=node:node /app/docs/src/content/docs ./docs/src/conten
 COPY --from=build /app/deployment/self-host/healthcheck.mjs ./healthcheck.mjs
 COPY --from=build /app/LICENSE /usr/share/doc/nod/LICENSE
 COPY ingress.mjs /app/ingress.mjs
-COPY https-relay.mjs relay-config.mjs relay-start.mjs ha-mcp-bridge.mjs /app/
-RUN node --check /app/ingress.mjs && node --check /app/https-relay.mjs && node --check /app/relay-config.mjs && node --check /app/relay-start.mjs && node --check /app/ha-mcp-bridge.mjs
+COPY https-relay.mjs relay-config.mjs relay-start.mjs ha-mcp-bridge.mjs browser-transport.mjs browser-config.mjs /app/
+RUN node --check /app/ingress.mjs && node --check /app/https-relay.mjs && node --check /app/relay-config.mjs && node --check /app/relay-start.mjs && node --check /app/ha-mcp-bridge.mjs && node --check /app/browser-transport.mjs && node --check /app/browser-config.mjs
 COPY run.sh /usr/local/bin/nod-native-preflight
 RUN chmod 0755 /usr/local/bin/nod-native-preflight && sh -n /usr/local/bin/nod-native-preflight && node --version && postgres --version
 ENTRYPOINT ["/usr/local/bin/nod-native-preflight"]
