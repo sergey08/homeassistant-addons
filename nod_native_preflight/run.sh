@@ -7,12 +7,17 @@ chmod 0711 "$root"
 server_pid=
 ingress_pid=
 relay_pid=
+bridge_pid=
 relay_origin=
 ha_ancestor=
 ingress_origin=
 socket=$(mktemp -d /tmp/nod-pg.XXXXXX)
 chown postgres:postgres "$socket"
 cleanup() {
+    if [ -n "$bridge_pid" ]; then
+        kill "$bridge_pid" 2>/dev/null || true
+        wait "$bridge_pid" 2>/dev/null || true
+    fi
     if [ -n "$relay_pid" ]; then
         kill "$relay_pid" 2>/dev/null || true
         wait "$relay_pid" 2>/dev/null || true
@@ -89,6 +94,13 @@ server_pid=$!
 for attempt in $(seq 1 90); do
     if gosu node node /app/healthcheck.mjs >/dev/null 2>&1; then
         echo NOD_NATIVE_SERVER_HEALTH_OK
+        env -i PATH=/usr/local/bin:/usr/bin:/bin gosu nodrelay node /app/ha-mcp-bridge.mjs &
+        bridge_pid=$!
+        for i in $(seq 1 10); do
+            if node -e 'fetch("http://127.0.0.1:9591/mcp").then(r=>process.exit(r.status===401?0:1)).catch(()=>process.exit(1))'; then break; fi
+            sleep 1
+        done
+        node -e 'fetch("http://127.0.0.1:9591/mcp").then(r=>process.exit(r.status===401?0:1)).catch(()=>process.exit(1))' || { echo 'FAIL: HA MCP bridge not listening'; exit 1; }
         if [ -n "$relay_origin" ]; then
             env -i PATH=/usr/local/bin:/usr/bin:/bin gosu nodrelay node /app/relay-start.mjs &
             relay_pid=$!
@@ -107,7 +119,7 @@ for attempt in $(seq 1 90); do
         node -e 'fetch("http://127.0.0.1:8099/").then(r=>{process.exit(r.status===403?0:1)}).catch(()=>process.exit(1))' || { echo 'FAIL: ingress access restriction'; exit 1; }
         echo NOD_NATIVE_INGRESS_DIRECT_DENIED
         echo 'PASS: native Nod and PostgreSQL running persistently on loopback'
-        while kill -0 "$server_pid" 2>/dev/null && kill -0 "$ingress_pid" 2>/dev/null && { [ -z "$relay_pid" ] || kill -0 "$relay_pid" 2>/dev/null; } && gosu postgres pg_ctl -D "$root/db" status >/dev/null 2>&1; do
+        while kill -0 "$bridge_pid" 2>/dev/null && kill -0 "$server_pid" 2>/dev/null && kill -0 "$ingress_pid" 2>/dev/null && { [ -z "$relay_pid" ] || kill -0 "$relay_pid" 2>/dev/null; } && gosu postgres pg_ctl -D "$root/db" status >/dev/null 2>&1; do
             sleep 5 &
             wait $!
         done
