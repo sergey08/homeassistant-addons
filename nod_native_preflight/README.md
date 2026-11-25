@@ -17,3 +17,11 @@ With the dedicated HTTPS URL already working, set `ha_embed_origin` to the exact
 ### Español
 
 La dev.5 permite configurar el origen HTTPS exacto de Home Assistant mediante `ha_embed_origin` (vacío = desactivado). La interfaz se carga en un iframe aislado, sin transferir credenciales de HA. El usuario inicia sesión con el token propio de Nod en un navegador compatible con cookies particionadas. El acceso independiente se conserva. Quedan pendientes las pruebas con HA real, modelos, ventanas OAuth, adjuntos y dispositivos móviles. No abrir puertos en el router.
+
+## Dev.13: optional upstream Workspace diagnostic
+
+The synthetic diagnostic can now use the pinned original `runWorkspaceCommand` supervisor through a separate TLS client launcher. Enable `workspace_command_probe_enabled` on Server and `command_enabled` on Workspace dev.3 only to run the synthetic checks. It verifies streaming, stdout/stderr/exit frames, Unicode input, cancellation with child-process confirmation, time/output limits, synthetic document files, recovery after a lost transport and rejection of a symlink task directory. The launcher is deliberately not wired into runtime agent tools. Connected CLIs remain unavailable. Per-process limits are not aggregate container CPU/RAM limits; resource and task-isolation checks remain required before enabling real agent tasks.
+
+### Español
+
+El diagnóstico sintético puede usar el supervisor original fijado de `runWorkspaceCommand` mediante un launcher TLS independiente. Activa `workspace_command_probe_enabled` en Server y `command_enabled` en Workspace dev.3 para ejecutar las pruebas sintéticas. Comprueba salida por partes, tramas de salida normal/error/final, entrada Unicode, cancelación con confirmación de procesos hijos, límites de tiempo/salida, archivos de documentos ficticios, recuperación tras perder el transporte y rechazo de directorios de tarea con enlaces simbólicos. El launcher todavía no está conectado a las herramientas del agente. Las CLI conectadas siguen deshabilitadas. Los límites por proceso no son límites agregados de CPU/RAM del contenedor; falta validar recursos y aislamiento antes de habilitar tareas reales del agente.

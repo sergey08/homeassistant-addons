@@ -3,7 +3,7 @@ import {spawn} from 'node:child_process';
 import {readFileSync} from 'node:fs';
 const stopProgram=readFileSync('/opt/nod-workspace-programs/stop.py','utf8');
 const active=new Set();
-let uncertain=false;
+let uncertain=false,recovering=false;
 export function openCommandSession(socket,header){
   const recover=header?.type==='recover';
   if(!header||Object.keys(header).sort().join(',')!==(recover?'type':'threadId,type')||
@@ -50,14 +50,19 @@ export function openCommandSession(socket,header){
           !Number.isInteger(request.timeoutMs)||request.timeoutMs<1||request.timeoutMs>600000||
           !Number.isInteger(request.maxBytes)||request.maxBytes<1||request.maxBytes>16*1024*1024)throw Error();
         if(recover){
+          if(recovering)throw Error();
           if(JSON.stringify(request.args)!==JSON.stringify(['/usr/bin/python3','-I','-c',stopProgram,'/proc'])||
             request.timeoutMs>30000||request.maxBytes>4096||request.input)throw Error();
-        }else if(uncertain||active.size>=2)throw Error();
+        }else if(uncertain||recovering||active.size>=2)throw Error();
       }catch{socket.destroy();return;}
       started=true;clearTimeout(initial);
       child=spawn('/usr/bin/python3',['-I','-u','/app/command-entry.py',recover?'@recover':header.threadId],{
         cwd:'/var/tmp',shell:false,env:{PATH:'/opt/nod-artifacts/bin:/usr/local/bin:/usr/bin:/bin',HOME:'/data/workspace-home',LANG:'C.UTF-8'},
         stdio:['pipe','pipe','pipe']});
+      const earlier=recover?[...active].map(process=>new Promise(resolve=>{
+        if(process.exitCode!==null||process.signalCode!==null)resolve();else process.once('close',resolve);
+      })):[];
+      if(recover)recovering=true;
       active.add(child);
       child.on('error',()=>socket.destroy());
       child.stdin.on('error',()=>socket.destroy());
@@ -77,10 +82,11 @@ export function openCommandSession(socket,header){
       socket.on('drain',()=>child.stdout.resume());
       // Transport stderr is deliberately generic; user stderr is in upstream frames.
       child.stderr.resume();
-      child.once('close',code=>{
+      child.once('close',async code=>{
         finished=true;active.delete(child);clearTimeout(timer);
         if(!confirmed||code!==0)uncertain=true;
-        else if(recover&&active.size===0)uncertain=false;
+        else if(recover){await Promise.allSettled(earlier);if(active.size===0)uncertain=false;}
+        if(recover)recovering=false;
         if(!closed){if(confirmed&&code===0)socket.end();else socket.destroy();}
       });
       child.stdin.write(Buffer.concat([line,Buffer.from('\n')]));
