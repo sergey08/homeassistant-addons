@@ -48,14 +48,16 @@ const agent={
             assert.deepEqual(Buffer.from(await workspace.readArtifact(options.threadId,'chunked-fixture.bin',payload.length)),payload);
             await assert.rejects(workspace.readArtifact(options.threadId,'../escape',1024));
             console.log('NOD_RUNTIME_WORKSPACE_FILES_OK');
+          }
+          {
             const call=async args=>options.runTool('browser',args,()=>browser.execute(args));
             await call({action:'open',url});
             const page=await call({action:'snapshot'});
             assert.ok(JSON.stringify(page).includes(marker),'Expected public page text was not observed');
             const screenshot=await call({action:'screenshot'});
             assert.ok(screenshot.content.some(item=>item.type==='image'&&item.data.length>1000));
-            console.log('NOD_RUNTIME_TASK_BROWSER_SNAPSHOT_AND_SCREENSHOT_OK');
-          }else console.log('NOD_RUNTIME_CONVERSATION_BROWSER_REGISTERED');
+            console.log(taskMode ? 'NOD_RUNTIME_TASK_BROWSER_SNAPSHOT_AND_SCREENSHOT_OK' : 'NOD_RUNTIME_CHAT_BROWSER_SNAPSHOT_AND_SCREENSHOT_OK');
+          }
           options.onEvent({type:'final',text:'Synthetic runtime fixture completed.'});
         }catch(error){openingError=error;throw error;}
       }
