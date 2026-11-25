@@ -8,6 +8,14 @@ on:
 permissions:
   contents: read
 jobs:
+  browser-transport:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test mutual PSK authentication and stream forwarding
+        run: |
+          docker run --rm --network none --cap-drop ALL --security-opt no-new-privileges --read-only --tmpfs /tmp:size=16m -v "$GITHUB_WORKSPACE/nod_browser_validation:/test:ro" node:24.21.0-bookworm-slim@sha256:d6aa754f16b3197301076f047b5def2f02ea1dbbc2ca920407d46d7ec7f87b20 node /test/check-transport.mjs
   browser-worker:
     runs-on: ubuntu-latest
     timeout-minutes: 25
