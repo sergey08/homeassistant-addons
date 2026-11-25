@@ -110,7 +110,7 @@ jobs:
             if docker logs nod-browser-enabled-ci 2>&1 | grep -q NOD_BROWSER_TRANSPORT_READY && docker logs nod-server-enabled-ci 2>&1 | grep -q NOD_NATIVE_SERVER_HEALTH_OK; then break; fi
             sleep 2
           done
-          docker logs nod-browser-enabled-ci 2>&1 | grep -q NOD_BROWSER_TRANSPORT_READY
+          docker logs nod-browser-enabled-ci 2>&1 | grep -q NOD_BROWSER_TRANSPORT_READY || { docker logs nod-browser-enabled-ci 2>&1; exit 1; }
           docker logs nod-server-enabled-ci 2>&1 | grep -q NOD_BROWSER_CLIENT_CONFIGURED
           docker logs nod-server-enabled-ci 2>&1 | grep -q NOD_NATIVE_SERVER_HEALTH_OK
           docker network connect nod-browser-public-ci nod-browser-enabled-ci
@@ -135,8 +135,8 @@ jobs:
         run: |
           docker logs nod-browser-ci 2>/dev/null || true
           docker logs nod-browser-guard-ci 2>/dev/null || true
-          docker logs nod-browser-enabled-ci 2>/dev/null || true
-          docker logs nod-server-enabled-ci 2>/dev/null || true
+          docker logs nod-browser-enabled-ci 2>&1 || true
+          docker logs nod-server-enabled-ci 2>&1 || true
           docker rm -f nod-server-enabled-ci nod-browser-enabled-ci nod-browser-client-ci nod-browser-guard-ci nod-browser-ci nod-browser-public-fixture nod-browser-private-fixture || true
           docker volume rm nod-server-enabled-data nod-browser-enabled-data nod-browser-ci-data nod-browser-guard-data || true
           docker network rm nod-browser-public-ci nod-browser-private-ci || true
