@@ -71,6 +71,23 @@ try {
   assert.ok(!(await inner.evaluate(()=>document.cookie)).includes(token));
   const unmarked=await inner.evaluate(async()=> (await fetch('/api/session')).status);
   assert.equal(unmarked,401);
+  // Native EventSource cannot attach the custom API header. Require a real
+  // initial SSE message using the partitioned cookie, not merely an HTTP status.
+  assert.ok(session.body.user?.id,'Expected an initialized account');
+  const eventResult=await inner.evaluate(owner=>new Promise(resolve=>{
+    const stream=new EventSource('/api/events?account='+encodeURIComponent(owner)+'&nod_embedded=1');
+    const finish=value=>{clearTimeout(timer);stream.close();resolve(value);};
+    const timer=setTimeout(()=>finish('timeout'),10000);
+    stream.onerror=()=>finish('error');
+    stream.onmessage=event=>finish(JSON.parse(event.data).type);
+  }),session.body.user.id);
+  assert.equal(eventResult,'refresh');
+  const noMarker=await inner.evaluate(async owner=>(await fetch('/api/events?account='+encodeURIComponent(owner))).status,session.body.user.id);
+  assert.equal(noMarker,401);
+  // A marker alone is not a credential and ordinary fetch must not qualify.
+  const invalidMode=await inner.evaluate(async owner=>(await fetch('/api/events?account='+encodeURIComponent(owner)+'&nod_embedded=1')).status,session.body.user.id);
+  assert.equal(invalidMode,401);
+  console.log('NOD_NATIVE_EMBEDDED_SSE_OK');
   const reload=page.waitForResponse(r=>r.url()===nod+'/api/session'&&r.status()===200);
   await inner.evaluate(()=>location.reload());
   await reload;
