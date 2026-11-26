@@ -64,8 +64,14 @@ const chatReads = new Set(['/api/state', '/api/events', '/api/messages', '/api/p
 const chatWrites = new Set(['/api/messages', '/api/account/welcome', '/api/onboarding/profile',
   '/api/onboarding/updates-email', '/api/onboarding/suggestions', '/api/account/model-setup', '/api/account/prepare']);
 
-// Explicit method/path pairs for the pinned upstream UI. Never proxy webhooks or secret reveal endpoints.
+// Explicit method/path pairs for the pinned upstream UI. Never proxy webhooks.
+// Vault reveal operations retain upstream authorization and require the Ingress write marker.
 const settingsRoutes = [
+  ['POST', /^\/api\/vault(?:\/import)?$/],
+  ['PATCH', /^\/api\/vault\/[0-9a-fA-F-]{36}$/],
+  ['DELETE', /^\/api\/vault\/[0-9a-fA-F-]{36}$/],
+  ['POST', /^\/api\/vault\/[0-9a-fA-F-]{36}\/(?:details|password|card-number)$/],
+  ['DELETE', /^\/api\/vault\/sessions\/[A-Za-z0-9_-]+$/],
   ['PUT', /^\/api\/channel-settings\/(?:telegram|whatsapp)$/],
   ['DELETE', /^\/api\/channel-settings\/(?:telegram|whatsapp)$/],
   ['POST', /^\/api\/channel-settings\/(?:telegram|whatsapp)\/reconnect$/],
