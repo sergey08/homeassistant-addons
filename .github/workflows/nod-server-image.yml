@@ -18,7 +18,7 @@ jobs:
           version=$(python -c 'import yaml; print(yaml.safe_load(open("nod_native_preflight/config.yaml"))["version"])')
           image="ghcr.io/sergey08/nod-server-amd64:$version"
           docker build --label org.opencontainers.image.source=https://github.com/sergey08/homeassistant-addons --tag "$image" nod_native_preflight
-          docker run --rm --entrypoint sh "$image" -ec 'test -s /app/dist/index.html && node --version && postgres --version'
+          docker run --rm --entrypoint sh "$image" -ec 'test -s /app/dist/web/index.html && node --version && postgres --version'
           echo "IMAGE=$image" >> "$GITHUB_ENV"
       - name: Publish image
         env:
