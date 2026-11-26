@@ -1,5 +1,43 @@
 import http from 'node:http';
 
+import { pipeline } from 'node:stream';
+
+// The UI bundle is served by Nod on loopback. Only generated Vite assets
+// qualify here. Session, uploads and API routes use separate handlers.
+function isBundleAsset(path) {
+  return /^\/assets\/[A-Za-z0-9_-]+\.(?:js|css|woff2?|png|svg)(?:\?v=[A-Za-z0-9_-]+)?$/.test(path);
+}
+
+function serveBundleAsset(req, res, port = 4310) {
+  if (!isBundleAsset(req.url) || !['HEAD', 'GET'].includes(req.method)) {
+    res.writeHead(404).end();
+    return;
+  }
+  const upstream = http.request({
+    hostname: '127.0.0.1', port, path: req.url, method: req.method,
+    headers: { 'Accept-Encoding': 'identity' },
+  }, reply => {
+    if (reply.statusCode !== 200 || !reply.headers['content-type'] ||
+        reply.headers['content-type'].startsWith('text/html')) {
+      reply.resume();
+      res.writeHead(reply.statusCode === 404 ? 404 : 502).end();
+      return;
+    }
+    res.writeHead(200, {
+      'Content-Type': reply.headers['content-type'],
+      'X-Content-Type-Options': 'nosniff',
+      'Cache-Control': 'private, no-store',
+    });
+    pipeline(reply, res, () => {});
+  });
+  res.once('close', () => upstream.destroy());
+  upstream.setTimeout(15000, () => upstream.destroy(new Error('Asset timeout')));
+  upstream.on('error', () => {
+    if (!res.headersSent && !res.destroyed) res.writeHead(502).end();
+  });
+  upstream.end();
+}
+
 const nodOrigin = process.env.NOD_INGRESS_NOD_ORIGIN || '';
 const haOrigin = process.env.NOD_INGRESS_HA_ORIGIN || '';
 function validOrigin(value) {
@@ -25,6 +63,10 @@ const server = http.createServer((req, res) => {
   }
   if (req.method !== 'GET' && req.method !== 'HEAD') {
     res.writeHead(405, {Allow: 'GET, HEAD'}).end();
+    return;
+  }
+  if (!embed && isBundleAsset(req.url)) {
+    serveBundleAsset(req, res);
     return;
   }
   if (req.url !== '/') {
