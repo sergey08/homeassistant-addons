@@ -112,6 +112,44 @@ function serveLogin(req, res, context) {
   });
 }
 
+function serveChat(req, res, port = 4310) {
+  const events = req.url.split('?')[0] === '/api/events';
+  const write = req.method === 'POST';
+  if (!(req.method === 'GET' || (write && !events))) {
+    res.writeHead(405).end();
+    return;
+  }
+  if (write && (req.headers['x-nod-ingress-request'] !== '1' ||
+      req.headers['content-type']?.split(';')[0] !== 'application/json')) {
+    res.writeHead(403).end();
+    return;
+  }
+  const context = sessionContext(req);
+  const cookie = context && sessionCredential(req, context);
+  if (!cookie) { res.writeHead(401).end(); return; }
+  const headers = { Host: 'localhost:4310', Cookie: cookie };
+  if (write) headers['Content-Type'] = 'application/json';
+  if (req.headers['x-nod-account']) headers['X-Nod-Account'] = req.headers['x-nod-account'];
+  const upstream = http.request({ hostname: '127.0.0.1', port, path: req.url,
+    method: req.method, headers }, reply => {
+    const type = reply.headers['content-type']?.split(';')[0];
+    if (!(type === 'application/json' || (events && type === 'text/event-stream') || reply.statusCode === 204)) {
+      reply.resume();
+      res.writeHead(502).end();
+      return;
+    }
+    res.writeHead(reply.statusCode, { 'Content-Type': type || 'application/json',
+      'Cache-Control': 'no-store', 'X-Accel-Buffering': 'no' });
+    res.flushHeaders();
+    pipeline(reply, res, () => {});
+  });
+  res.once('close', () => upstream.destroy());
+  upstream.on('error', () => { if (!res.headersSent && !res.destroyed) res.writeHead(502).end(); });
+  req.on('error', () => upstream.destroy());
+  if (write) req.pipe(upstream);
+  else upstream.end();
+}
+
 const nodOrigin = process.env.NOD_INGRESS_NOD_ORIGIN || '';
 const haOrigin = process.env.NOD_INGRESS_HA_ORIGIN || '';
 function validOrigin(value) {
@@ -133,6 +171,10 @@ const server = http.createServer((req, res) => {
   res.setHeader('Content-Security-Policy', "default-src 'none'; frame-ancestors 'self'; base-uri 'none'; form-action 'none'" + (embed ? "; style-src 'unsafe-inline'; frame-src " + nodOrigin : ""));
   if (req.socket.remoteAddress !== '172.30.32.2') {
     res.writeHead(403).end('Forbidden');
+    return;
+  }
+  if (!embed && ['/api/events', '/api/messages'].includes(req.url.split('?')[0])) {
+    serveChat(req, res);
     return;
   }
   if (!embed && req.method === 'POST' && req.url === '/api/access') {
