@@ -55,3 +55,78 @@ for (const [file, module] of [['app.tsx', './lib/panel-path.js'], ['lib/navigati
   }
   writeFileSync(target, "import { appPath, panelPath } from '" + module + "';\n" + ui);
 }
+
+// Keep original Nod logo URLs under the authenticated Ingress mount.
+const logoPatches = [
+  [
+    "components/service-logo.tsx",
+    "../lib/panel-path.js",
+    [
+      [
+        "src={source}",
+        "src={panelPath(source)}"
+      ]
+    ]
+  ],
+  [
+    "components/models.tsx",
+    "../lib/panel-path.js",
+    [
+      [
+        "maskImage: `url('/logos/${modelProviderLogos[provider] ?? 'server'}.svg')`",
+        "maskImage: `url('${panelPath('/logos/' + (modelProviderLogos[provider] ?? 'server') + '.svg')}')`"
+      ]
+    ]
+  ],
+  [
+    "pages/channels.tsx",
+    "../lib/panel-path.js",
+    [
+      [
+        "src={`/logos/${provider.id}.svg`}",
+        "src={panelPath(`/logos/${provider.id}.svg`)}"
+      ],
+      [
+        "src={`/logos/${editing}.svg`}",
+        "src={panelPath(`/logos/${editing}.svg`)}"
+      ],
+      [
+        "src=\"/logos/telegram.svg\"",
+        "src={panelPath(\"/logos/telegram.svg\")}"
+      ],
+      [
+        "src=\"/logos/whatsapp.svg\"",
+        "src={panelPath(\"/logos/whatsapp.svg\")}"
+      ]
+    ]
+  ],
+  [
+    "pages/credentials.tsx",
+    "../lib/panel-path.js",
+    [
+      [
+        "src={`/logos/sign-in/${provider}.svg`}",
+        "src={panelPath(`/logos/sign-in/${provider}.svg`)}"
+      ]
+    ]
+  ],
+  [
+    "pages/onboarding/steps/connection-preview.tsx",
+    "../../../lib/panel-path.js",
+    [
+      [
+        "`url(${src})`",
+        "`url(${panelPath(src)})`"
+      ]
+    ]
+  ]
+];
+for (const [file, module, replacements] of logoPatches) {
+  const target = '/app/src/web/' + file;
+  let ui = readFileSync(target, 'utf8');
+  for (const [before, after] of replacements) {
+    if (!ui.includes(before)) throw Error('Missing logo source in ' + file + ': ' + before);
+    ui = ui.replaceAll(before, () => after);
+  }
+  writeFileSync(target, "import { panelPath } from '" + module + "';\n" + ui);
+}
