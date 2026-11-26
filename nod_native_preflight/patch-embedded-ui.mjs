@@ -38,3 +38,20 @@ const eventAnchor='    const events = new EventSource(`/api/events?account=${enc
 if(events.split(eventAnchor).length!==2) throw Error('Unexpected upstream EventSource implementation');
 const eventPatch='    const embedded = window.self !== window.top && nodApiPath("/api/events", window.location.pathname) === "/api/events" ? "&nod_embedded=1" : "";\n    const events = new EventSource(nodApiPath(`/api/events?account=${encodeURIComponent(owner)}${embedded}`, window.location.pathname));';
 writeFileSync(eventsPath,routeImport + events.replace(eventAnchor,()=>eventPatch));
+
+// Keep upstream route matching independent of the Supervisor mount point.
+writeFileSync('/app/src/web/lib/panel-path.js', "const ingressPrefix = /^\\/api\\/hassio_ingress\\/[A-Za-z0-9_-]+(?=\\/|$)/;\nexport function appPath(path) {\n  return path.replace(ingressPrefix, '') || '/';\n}\nexport function panelPath(path, current = window.location.pathname) {\n  const prefix = current.match(ingressPrefix)?.[0] || '';\n  return path.startsWith('/') && !path.startsWith('//') && !ingressPrefix.test(path) ? prefix + path : path;\n}\n");
+for (const [file, module] of [['app.tsx', './lib/panel-path.js'], ['lib/navigation.ts', './panel-path.js']]) {
+  const target = '/app/src/web/' + file;
+  let ui = readFileSync(target, 'utf8');
+  if (!ui.includes('window.location.pathname')) throw Error('Missing Nod navigation path');
+  ui = ui.replaceAll('window.location.pathname', 'appPath(window.location.pathname)');
+  if (file === 'app.tsx') {
+    ui = ui.replace("replaceState(null, '', next)", "replaceState(null, '', panelPath(next))")
+      .replace('appPagePath(url.pathname)', 'appPagePath(appPath(url.pathname))');
+  } else {
+    ui = ui.replace("}, '', path)", "}, '', panelPath(path))")
+      .replace(/(\n\s+)(path|current),(\n\s+\);)/g, '$1panelPath($2),$3');
+  }
+  writeFileSync(target, "import { appPath, panelPath } from '" + module + "';\n" + ui);
+}
