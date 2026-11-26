@@ -1,5 +1,5 @@
 name: "Nod native preflight"
-version: "0.1.0-dev.17"
+version: "0.1.0-dev.18"
 slug: "nod_native_preflight"
 description: "Experimental native Nod server and database health test"
 url: "https://github.com/sergey08/homeassistant-addons/pull/139"
