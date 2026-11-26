@@ -39,8 +39,8 @@ USER root
 RUN apt-get update && apt-get install -y --no-install-recommends iptables util-linux && rm -rf /var/lib/apt/lists/*
 COPY --from=upstream /src/LICENSE /usr/share/doc/nod/LICENSE
 RUN groupadd -g 1001 nodgateway && useradd -M -u 1001 -g 1001 -s /usr/sbin/nologin nodgateway
-COPY prepare-config.mjs transport.mjs egress-probe.mjs /app/
-RUN node --check /app/prepare-config.mjs && node --check /app/transport.mjs && node --check /app/egress-probe.mjs
+COPY prepare-config.mjs resolve-server-peer.mjs transport.mjs egress-probe.mjs /app/
+RUN node --check /app/resolve-server-peer.mjs && node --check /app/prepare-config.mjs && node --check /app/transport.mjs && node --check /app/egress-probe.mjs
 COPY --chmod=555 run.sh /app/ha-browser-run.sh
 RUN sh -n /app/ha-browser-run.sh
 ENTRYPOINT ["/app/ha-browser-run.sh"]
