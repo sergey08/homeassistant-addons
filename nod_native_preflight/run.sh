@@ -14,6 +14,7 @@ diagnostic_pid=
 relay_origin=
 ha_ancestor=
 ingress_origin=
+ingress_chat=false
 socket=$(mktemp -d /tmp/nod-pg.XXXXXX)
 chown postgres:postgres "$socket"
 cleanup() {
@@ -91,6 +92,7 @@ gosu postgres pg_ctl -D "$root/db" -l "$root/db/server.log" -o "-h 127.0.0.1 -p 
 echo NOD_NATIVE_POSTGRES_OK
 export NODE_ENV=production NOD_ENVIRONMENT=production NOD_HOST=127.0.0.1 PORT=4310 NOD_PUBLIC_URL=http://localhost:4310
 if [ -f /data/options.json ]; then
+    ingress_chat=$(node -p 'JSON.parse(require("node:fs").readFileSync("/data/options.json","utf8")).ingress_chat === true') || exit 1
     relay_origin=$(node /app/relay-config.mjs) || { echo 'FAIL: invalid HTTPS configuration'; exit 1; }
 fi
 if [ -n "$relay_origin" ]; then
@@ -146,7 +148,7 @@ for attempt in $(seq 1 90); do
             done
             node -e 'const s=require("node:net").connect(8443,"127.0.0.1");s.on("connect",()=>{s.destroy();process.exit(0)});s.on("error",()=>process.exit(1))' || { echo 'FAIL: HTTPS relay not listening'; exit 1; }
         fi
-        env -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/home/node NOD_INGRESS_NOD_ORIGIN="$ingress_origin" NOD_INGRESS_HA_ORIGIN="$ha_ancestor" gosu node node /app/ingress.mjs &
+        env -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/home/node NOD_INGRESS_CHAT="$ingress_chat" NOD_UPSTREAM_ORIGIN="$NOD_PUBLIC_URL" NOD_INGRESS_NOD_ORIGIN="$ingress_origin" NOD_INGRESS_HA_ORIGIN="$ha_ancestor" gosu node node /app/ingress.mjs &
         ingress_pid=$!
         for i in $(seq 1 10); do
             if node -e 'fetch("http://127.0.0.1:8099/").then(r=>{process.exit(r.status===403?0:1)}).catch(()=>process.exit(1))'; then break; fi
