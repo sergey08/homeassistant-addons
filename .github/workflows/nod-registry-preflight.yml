@@ -11,7 +11,7 @@ permissions:
 jobs:
   anonymous-pull:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 35
     strategy:
       fail-fast: false
       matrix:
@@ -34,7 +34,20 @@ jobs:
           image="ghcr.io/sergey08/nod-$COMPONENT-amd64:$version"
           export DOCKER_CONFIG="$(mktemp -d)"
           trap 'rm -rf "$DOCKER_CONFIG"' EXIT
-          docker pull --platform linux/amd64 "$image"
+          # PR checks and push-triggered image publication run independently.
+          # Retry missing tags only, then require a successful anonymous pull.
+          for attempt in $(seq 1 40); do
+            if result=$(docker pull --platform linux/amd64 "$image" 2>&1); then
+              printf '%s\n' "$result"
+              break
+            fi
+            printf '%s\n' "$result" >&2
+            if [ "$attempt" -eq 40 ] || ! printf '%s\n' "$result" | grep -Eiq 'manifest unknown|no such manifest|: not found'; then
+              exit 1
+            fi
+            echo "NOD_PUBLIC_IMAGE_WAIT $COMPONENT $version attempt=$attempt/40"
+            sleep 30
+          done
           test "$(docker image inspect --format '{{.Os}}/{{.Architecture}}' "$image")" = linux/amd64
           test "$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.source"}}' "$image")" = https://github.com/sergey08/homeassistant-addons
           docker image inspect --format '{{json .RepoDigests}}' "$image"
