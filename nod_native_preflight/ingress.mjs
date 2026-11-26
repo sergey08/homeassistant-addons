@@ -67,6 +67,11 @@ const chatWrites = new Set(['/api/messages', '/api/account/welcome', '/api/onboa
 // Explicit method/path pairs for the pinned upstream UI. Never proxy webhooks.
 // Vault reveal operations retain upstream authorization and require the Ingress write marker.
 const settingsRoutes = [
+  // Model sign-in uses explicit authenticated API routes; never proxy the public callback.
+  ['POST', /^\/api\/models\/oauth(?:\/complete)?$/],
+  ['GET', /^\/api\/models\/oauth\/status\/[A-Za-z0-9_-]{32,128}$/],
+  ['DELETE', /^\/api\/models\/oauth\/[A-Za-z0-9_-]{32,128}$/],
+  ['PUT', /^\/api\/models\/selection$/],
   ['POST', /^\/api\/vault(?:\/import)?$/],
   ['PATCH', /^\/api\/vault\/[0-9a-fA-F-]{36}$/],
   ['DELETE', /^\/api\/vault\/[0-9a-fA-F-]{36}$/],
