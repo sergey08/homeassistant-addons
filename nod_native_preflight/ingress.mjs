@@ -57,8 +57,9 @@ function supervisorAdmin(req) {
 }
 
 const chatReads = new Set(['/api/state', '/api/events', '/api/messages', '/api/preferences',
-  '/api/apps', '/api/trust', '/api/onboarding/introduction']);
-const chatWrites = new Set(['/api/messages', '/api/account/welcome']);
+  '/api/apps', '/api/trust', '/api/onboarding/introduction', '/api/models']);
+const chatWrites = new Set(['/api/messages', '/api/account/welcome', '/api/onboarding/profile',
+  '/api/onboarding/updates-email', '/api/onboarding/suggestions', '/api/account/model-setup', '/api/account/prepare']);
 
 function serveChat(req, res, port = 4310) {
   const path = req.url.split('?')[0];
