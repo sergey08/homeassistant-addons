@@ -1,0 +1,52 @@
+name: Verify public Nod image distribution
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/nod-registry-preflight.yml'
+      - 'nod_native_preflight/config.yaml'
+      - 'nod_browser_preflight/config.yaml'
+      - 'nod_workspace_preflight/config.yaml'
+permissions:
+  contents: read
+jobs:
+  anonymous-pull:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - component: server
+            directory: nod_native_preflight
+          - component: browser
+            directory: nod_browser_preflight
+          - component: workspace
+            directory: nod_workspace_preflight
+    steps:
+      - uses: actions/checkout@v4
+      - name: Pull published image without registry credentials
+        env:
+          COMPONENT: ${{ matrix.component }}
+          DIRECTORY: ${{ matrix.directory }}
+        run: |
+          set -euo pipefail
+          version=$(python -c 'import sys,yaml; print(yaml.safe_load(open(sys.argv[1]))["version"])' "$DIRECTORY/config.yaml")
+          image="ghcr.io/sergey08/nod-$COMPONENT-amd64:$version"
+          export DOCKER_CONFIG="$(mktemp -d)"
+          trap 'rm -rf "$DOCKER_CONFIG"' EXIT
+          docker pull --platform linux/amd64 "$image"
+          test "$(docker image inspect --format '{{.Os}}/{{.Architecture}}' "$image")" = linux/amd64
+          test "$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.source"}}' "$image")" = https://github.com/sergey08/homeassistant-addons
+          docker image inspect --format '{{json .RepoDigests}}' "$image"
+          case "$COMPONENT" in
+            server)
+              docker run --rm --network none --entrypoint sh "$image" -ec 'test -s /app/dist/web/index.html && node --version && postgres --version'
+              ;;
+            browser)
+              docker run --rm --network none --entrypoint sh "$image" -ec 'test -s /app/worker.mjs && test -x /app/ha-browser-run.sh && chromium --version'
+              ;;
+            workspace)
+              docker run --rm --network none --entrypoint sh "$image" -ec 'test -x /usr/local/bin/nod-ha-workspace-preflight && python3 --version && libreoffice --version'
+              ;;
+          esac
+          echo "NOD_PUBLIC_IMAGE_OK $COMPONENT $version"
