@@ -1,0 +1,28 @@
+name: Build Nod Server image
+on:
+  push:
+    branches: [feat/nod-home-assistant]
+    paths:
+      - nod_native_preflight/**
+      - .github/workflows/nod-server-image.yml
+permissions:
+  contents: read
+  packages: write
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and verify server image
+        run: |
+          version=$(python -c 'import yaml; print(yaml.safe_load(open("nod_native_preflight/config.yaml"))["version"])')
+          image="ghcr.io/sergey08/nod-server-amd64:$version"
+          docker build --label org.opencontainers.image.source=https://github.com/sergey08/homeassistant-addons --tag "$image" nod_native_preflight
+          docker run --rm --entrypoint sh "$image" -ec 'test -s /app/dist/index.html && node --version && postgres --version'
+          echo "IMAGE=$image" >> "$GITHUB_ENV"
+      - name: Publish image
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          docker push "$IMAGE"
