@@ -8,8 +8,13 @@ function isBundleAsset(path) {
   return /^\/assets\/[A-Za-z0-9_-]+\.(?:js|css|woff2?|png|svg)(?:\?v=[A-Za-z0-9_-]+)?$/.test(path);
 }
 
-function serveBundleAsset(req, res, port = 4310) {
-  if (!isBundleAsset(req.url) || !['HEAD', 'GET'].includes(req.method)) {
+const uiFiles = new Set(['/', '/theme-init.js', '/favicon.svg', '/favicon.ico', '/apple-touch-icon.png']);
+function isPanelRead(path) {
+  return uiFiles.has(path) || isBundleAsset(path) || path === '/api/session';
+}
+
+function servePanelRead(req, res, port = 4310) {
+  if (!isPanelRead(req.url) || !['HEAD', 'GET'].includes(req.method)) {
     res.writeHead(404).end();
     return;
   }
@@ -17,13 +22,16 @@ function serveBundleAsset(req, res, port = 4310) {
     hostname: '127.0.0.1', port, path: req.url, method: req.method,
     headers: { 'Accept-Encoding': 'identity' },
   }, reply => {
-    if (reply.statusCode !== 200 || !reply.headers['content-type'] ||
-        reply.headers['content-type'].startsWith('text/html')) {
+    const type = (reply.headers['content-type'] || '').split(';')[0].trim();
+    const session = req.url === '/api/session';
+    const validType = req.url === '/' ? type === 'text/html' :
+      session ? type === 'application/json' : type && type !== 'text/html';
+    if (!validType || !(reply.statusCode === 200 || (session && reply.statusCode === 401))) {
       reply.resume();
       res.writeHead(reply.statusCode === 404 ? 404 : 502).end();
       return;
     }
-    res.writeHead(200, {
+    res.writeHead(reply.statusCode, {
       'Content-Type': reply.headers['content-type'],
       'X-Content-Type-Options': 'nosniff',
       'Cache-Control': 'private, no-store',
@@ -65,8 +73,11 @@ const server = http.createServer((req, res) => {
     res.writeHead(405, {Allow: 'GET, HEAD'}).end();
     return;
   }
-  if (!embed && isBundleAsset(req.url)) {
-    serveBundleAsset(req, res);
+  if (!embed && isPanelRead(req.url)) {
+    if (req.url === '/') {
+      res.setHeader('Content-Security-Policy', "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'self'; base-uri 'none'; form-action 'none'");
+    }
+    servePanelRead(req, res);
     return;
   }
   if (req.url !== '/') {
