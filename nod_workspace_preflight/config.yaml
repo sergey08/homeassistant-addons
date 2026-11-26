@@ -1,7 +1,8 @@
 name: "Nod Workspace (experimental)"
 version: "0.1.0-dev.4"
 slug: "nod_workspace_preflight"
-description: "Isolated Nod workspace with optional upstream command protocol; agent launcher not yet enabled"
+image: "ghcr.io/sergey08/nod-workspace-{arch}"
+description: "Isolated Nod workspace with authenticated internal transport and upstream command runtime"
 url: "https://github.com/sergey08/homeassistant-addons/pull/139"
 arch:
   - amd64
