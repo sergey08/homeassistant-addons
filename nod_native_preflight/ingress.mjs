@@ -112,10 +112,15 @@ function serveLogin(req, res, context) {
   });
 }
 
+const chatReads = new Set(['/api/state', '/api/events', '/api/messages', '/api/preferences',
+  '/api/apps', '/api/trust', '/api/onboarding/introduction']);
+const chatWrites = new Set(['/api/messages', '/api/account/welcome']);
+
 function serveChat(req, res, port = 4310) {
+  const path = req.url.split('?')[0];
   const events = req.url.split('?')[0] === '/api/events';
   const write = req.method === 'POST';
-  if (!(req.method === 'GET' || (write && !events))) {
+  if (!((req.method === 'GET' && chatReads.has(path)) || (write && chatWrites.has(path)))) {
     res.writeHead(405).end();
     return;
   }
@@ -175,7 +180,7 @@ const server = http.createServer((req, res) => {
     res.writeHead(403).end('Forbidden');
     return;
   }
-  if (directPanel && ['/api/events', '/api/messages'].includes(req.url.split('?')[0])) {
+  if (directPanel && (chatReads.has(req.url.split('?')[0]) || chatWrites.has(req.url.split('?')[0]))) {
     serveChat(req, res);
     return;
   }
