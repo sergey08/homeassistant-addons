@@ -179,7 +179,7 @@ const server = http.createServer((req, res) => {
     serveChat(req, res);
     return;
   }
-  if (!embed && req.method === 'POST' && req.url === '/api/access') {
+  if (directPanel && req.method === 'POST' && req.url === '/api/access') {
     const context = sessionContext(req);
     if (!context) { res.writeHead(403).end(); return; }
     serveLogin(req, res, context);
@@ -189,7 +189,7 @@ const server = http.createServer((req, res) => {
     res.writeHead(405, {Allow: 'GET, HEAD'}).end();
     return;
   }
-  if (!embed && isPanelRead(req.url)) {
+  if (directPanel && isPanelRead(req.url)) {
     if (req.url === '/') {
       res.setHeader('Content-Security-Policy', "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'self'; base-uri 'none'; form-action 'none'");
     }
