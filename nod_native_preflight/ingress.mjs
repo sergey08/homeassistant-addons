@@ -1,5 +1,5 @@
 import http from 'node:http';
-import { randomBytes } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 
 import { pipeline } from 'node:stream';
 
@@ -22,7 +22,7 @@ function servePanelRead(req, res, port = 4310) {
   const upstream = http.request({
     hostname: '127.0.0.1', port, path: req.url, method: req.method,
     headers: { Host: upstreamHost, 'Accept-Encoding': 'identity',
-      ...(req.url === '/api/session' && sessionContext(req) && sessionCredential(req, sessionContext(req)) ? { Cookie: sessionCredential(req, sessionContext(req)) } : {}),
+      ...(req.url === '/api/session' ? { Cookie: backendCookie } : {}),
     },
   }, reply => {
     const type = (reply.headers['content-type'] || '').split(';')[0].trim();
@@ -50,66 +50,10 @@ function servePanelRead(req, res, port = 4310) {
 }
 
 
-const sessions = new Map();
-const sessionLifetime = 8 * 60 * 60 * 1000;
-const sessionCookie = 'nod_ingress_session';
-
-function sessionContext(req) {
-  const prefix = req.headers['x-ingress-path'];
-  const user = req.headers['x-remote-user-id'];
-  if (typeof user !== 'string' || !user ||
-      typeof prefix !== 'string' || !/^\/api\/hassio_ingress\/[A-Za-z0-9_-]+$/.test(prefix)) return null;
-  return { prefix, user };
-}
-
-function sessionCredential(req, context) {
-  const parts = (req.headers.cookie || '').split(';').map(value => value.trim());
-  const handle = parts.find(value => value.startsWith(sessionCookie + '='))?.slice(sessionCookie.length + 1);
-  const session = sessions.get(handle);
-  if (!session || session.user !== context.user || session.prefix !== context.prefix ||
-      session.until <= Date.now()) return null;
-  return session.credential;
-}
-
-function serveLogin(req, res, context) {
-  if (req.headers['x-nod-ingress-request'] !== '1' ||
-      req.headers['content-type']?.split(';')[0] !== 'application/json') {
-    res.writeHead(403).end();
-    return;
-  }
-  const chunks = [];
-  let size = 0;
-  req.on('error', () => res.destroy());
-  req.on('data', chunk => {
-    size += chunk.length;
-    if (size <= 4096) chunks.push(chunk);
-    else if (!res.headersSent) res.writeHead(413).end();
-  });
-  req.on('end', () => {
-    if (size > 4096 || res.destroyed) return;
-    const upstream = http.request({
-      hostname: '127.0.0.1', port: 4310, path: '/api/access', method: 'POST',
-      headers: { Host: upstreamHost, 'Content-Type': 'application/json' },
-    }, reply => {
-      reply.resume();
-      const access = (reply.headers['set-cookie'] || []).find(c => c.startsWith('nod-access-4310='));
-      const credential = access?.split(';')[0];
-      if (reply.statusCode !== 204 || !/^nod-access-4310=[A-Za-z0-9_-]{43,}$/.test(credential || '')) {
-        res.writeHead(reply.statusCode === 401 ? 401 : 502).end();
-        return;
-      }
-      const now = Date.now();
-      for (const [id, session] of sessions) if (session.until <= now) sessions.delete(id);
-      if (sessions.size >= 256) { res.writeHead(503).end(); return; }
-      const handle = randomBytes(32).toString('base64url');
-      sessions.set(handle, { ...context, credential, until: now + sessionLifetime });
-      const secure = req.headers.origin?.startsWith('https://') ? '; Secure' : '';
-      res.writeHead(204, { 'Set-Cookie': sessionCookie + '=' + handle + '; Path=' + context.prefix + '/; HttpOnly; SameSite=Strict' + secure }).end();
-    });
-    upstream.on('error', () => { if (!res.headersSent) res.writeHead(502).end(); });
-    upstream.setTimeout(15000, () => upstream.destroy());
-    upstream.end(Buffer.concat(chunks));
-  });
+function supervisorAdmin(req) {
+  const groups = req.headers['x-remote-user-groups'];
+  return Boolean(req.headers['x-remote-user-id']) && typeof groups === 'string' &&
+    groups.split(',').includes('system-admin');
 }
 
 const chatReads = new Set(['/api/state', '/api/events', '/api/messages', '/api/preferences',
@@ -129,10 +73,7 @@ function serveChat(req, res, port = 4310) {
     res.writeHead(403).end();
     return;
   }
-  const context = sessionContext(req);
-  const cookie = context && sessionCredential(req, context);
-  if (!cookie) { res.writeHead(401).end(); return; }
-  const headers = { Host: upstreamHost, Cookie: cookie };
+  const headers = { Host: upstreamHost, Cookie: backendCookie };
   if (write) headers['Content-Type'] = 'application/json';
   if (req.headers['x-nod-account']) headers['X-Nod-Account'] = req.headers['x-nod-account'];
   const upstream = http.request({ hostname: '127.0.0.1', port, path: req.url,
@@ -156,6 +97,9 @@ function serveChat(req, res, port = 4310) {
 }
 
 const directPanel = process.env.NOD_INGRESS_CHAT === 'true';
+const key = directPanel ? readFileSync(0, 'utf8').trimEnd() : '';
+if (directPanel && !/^[A-Za-z0-9_-]{43,}$/.test(key)) throw Error('Missing internal Nod credential');
+const backendCookie = 'nod-access-4310=' + key;
 const upstreamHost = new URL(process.env.NOD_UPSTREAM_ORIGIN || 'http://localhost:4310').host;
 const nodOrigin = process.env.NOD_INGRESS_NOD_ORIGIN || '';
 const haOrigin = process.env.NOD_INGRESS_HA_ORIGIN || '';
@@ -180,14 +124,12 @@ const server = http.createServer((req, res) => {
     res.writeHead(403).end('Forbidden');
     return;
   }
-  if (directPanel && (chatReads.has(req.url.split('?')[0]) || chatWrites.has(req.url.split('?')[0]))) {
-    serveChat(req, res);
+  if (directPanel && !supervisorAdmin(req)) {
+    res.writeHead(403).end('Home Assistant administrator session required');
     return;
   }
-  if (directPanel && req.method === 'POST' && req.url === '/api/access') {
-    const context = sessionContext(req);
-    if (!context) { res.writeHead(403).end(); return; }
-    serveLogin(req, res, context);
+  if (directPanel && (chatReads.has(req.url.split('?')[0]) || chatWrites.has(req.url.split('?')[0]))) {
+    serveChat(req, res);
     return;
   }
   if (req.method !== 'GET' && req.method !== 'HEAD') {

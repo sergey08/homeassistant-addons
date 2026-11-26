@@ -148,7 +148,7 @@ for attempt in $(seq 1 90); do
             done
             node -e 'const s=require("node:net").connect(8443,"127.0.0.1");s.on("connect",()=>{s.destroy();process.exit(0)});s.on("error",()=>process.exit(1))' || { echo 'FAIL: HTTPS relay not listening'; exit 1; }
         fi
-        env -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/home/node NOD_INGRESS_CHAT="$ingress_chat" NOD_UPSTREAM_ORIGIN="$NOD_PUBLIC_URL" NOD_INGRESS_NOD_ORIGIN="$ingress_origin" NOD_INGRESS_HA_ORIGIN="$ha_ancestor" gosu node node /app/ingress.mjs &
+        printf '%s\n' "$token" | env -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/home/node NOD_INGRESS_CHAT="$ingress_chat" NOD_UPSTREAM_ORIGIN="$NOD_PUBLIC_URL" NOD_INGRESS_NOD_ORIGIN="$ingress_origin" NOD_INGRESS_HA_ORIGIN="$ha_ancestor" gosu node node /app/ingress.mjs &
         ingress_pid=$!
         for i in $(seq 1 10); do
             if node -e 'fetch("http://127.0.0.1:8099/").then(r=>{process.exit(r.status===403?0:1)}).catch(()=>process.exit(1))'; then break; fi
