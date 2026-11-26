@@ -9,9 +9,16 @@ function isBundleAsset(path) {
   return /^\/assets\/[A-Za-z0-9_-]+\.(?:js|css|woff2?|png|svg)(?:\?v=[A-Za-z0-9_-]+)?$/.test(path);
 }
 
+function isBundledLogo(path) {
+  return /^\/logos\/(?:(?:models|sign-in)\/)?[A-Za-z0-9_-]+\.svg$/.test(path);
+}
+function isAppIcon(path) {
+  return /^\/api\/apps\/(?:catalog\/)?[A-Za-z0-9_-]{1,128}\/icon$/.test(path);
+}
+
 const uiFiles = new Set(['/', '/theme-init.js', '/favicon.svg', '/favicon.ico', '/apple-touch-icon.png']);
 function isPanelRead(path) {
-  return uiFiles.has(path) || isBundleAsset(path) || path === '/api/session';
+  return uiFiles.has(path) || isBundleAsset(path) || isBundledLogo(path) || isAppIcon(path) || path === '/api/session';
 }
 
 function servePanelRead(req, res, port = 4310) {
@@ -22,13 +29,17 @@ function servePanelRead(req, res, port = 4310) {
   const upstream = http.request({
     hostname: '127.0.0.1', port, path: req.url, method: req.method,
     headers: { Host: upstreamHost, 'Accept-Encoding': 'identity',
-      ...(req.url === '/api/session' ? { Cookie: backendCookie } : {}),
+      ...((req.url === '/api/session' || isAppIcon(req.url)) ? { Cookie: backendCookie } : {}),
     },
   }, reply => {
     const type = (reply.headers['content-type'] || '').split(';')[0].trim();
     const session = req.url === '/api/session';
+    const logo = isBundledLogo(req.url);
+    const icon = isAppIcon(req.url);
     const validType = req.url === '/' ? type === 'text/html' :
-      session ? type === 'application/json' : type && type !== 'text/html';
+      session ? type === 'application/json' : logo ? type === 'image/svg+xml' :
+      icon ? ['image/svg+xml', 'image/png', 'image/jpeg', 'image/webp', 'image/gif', 'image/x-icon', 'image/vnd.microsoft.icon'].includes(type) :
+      type && type !== 'text/html';
     if (!validType || !(reply.statusCode === 200 || (session && reply.statusCode === 401))) {
       reply.resume();
       res.writeHead(reply.statusCode === 404 ? 404 : 502).end();
@@ -38,6 +49,7 @@ function servePanelRead(req, res, port = 4310) {
       'Content-Type': reply.headers['content-type'],
       'X-Content-Type-Options': 'nosniff',
       'Cache-Control': 'private, no-store',
+      ...((logo || icon) ? { 'Content-Security-Policy': "default-src 'none'; sandbox; frame-ancestors 'none'", 'Cross-Origin-Resource-Policy': 'same-origin' } : {}),
     });
     pipeline(reply, res, () => {});
   });
