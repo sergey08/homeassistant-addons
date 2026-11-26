@@ -7,7 +7,7 @@ RUN node /tmp/extract-workspace.mjs /app /app/workspace-programs
 COPY workspace-runtime.mjs workspace-launcher.mjs workspace-command-client.mjs /app/
 COPY patch-embedded-ui.mjs patch-browser-launcher.mjs patch-browser-exposure.mjs patch-workspace-runtime.mjs /tmp/
 RUN node /tmp/patch-embedded-ui.mjs && node /tmp/patch-browser-launcher.mjs && node /tmp/patch-browser-exposure.mjs && node /tmp/patch-workspace-runtime.mjs
-RUN corepack enable && pnpm install --frozen-lockfile && pnpm exec vite build && pnpm prune --prod && pnpm store prune
+RUN corepack enable && pnpm install --frozen-lockfile && pnpm exec vite build --base=./ && pnpm prune --prod && pnpm store prune
 
 FROM node:24.21.0-bookworm-slim@sha256:d6aa754f16b3197301076f047b5def2f02ea1dbbc2ca920407d46d7ec7f87b20 AS node
 FROM docker:29.8.2-cli@sha256:35cfcf893c20f2931f4909151b5407aaaeab711277de7ce8b8f521f095d54c32 AS docker

@@ -1,5 +1,5 @@
 name: "Nod native preflight"
-version: "0.1.0-dev.15"
+version: "0.1.0-dev.16"
 slug: "nod_native_preflight"
 description: "Experimental native Nod server and database health test"
 url: "https://github.com/sergey08/homeassistant-addons/pull/139"
@@ -11,6 +11,7 @@ init: false
 stage: experimental
 
 ingress: true
+ingress_stream: true
 ingress_port: 8099
 panel_title: Nod
 panel_icon: mdi:robot-outline
@@ -25,6 +26,7 @@ map:
   - type: addon_config
     read_only: true
 options:
+  ingress_chat: false
   https_enabled: false
   https_origin: "https://nod.home.arpa:8443"
   lan_cidr: "192.168.1.0/24"
@@ -40,6 +42,7 @@ options:
   workspace_host: ""
   workspace_key: ""
 schema:
+  ingress_chat: bool
   https_enabled: bool
   https_origin: str
   lan_cidr: str
