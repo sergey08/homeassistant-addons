@@ -64,21 +64,41 @@ const chatReads = new Set(['/api/state', '/api/events', '/api/messages', '/api/p
 const chatWrites = new Set(['/api/messages', '/api/account/welcome', '/api/onboarding/profile',
   '/api/onboarding/updates-email', '/api/onboarding/suggestions', '/api/account/model-setup', '/api/account/prepare']);
 
+// Explicit method/path pairs for the pinned upstream UI. Never proxy webhooks or secret reveal endpoints.
+const settingsRoutes = [
+  ['GET', /^\/api\/tasks\/[^/]+(?:\/(?:commands|schedule-draft))?$/],
+  ['POST', /^\/api\/schedules$/],
+  ['POST', /^\/api\/schedules\/[^/]+\/(?:run|preview)$/],
+  ['POST', /^\/api\/schedules\/[^/]+\/runs\/[^/]+\/stop$/],
+  ['PATCH', /^\/api\/(?:schedules|tasks)\/[^/]+$/],
+  ['PUT', /^\/api\/(?:schedules|tasks)\/[^/]+\/model$/],
+  ['DELETE', /^\/api\/schedules\/[^/]+$/],
+  ['POST', /^\/api\/tasks\/[^/]+\/stop$/],
+  ['POST', /^\/api\/apps\/[^/]+\/connect$/],
+  ['POST', /^\/api\/apps\/[^/]+\/accounts\/[^/]+\/disconnect$/],
+  ['PATCH', /^\/api\/apps\/mcp\/[^/]+$/],
+  ['PUT', /^\/api\/trust\/limit$/],
+  ['GET', /^\/api\/trust\/entries\/[^/]+\/steps$/],
+];
+function settingsAllowed(method, path) {
+  return !/%(?:2f|5c|2e|25)/i.test(path) && settingsRoutes.some(([verb, pattern]) => verb === method && pattern.test(path));
+}
+
 function serveChat(req, res, port = 4310) {
   const path = req.url.split('?')[0];
   const events = req.url.split('?')[0] === '/api/events';
-  const write = req.method === 'POST';
-  if (!((req.method === 'GET' && chatReads.has(path)) || (write && chatWrites.has(path)))) {
+  const write = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method);
+  if (!((req.method === 'GET' && chatReads.has(path)) || (req.method === 'POST' && chatWrites.has(path)) || settingsAllowed(req.method, path))) {
     res.writeHead(405).end();
     return;
   }
   if (write && (req.headers['x-nod-ingress-request'] !== '1' ||
-      req.headers['content-type']?.split(';')[0] !== 'application/json')) {
+      (req.method !== 'DELETE' && req.headers['content-type']?.split(';')[0] !== 'application/json'))) {
     res.writeHead(403).end();
     return;
   }
   const headers = { Host: upstreamHost, Cookie: backendCookie };
-  if (write) headers['Content-Type'] = 'application/json';
+  if (write && req.headers['content-type']) headers['Content-Type'] = 'application/json';
   if (req.headers['x-nod-account']) headers['X-Nod-Account'] = req.headers['x-nod-account'];
   const upstream = http.request({ hostname: '127.0.0.1', port, path: req.url,
     method: req.method, headers }, reply => {
@@ -132,7 +152,7 @@ const server = http.createServer((req, res) => {
     res.writeHead(403).end('Home Assistant administrator session required');
     return;
   }
-  if (directPanel && (chatReads.has(req.url.split('?')[0]) || chatWrites.has(req.url.split('?')[0]))) {
+  if (directPanel && (chatReads.has(req.url.split('?')[0]) || chatWrites.has(req.url.split('?')[0]) || settingsAllowed(req.method, req.url.split('?')[0]))) {
     serveChat(req, res);
     return;
   }
