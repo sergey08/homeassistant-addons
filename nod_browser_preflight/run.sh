@@ -15,7 +15,7 @@ chmod 0700 /data/browser
 mkdir -p /run/nod-browser
 chown 1000:1000 /run/nod-browser
 chmod 0750 /run/nod-browser
-peer=$(node /app/prepare-config.mjs) || exit 1
+peer=$(timeout --kill-after=5s 160s node /app/prepare-config.mjs) || exit 1
 worker_pid=
 gateway_pid=
 cleanup() {
