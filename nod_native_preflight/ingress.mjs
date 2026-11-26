@@ -57,7 +57,10 @@ function supervisorAdmin(req) {
 }
 
 const chatReads = new Set(['/api/state', '/api/events', '/api/messages', '/api/preferences',
-  '/api/apps', '/api/trust', '/api/onboarding/introduction', '/api/models']);
+  '/api/apps', '/api/trust', '/api/onboarding/introduction', '/api/models',
+  // Read-only settings views; sensitive detail and mutation routes remain denied.
+  '/api/schedules', '/api/tasks', '/api/schedule-runs', '/api/apps/catalog',
+  '/api/channels', '/api/trust/entries', '/api/vault/activity', '/api/vault', '/api/vault/sessions']);
 const chatWrites = new Set(['/api/messages', '/api/account/welcome', '/api/onboarding/profile',
   '/api/onboarding/updates-email', '/api/onboarding/suggestions', '/api/account/model-setup', '/api/account/prepare']);
 
