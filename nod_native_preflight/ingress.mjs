@@ -60,12 +60,15 @@ const chatReads = new Set(['/api/state', '/api/events', '/api/messages', '/api/p
   '/api/apps', '/api/trust', '/api/onboarding/introduction', '/api/models',
   // Read-only settings views; sensitive detail and mutation routes remain denied.
   '/api/schedules', '/api/tasks', '/api/schedule-runs', '/api/apps/catalog',
-  '/api/channels', '/api/trust/entries', '/api/vault/activity', '/api/vault', '/api/vault/sessions']);
+  '/api/channels', '/api/channel-settings', '/api/trust/entries', '/api/vault/activity', '/api/vault', '/api/vault/sessions']);
 const chatWrites = new Set(['/api/messages', '/api/account/welcome', '/api/onboarding/profile',
   '/api/onboarding/updates-email', '/api/onboarding/suggestions', '/api/account/model-setup', '/api/account/prepare']);
 
 // Explicit method/path pairs for the pinned upstream UI. Never proxy webhooks or secret reveal endpoints.
 const settingsRoutes = [
+  ['PUT', /^\/api\/channel-settings\/(?:telegram|whatsapp)$/],
+  ['DELETE', /^\/api\/channel-settings\/(?:telegram|whatsapp)$/],
+  ['POST', /^\/api\/channel-settings\/(?:telegram|whatsapp)\/reconnect$/],
   ['GET', /^\/api\/tasks\/[^/]+(?:\/(?:commands|schedule-draft))?$/],
   ['POST', /^\/api\/schedules$/],
   ['POST', /^\/api\/schedules\/[^/]+\/(?:run|preview)$/],
@@ -93,7 +96,8 @@ function serveChat(req, res, port = 4310) {
     return;
   }
   if (write && (req.headers['x-nod-ingress-request'] !== '1' ||
-      (req.method !== 'DELETE' && req.headers['content-type']?.split(';')[0] !== 'application/json'))) {
+      (req.headers['content-type'] && req.headers['content-type'].split(';')[0] !== 'application/json') ||
+      (!req.headers['content-type'] && (Number(req.headers['content-length'] || 0) > 0 || req.headers['transfer-encoding'])))) {
     res.writeHead(403).end();
     return;
   }
