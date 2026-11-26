@@ -128,6 +128,21 @@ jobs:
               }
               assert.equal((await fetch(base+"/api/schedules",{method:"POST",headers:{...headers,"content-type":"application/json"},body:"{}"})).status,403);
               assert.equal((await fetch(base+"/api/webhooks/telegram",{headers})).status,404);
+              const oauth="/api/models/oauth";
+              const writeHeaders={...headers,"x-nod-ingress-request":"1","content-type":"application/json"};
+              const attempt="a".repeat(43);
+              assert.equal((await fetch(base+oauth,{method:"POST",headers:{...headers,"content-type":"application/json"},body:"{}"})).status,403);
+              assert.equal((await fetch(base+oauth,{method:"POST",headers:{"x-nod-ingress-request":"1","content-type":"application/json"},body:"{}"})).status,403);
+              for(const path of [oauth,oauth+"/complete"]){
+                const result=await fetch(base+path,{method:"POST",headers:writeHeaders,body:"{}"});
+                assert.equal(result.status,400,path);
+                await result.json();
+              }
+              const status=await fetch(base+oauth+"/status/"+attempt,{headers});
+              assert.equal(status.status,200);
+              assert.equal((await status.json()).status,"failed");
+              assert.equal((await fetch(base+oauth+"/callback",{headers})).status,404);
+              console.log("NOD_INGRESS_MODEL_OAUTH_ROUTES_OK");
               console.log("NOD_DIRECT_INGRESS_SETTINGS_OK");
             })().catch(e=>{console.error(e);process.exit(1)})'
       - if: always()
