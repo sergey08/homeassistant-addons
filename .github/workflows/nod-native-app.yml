@@ -160,6 +160,16 @@ jobs:
               else{assert.equal(finish.status,200);assert.equal(finishData.settings.onboardingCompleted,true);}
               console.log("NOD_INGRESS_FINAL_ONBOARDING_ROUTE_OK",finish.status);
 
+              for(const path of ["/logos/models/openai.svg","/logos/telegram.svg","/logos/whatsapp.svg"]){
+                assert.equal((await fetch(base+path)).status,403,path+" anonymous");
+                const logo=await fetch(base+path,{headers});
+                assert.equal(logo.status,200,path);
+                assert.match(logo.headers.get("content-type")||"",/^image\/svg\+xml/);
+                assert.match(await logo.text(),/<svg\b/);
+              }
+              assert.equal((await fetch(base+"/logos/models/%2e%2e%2fopenai.svg",{headers})).status,404);
+              assert.equal((await fetch(base+"/api/apps/catalog/nonexistent-logo-ci/icon",{headers})).status,404);
+              console.log("NOD_INGRESS_ORIGINAL_LOGOS_OK");
               console.log("NOD_DIRECT_INGRESS_SETTINGS_OK");
             })().catch(e=>{console.error(e);process.exit(1)})'
       - if: always()
