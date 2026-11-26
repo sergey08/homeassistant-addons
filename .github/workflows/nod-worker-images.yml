@@ -1,0 +1,42 @@
+name: Build Nod worker images
+on:
+  push:
+    branches: [feat/nod-home-assistant]
+    paths:
+      - nod_browser_preflight/**
+      - nod_workspace_preflight/**
+      - .github/workflows/nod-worker-images.yml
+permissions:
+  contents: read
+  packages: write
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        component: [browser, workspace]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and verify worker image
+        env:
+          COMPONENT: ${{ matrix.component }}
+        run: |
+          set -euo pipefail
+          directory="nod_${COMPONENT}_preflight"
+          version=$(python -c 'import sys,yaml; print(yaml.safe_load(open(sys.argv[1]))["version"])' "$directory/config.yaml")
+          image="ghcr.io/sergey08/nod-$COMPONENT-amd64:$version"
+          docker build --label org.opencontainers.image.source=https://github.com/sergey08/homeassistant-addons --tag "$image" "$directory"
+          if [ "$COMPONENT" = browser ]; then
+            docker run --rm --network none --entrypoint sh "$image" -ec 'test -s /app/worker.mjs && test -x /app/ha-browser-run.sh && chromium --version'
+          else
+            docker run --rm --network none --entrypoint sh "$image" -ec 'test -x /usr/local/bin/nod-ha-workspace-preflight && python3 --version && libreoffice --version'
+          fi
+          echo "IMAGE=$image" >> "$GITHUB_ENV"
+      - name: Publish image
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          docker push "$IMAGE"
