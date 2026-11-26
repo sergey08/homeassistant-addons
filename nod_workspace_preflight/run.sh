@@ -4,7 +4,7 @@ set -eu
 export XTABLES_LOCKFILE=/tmp/nod-workspace-xtables.lock
 [ "$(ls /sys/class/net | sort | tr '\n' ' ')" = 'eth0 lo ' ] || { echo 'FAIL: unexpected workspace network interfaces'; exit 1; }
 rm -rf /run/nod-workspace-gateway /run/nod-workspace
-peer_config=$(node /app/prepare-config.mjs) || exit 1
+peer_config=$(timeout --kill-after=5s 160s node /app/prepare-config.mjs) || exit 1
 peer=${peer_config%% *}
 mode=${peer_config#* }
 command_flag=
