@@ -1,4 +1,5 @@
 import http from 'node:http';
+import { randomBytes } from 'node:crypto';
 
 import { pipeline } from 'node:stream';
 
@@ -20,7 +21,9 @@ function servePanelRead(req, res, port = 4310) {
   }
   const upstream = http.request({
     hostname: '127.0.0.1', port, path: req.url, method: req.method,
-    headers: { 'Accept-Encoding': 'identity' },
+    headers: { Host: 'localhost:4310', 'Accept-Encoding': 'identity',
+      ...(req.url === '/api/session' && sessionContext(req) && sessionCredential(req, sessionContext(req)) ? { Cookie: sessionCredential(req, sessionContext(req)) } : {}),
+    },
   }, reply => {
     const type = (reply.headers['content-type'] || '').split(';')[0].trim();
     const session = req.url === '/api/session';
@@ -46,6 +49,69 @@ function servePanelRead(req, res, port = 4310) {
   upstream.end();
 }
 
+
+const sessions = new Map();
+const sessionLifetime = 8 * 60 * 60 * 1000;
+const sessionCookie = 'nod_ingress_session';
+
+function sessionContext(req) {
+  const prefix = req.headers['x-ingress-path'];
+  const user = req.headers['x-remote-user-id'];
+  if (typeof user !== 'string' || !user ||
+      typeof prefix !== 'string' || !/^\/api\/hassio_ingress\/[A-Za-z0-9_-]+$/.test(prefix)) return null;
+  return { prefix, user };
+}
+
+function sessionCredential(req, context) {
+  const parts = (req.headers.cookie || '').split(';').map(value => value.trim());
+  const handle = parts.find(value => value.startsWith(sessionCookie + '='))?.slice(sessionCookie.length + 1);
+  const session = sessions.get(handle);
+  if (!session || session.user !== context.user || session.prefix !== context.prefix ||
+      session.until <= Date.now()) return null;
+  return session.credential;
+}
+
+function serveLogin(req, res, context) {
+  if (req.headers['x-nod-ingress-request'] !== '1' ||
+      req.headers['content-type']?.split(';')[0] !== 'application/json') {
+    res.writeHead(403).end();
+    return;
+  }
+  const chunks = [];
+  let size = 0;
+  req.on('error', () => res.destroy());
+  req.on('data', chunk => {
+    size += chunk.length;
+    if (size <= 4096) chunks.push(chunk);
+    else if (!res.headersSent) res.writeHead(413).end();
+  });
+  req.on('end', () => {
+    if (size > 4096 || res.destroyed) return;
+    const upstream = http.request({
+      hostname: '127.0.0.1', port: 4310, path: '/api/access', method: 'POST',
+      headers: { Host: 'localhost:4310', 'Content-Type': 'application/json' },
+    }, reply => {
+      reply.resume();
+      const access = (reply.headers['set-cookie'] || []).find(c => c.startsWith('nod-access-4310='));
+      const credential = access?.split(';')[0];
+      if (reply.statusCode !== 204 || !/^nod-access-4310=[A-Za-z0-9_-]{43,}$/.test(credential || '')) {
+        res.writeHead(reply.statusCode === 401 ? 401 : 502).end();
+        return;
+      }
+      const now = Date.now();
+      for (const [id, session] of sessions) if (session.until <= now) sessions.delete(id);
+      if (sessions.size >= 256) { res.writeHead(503).end(); return; }
+      const handle = randomBytes(32).toString('base64url');
+      sessions.set(handle, { ...context, credential, until: now + sessionLifetime });
+      const secure = req.headers.origin?.startsWith('https://') ? '; Secure' : '';
+      res.writeHead(204, { 'Set-Cookie': sessionCookie + '=' + handle + '; Path=' + context.prefix + '/; HttpOnly; SameSite=Strict' + secure }).end();
+    });
+    upstream.on('error', () => { if (!res.headersSent) res.writeHead(502).end(); });
+    upstream.setTimeout(15000, () => upstream.destroy());
+    upstream.end(Buffer.concat(chunks));
+  });
+}
+
 const nodOrigin = process.env.NOD_INGRESS_NOD_ORIGIN || '';
 const haOrigin = process.env.NOD_INGRESS_HA_ORIGIN || '';
 function validOrigin(value) {
@@ -67,6 +133,12 @@ const server = http.createServer((req, res) => {
   res.setHeader('Content-Security-Policy', "default-src 'none'; frame-ancestors 'self'; base-uri 'none'; form-action 'none'" + (embed ? "; style-src 'unsafe-inline'; frame-src " + nodOrigin : ""));
   if (req.socket.remoteAddress !== '172.30.32.2') {
     res.writeHead(403).end('Forbidden');
+    return;
+  }
+  if (!embed && req.method === 'POST' && req.url === '/api/access') {
+    const context = sessionContext(req);
+    if (!context) { res.writeHead(403).end(); return; }
+    serveLogin(req, res, context);
     return;
   }
   if (req.method !== 'GET' && req.method !== 'HEAD') {
