@@ -21,7 +21,7 @@ function servePanelRead(req, res, port = 4310) {
   }
   const upstream = http.request({
     hostname: '127.0.0.1', port, path: req.url, method: req.method,
-    headers: { Host: 'localhost:4310', 'Accept-Encoding': 'identity',
+    headers: { Host: upstreamHost, 'Accept-Encoding': 'identity',
       ...(req.url === '/api/session' && sessionContext(req) && sessionCredential(req, sessionContext(req)) ? { Cookie: sessionCredential(req, sessionContext(req)) } : {}),
     },
   }, reply => {
@@ -89,7 +89,7 @@ function serveLogin(req, res, context) {
     if (size > 4096 || res.destroyed) return;
     const upstream = http.request({
       hostname: '127.0.0.1', port: 4310, path: '/api/access', method: 'POST',
-      headers: { Host: 'localhost:4310', 'Content-Type': 'application/json' },
+      headers: { Host: upstreamHost, 'Content-Type': 'application/json' },
     }, reply => {
       reply.resume();
       const access = (reply.headers['set-cookie'] || []).find(c => c.startsWith('nod-access-4310='));
@@ -127,7 +127,7 @@ function serveChat(req, res, port = 4310) {
   const context = sessionContext(req);
   const cookie = context && sessionCredential(req, context);
   if (!cookie) { res.writeHead(401).end(); return; }
-  const headers = { Host: 'localhost:4310', Cookie: cookie };
+  const headers = { Host: upstreamHost, Cookie: cookie };
   if (write) headers['Content-Type'] = 'application/json';
   if (req.headers['x-nod-account']) headers['X-Nod-Account'] = req.headers['x-nod-account'];
   const upstream = http.request({ hostname: '127.0.0.1', port, path: req.url,
@@ -150,6 +150,8 @@ function serveChat(req, res, port = 4310) {
   else upstream.end();
 }
 
+const directPanel = process.env.NOD_INGRESS_CHAT === 'true';
+const upstreamHost = new URL(process.env.NOD_UPSTREAM_ORIGIN || 'http://localhost:4310').host;
 const nodOrigin = process.env.NOD_INGRESS_NOD_ORIGIN || '';
 const haOrigin = process.env.NOD_INGRESS_HA_ORIGIN || '';
 function validOrigin(value) {
@@ -161,7 +163,7 @@ function validOrigin(value) {
 const embed = validOrigin(nodOrigin) && validOrigin(haOrigin) && nodOrigin !== haOrigin;
 if ((nodOrigin || haOrigin) && !embed) throw Error('Invalid embedded panel origins');
 const html = value => value.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const page = embed
+const page = embed && !directPanel
   ? `<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Nod</title><style>html,body{margin:0;height:100%;font:14px system-ui;color-scheme:light dark}main{display:flex;flex-direction:column;height:100%}header{padding:8px 12px;text-align:right}a{color:inherit}iframe{border:0;flex:1;min-height:0;width:100%}</style></head><body><main><header><a href="${html(nodOrigin)}/" target="_blank" rel="noopener noreferrer">Abrir Nod en otra pestaña ↗</a></header><iframe title="Nod" src="${html(nodOrigin)}/" referrerpolicy="no-referrer" sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads"></iframe></main></body></html>`
   : `<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Nod — diagnóstico</title></head><body><main><h1>Nod nativo</h1><p>Servidor y PostgreSQL: comprobación de arranque superada.</p><p>Modo experimental. Activa el panel integrado en la configuración cuando esté disponible.</p></main></body></html>`;
 const server = http.createServer((req, res) => {
@@ -173,7 +175,7 @@ const server = http.createServer((req, res) => {
     res.writeHead(403).end('Forbidden');
     return;
   }
-  if (!embed && ['/api/events', '/api/messages'].includes(req.url.split('?')[0])) {
+  if (directPanel && ['/api/events', '/api/messages'].includes(req.url.split('?')[0])) {
     serveChat(req, res);
     return;
   }
