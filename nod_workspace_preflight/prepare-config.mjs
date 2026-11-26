@@ -1,7 +1,6 @@
 // Root-only startup configuration. Output contains only the peer address.
 import {readFileSync,lstatSync,chmodSync,chownSync,mkdirSync,writeFileSync} from 'node:fs';
-import {lookup} from 'node:dns/promises';
-import {isIPv4} from 'node:net';
+import {resolveServerPeer} from './resolve-server-peer.mjs';
 import {parsePsk} from './transport.mjs';
 const file='/data/options.json';
 try{
@@ -20,11 +19,7 @@ try{
   parsePsk(options.remote_key);
   if(options.command_enabled!==undefined&&typeof options.command_enabled!=='boolean')throw Error();
   const host=options.server_host;
-  if(typeof host!=='string'||! /^[a-z0-9-]+-nod-native-preflight$/.test(host))throw Error();
-  const peers=await lookup(host,{all:true,family:4});
-  if(peers.length!==1)throw Error();
-  const peer=peers[0].address;
-  if(!isIPv4(peer)||! /^(10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[01])\.)/.test(peer))throw Error();
+  const peer=await resolveServerPeer(host);
   const dir='/run/nod-workspace-gateway';
   mkdirSync(dir,{mode:0o711});
   chmodSync(dir,0o711);
