@@ -1,5 +1,5 @@
 name: "Nod Browser (experimental)"
-version: "0.1.0-dev.5"
+version: "0.1.0-dev.6"
 slug: "nod_browser_preflight"
 image: "ghcr.io/sergey08/nod-browser-{arch}"
 description: "Isolated upstream Nod browser worker with optional authenticated internal transport"
