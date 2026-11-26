@@ -143,6 +143,23 @@ jobs:
               assert.equal((await status.json()).status,"failed");
               assert.equal((await fetch(base+oauth+"/callback",{headers})).status,404);
               console.log("NOD_INGRESS_MODEL_OAUTH_ROUTES_OK");
+              const account="/api/account";
+              const update={method:"PATCH",headers:writeHeaders,body:JSON.stringify({theme:"dark"})};
+              assert.equal((await fetch(base+account,{...update,headers:{"content-type":"application/json"}})).status,403);
+              assert.equal((await fetch(base+account,{...update,headers:{...headers,"content-type":"application/json"}})).status,403);
+              assert.equal((await fetch(base+account,{...update,headers:{...writeHeaders,"x-nod-account":"wrong-account"}})).status,401);
+              const saved=await fetch(base+account,update);
+              assert.equal(saved.status,200);
+              assert.equal((await saved.json()).settings.theme,"dark");
+              const session=await fetch(base+"/api/session",{headers});
+              assert.equal(session.status,200);
+              assert.equal((await session.json()).settings.theme,"dark");
+              const finish=await fetch(base+account,{...update,body:JSON.stringify({onboardingCompleted:true})});
+              const finishData=await finish.json();
+              if(finish.status===409){assert.ok(["brain","email"].includes(finishData.step));}
+              else{assert.equal(finish.status,200);assert.equal(finishData.settings.onboardingCompleted,true);}
+              console.log("NOD_INGRESS_FINAL_ONBOARDING_ROUTE_OK",finish.status);
+
               console.log("NOD_DIRECT_INGRESS_SETTINGS_OK");
             })().catch(e=>{console.error(e);process.exit(1)})'
       - if: always()
