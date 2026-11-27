@@ -53,7 +53,12 @@ if(mode==='serve'){
       const body=method==='POST'?{url:endpoint+'/v1',key:''}:undefined;
       assert.equal((await request(path,method,body,{})).status,403);
       assert.equal((await request(path,method,body,{...marked,'x-remote-user-groups':'system-users'})).status,403);
-      assert.equal((await request(path,method,body,{...marked,'x-nod-account':'wrong-account'})).status,401);
+      assert.equal((await request(path,method,body,{...marked,'x-nod-account':'wrong-account'})).status,401,path+' must reject a stale account');
+    }
+    const stale={...marked,'x-nod-account':'wrong-account'};
+    const id='00000000-0000-4000-8000-000000000001';
+    for(const [path,method] of [[models,'GET'],[models+'/selection','PUT'],[models+'/backups','PUT'],[models+'/routes','PUT'],[models+'/connections/'+id,'DELETE'],[models+'/connections/'+id+'/refresh','POST'],['/api/memory/export','GET'],['/api/memory','PATCH'],['/api/preferences','PATCH'],['/api/speech/voices/refresh','POST'],['/api/speech/preview','POST']]){
+      assert.equal((await request(path,method,method==='GET'?undefined:{},stale)).status,401,path+' '+method+' stale account');
     }
     assert.equal((await request(models+'/endpoints','POST',{url:endpoint+'/v1',key:''},{...admin,'content-type':'application/json'})).status,403);
     assert.equal((await request(models+'/endpoints','POST',{}, {...marked,'content-type':'text/plain'})).status,403);
