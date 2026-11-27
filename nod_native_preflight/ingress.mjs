@@ -285,7 +285,7 @@ function settingsAllowed(method, path) {
   return !/%(?:2f|5c|2e|25)/i.test(path) && settingsRoutes.some(([verb, pattern]) => verb === method && pattern.test(path));
 }
 
-function serveChat(req, res, port = 4310) {
+async function serveChat(req, res, port = 4310) {
   const path = req.url.split('?')[0];
   const events = req.url.split('?')[0] === '/api/events';
   const write = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method);
@@ -293,14 +293,50 @@ function serveChat(req, res, port = 4310) {
     res.writeHead(405).end();
     return;
   }
+  // Supervisor ingress_stream forwards even a bodyless POST using chunked framing.
+  // Refresh is an exact, bodyless upstream action. Verify actual EOF before dispatch;
+  // never infer emptiness from the absence of Content-Length.
+  const bodylessRefresh = req.method === 'POST' &&
+    /^\/api\/models\/connections\/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\/refresh$/.test(path) &&
+    !req.headers['content-type'];
   if (write && (req.headers['x-nod-ingress-request'] !== '1' ||
       (req.headers['content-type'] && req.headers['content-type'].split(';')[0] !== 'application/json') ||
-      (!req.headers['content-type'] && (Number(req.headers['content-length'] || 0) > 0 || req.headers['transfer-encoding'])))) {
+      (!req.headers['content-type'] && (Number(req.headers['content-length'] || 0) > 0 || (!bodylessRefresh && req.headers['transfer-encoding']))))) {
     res.writeHead(403).end();
     return;
   }
+  if (bodylessRefresh) {
+    // Reject any data, including an unexpected JSON body; do not forward partial data.
+    // The global request deadline still applies. No buffering is required.
+    const empty = await new Promise(resolve => {
+      let timer;
+      const finish = result => {
+        clearTimeout(timer);
+        req.off('data', onData);
+        req.off('end', onEnd);
+        req.off('error', onError);
+        req.off('aborted', onError);
+        resolve(result);
+      };
+      const onData = chunk => { if (chunk.length) { req.pause(); finish(false); } };
+      const onEnd = () => finish(true);
+      const onError = () => finish(false);
+      if (req.readableEnded) { resolve(true); return; }
+      if (req.destroyed) { resolve(false); return; }
+      timer = setTimeout(() => { req.pause(); finish(false); }, 5000);
+      req.on('end', onEnd);
+      req.on('error', onError);
+      req.on('aborted', onError);
+      req.on('data', onData);
+    });
+    if (!empty) {
+      if (!res.destroyed) res.writeHead(403, {'Connection':'close'}).end();
+      return;
+    }
+  }
   const headers = { Host: upstreamHost, Cookie: backendCookie };
   if (write && req.headers['content-type']) headers['Content-Type'] = 'application/json';
+  if (bodylessRefresh) headers['Content-Length'] = '0';
   if (req.headers['x-nod-account']) headers['X-Nod-Account'] = req.headers['x-nod-account'];
   const upstream = http.request({ hostname: '127.0.0.1', port, path: req.url,
     method: req.method, headers }, reply => {
@@ -324,7 +360,7 @@ function serveChat(req, res, port = 4310) {
   res.once('close', () => upstream.destroy());
   upstream.on('error', () => { if (!res.headersSent && !res.destroyed) res.writeHead(502).end(); });
   req.on('error', () => upstream.destroy());
-  if (write) req.pipe(upstream);
+  if (write && !bodylessRefresh) req.pipe(upstream);
   else upstream.end();
 }
 
@@ -370,7 +406,7 @@ const server = http.createServer((req, res) => {
     return;
   }
   if (directPanel && (chatReads.has(req.url.split('?')[0]) || chatWrites.has(req.url.split('?')[0]) || settingsAllowed(req.method, req.url.split('?')[0]))) {
-    serveChat(req, res);
+    void serveChat(req, res).catch(() => { if (!res.headersSent && !res.destroyed) res.writeHead(502).end(); else if (!res.destroyed) res.destroy(); });
     return;
   }
   if (req.method !== 'GET' && req.method !== 'HEAD') {
