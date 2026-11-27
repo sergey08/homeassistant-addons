@@ -242,6 +242,23 @@ const settingsRoutes = [
   ['GET', /^\/api\/models\/oauth\/status\/[A-Za-z0-9_-]{32,128}$/],
   ['DELETE', /^\/api\/models\/oauth\/[A-Za-z0-9_-]{32,128}$/],
   ['PUT', /^\/api\/models\/selection$/],
+  // Pinned upstream model connection management, never forward arbitrary model paths.
+  ['POST', /^\/api\/models\/(?:endpoints|keys)$/],
+  ['GET', /^\/api\/models\/azure$/],
+  ['PUT', /^\/api\/models\/(?:backups|routes)$/],
+  ['POST', /^\/api\/models\/connections\/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\/refresh$/],
+  ['DELETE', /^\/api\/models\/connections\/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/],
+  // Memory and voice settings. Upstream validates bodies, ownership and note names.
+  ['GET', /^\/api\/(?:memory|speech)$/],
+  ['PATCH', /^\/api\/(?:memory|preferences)$/],
+  ['POST', /^\/api\/memory\/(?:notes|import|archive\/(?:restore|forget))$/],
+  ['PATCH', /^\/api\/memory\/notes\/(?:about|preferences|people|routines|lessons)\/[a-z0-9]+(?:-[a-z0-9]+)*$/],
+  ['DELETE', /^\/api\/memory\/notes\/(?:about|preferences|people|routines|lessons)\/[a-z0-9]+(?:-[a-z0-9]+)*$/],
+  ['POST', /^\/api\/memory\/notes\/(?:about|preferences|people|routines|lessons)\/[a-z0-9]+(?:-[a-z0-9]+)*\/archive$/],
+  ['PATCH', /^\/api\/memory\/skills\/[a-z0-9]+(?:-[a-z0-9]+)*$/],
+  ['DELETE', /^\/api\/memory\/skills\/[a-z0-9]+(?:-[a-z0-9]+)*$/],
+  ['GET', /^\/api\/memory\/export$/],
+  ['POST', /^\/api\/speech\/(?:prepare|voices\/refresh|preview)$/],
   ['POST', /^\/api\/vault(?:\/import)?$/],
   ['PATCH', /^\/api\/vault\/[0-9a-fA-F-]{36}$/],
   ['DELETE', /^\/api\/vault\/[0-9a-fA-F-]{36}$/],
@@ -288,13 +305,19 @@ function serveChat(req, res, port = 4310) {
   const upstream = http.request({ hostname: '127.0.0.1', port, path: req.url,
     method: req.method, headers }, reply => {
     const type = reply.headers['content-type']?.split(';')[0];
-    if (!(type === 'application/json' || (events && type === 'text/event-stream') || reply.statusCode === 204)) {
+    // Binary/text exceptions are restricted to the two exact documented routes.
+    const speechPreview = req.method === 'POST' && path === '/api/speech/preview' &&
+      reply.statusCode === 200 && ['audio/mpeg','audio/mp3','audio/wav','audio/x-wav','audio/ogg','audio/webm','audio/mp4','audio/aac','audio/flac'].includes(type);
+    const memoryExport = req.method === 'GET' && path === '/api/memory/export' &&
+      reply.statusCode === 200 && type === 'text/markdown';
+    if (!(type === 'application/json' || (events && type === 'text/event-stream') || speechPreview || memoryExport || reply.statusCode === 204)) {
       reply.resume();
       res.writeHead(502).end();
       return;
     }
     res.writeHead(reply.statusCode, { 'Content-Type': type || 'application/json',
-      'Cache-Control': 'no-store', 'X-Accel-Buffering': 'no' });
+      'Cache-Control': 'no-store', 'X-Accel-Buffering': 'no',
+      ...(memoryExport ? {'Content-Disposition':'attachment; filename="nod-memory.md"'} : {}) });
     res.flushHeaders();
     pipeline(reply, res, () => {});
   });
