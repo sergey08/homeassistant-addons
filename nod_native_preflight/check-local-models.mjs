@@ -104,7 +104,8 @@ if(mode==='serve'){
     console.log('NOD_HEADLESS_STATUS_AND_RESTART_GUARDS_OK');
     const before=await get();
     let data=await ok(models+'/endpoints','POST',{url:endpoint+'/v1',key:''});
-    const first=data.connections.find(row=>row.provider==='compatible'&&row.models.some(m=>m.id===model));
+    const existingIds=new Set(before.connections.map(row=>row.id));
+    const first=data.connections.find(row=>!existingIds.has(row.id)&&row.provider==='compatible'&&row.models.some(m=>m.id===model));
     assert.ok(first);assert.equal(first.status,'connected');
     assert.deepEqual(first.models.map(m=>m.id),[model]);
     assert.equal(first.models[0].contextWindow,65536);
