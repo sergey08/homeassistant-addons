@@ -36,8 +36,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends util-linux && r
 COPY --from=upstream /src/LICENSE /usr/share/doc/nod/LICENSE
 RUN groupadd -g 1001 nodgateway && useradd -M -u 1001 -g 1001 -s /usr/sbin/nologin nodgateway
 COPY --from=upstream /opt/nod-workspace-programs /opt/nod-workspace-programs
-COPY prepare-config.mjs resolve-server-peer.mjs transport.mjs probe-worker.mjs command-session.mjs command-entry.py /app/
-RUN node --check /app/resolve-server-peer.mjs && node --check /app/prepare-config.mjs && node --check /app/transport.mjs && node --check /app/probe-worker.mjs && node --check /app/command-session.mjs && python3 -m py_compile /app/command-entry.py /opt/nod-workspace-programs/command.py /opt/nod-workspace-programs/stop.py
+COPY prepare-config.mjs resolve-server-peer.mjs transport.mjs probe-worker.mjs command-session.mjs resource-policy.mjs command-entry.py /app/
+RUN node --check /app/resolve-server-peer.mjs && node --check /app/prepare-config.mjs && node --check /app/transport.mjs && node --check /app/probe-worker.mjs && node --check /app/command-session.mjs && node --check /app/resource-policy.mjs && python3 -m py_compile /app/command-entry.py /opt/nod-workspace-programs/command.py /opt/nod-workspace-programs/stop.py
 COPY --chmod=555 run.sh /usr/local/bin/nod-ha-workspace-preflight
 COPY --chmod=444 selftest.py /opt/nod-workspace-selftest.py
 RUN sh -n /usr/local/bin/nod-ha-workspace-preflight
