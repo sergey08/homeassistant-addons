@@ -273,8 +273,32 @@ jobs:
           path=$(docker logs nod-connector-fixture 2>&1 | sed -n 's/^NOD_CONNECTOR_FIXTURE_PATH //p')
           docker run --rm --network nod-ingress-ci --ip 172.30.32.2 -e CONNECTOR_PATH="$path" -v "$GITHUB_WORKSPACE/nod_native_preflight/check-connector-bridge.mjs:/app/check-connector-bridge.mjs:ro" --entrypoint node nod-native-app:ci --import tsx /app/check-connector-bridge.mjs test
           docker logs nod-connector-fixture 2>&1 | grep '^NOD_CONNECTOR_PROOF_ORIGIN_OK'
+      - name: Verify local OpenAI-compatible models and settings through Ingress
+        run: |
+          set -euo pipefail
+          docker run -d --name nod-model-fixture --network nod-ingress-ci --ip 172.30.32.11 --network-alias nod-model-fixture -v "$GITHUB_WORKSPACE/nod_native_preflight/check-local-models.mjs:/check-local-models.mjs:ro" --entrypoint node nod-native-app:ci /check-local-models.mjs serve
+          for i in {1..30}; do
+            if docker logs nod-model-fixture 2>&1 | grep -q '^NOD_LOCAL_MODEL_FIXTURE_READY'; then break; fi
+            sleep 1
+          done
+          docker logs nod-model-fixture 2>&1 | grep '^NOD_LOCAL_MODEL_FIXTURE_READY'
+          check_models() {
+            docker run --rm --network nod-ingress-ci --ip 172.30.32.2 -v "$GITHUB_WORKSPACE/nod_native_preflight/check-local-models.mjs:/check-local-models.mjs:ro" --entrypoint node nod-native-app:ci /check-local-models.mjs "$1"
+          }
+          check_models connect
+          docker rm -f nod-native-app
+          docker run -d --name nod-native-app --network nod-ingress-ci --ip 172.30.32.3 --network-alias nod-ingress -v nod-native-ci-data:/data nod-native-app:ci
+          for attempt in {1..110}; do
+            docker logs nod-native-app > probe.log 2>&1
+            if grep -q '^FAIL:' probe.log; then cat probe.log; exit 1; fi
+            if grep -q '^PASS:' probe.log; then break; fi
+            sleep 2
+          done
+          grep -q '^PASS:' probe.log
+          check_models restart
       - if: always()
         run: |
+          docker rm -f nod-model-fixture || true
           docker rm -f nod-connector-fixture || true
           docker rm -f nod-native-browser || true
           docker rm -f nod-native-app || true
