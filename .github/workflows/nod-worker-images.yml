@@ -1,11 +1,10 @@
 name: Build Nod worker images
 on:
   push:
-    branches: [feat/nod-home-assistant]
-    paths:
-      - nod_browser_preflight/**
-      - nod_workspace_preflight/**
-      - .github/workflows/nod-worker-images.yml
+    branches: [publish/nod-candidate]
+concurrency:
+  group: nod-worker-image-publication
+  cancel-in-progress: false
 permissions:
   contents: read
   packages: write
@@ -34,7 +33,7 @@ jobs:
           if result=$(docker manifest inspect "$image" 2>&1); then
             echo "published=true" >> "$GITHUB_OUTPUT"
             echo "NOD_EXISTING_IMAGE_PRESERVED $image"
-          elif printf '%s\n' "$result" | grep -Eiq 'manifest unknown|no such manifest'; then
+          elif printf '%s\n' "$result" | grep -Eiq 'manifest unknown|no such manifest|: not found'; then
             echo "published=false" >> "$GITHUB_OUTPUT"
           else
             printf '%s\n' "$result" >&2
