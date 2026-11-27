@@ -98,13 +98,14 @@ function connectorHttpsOrigin(value) {
     return url.protocol === 'https:' && url.origin === value && !url.username && !url.password ? url.origin : null;
   } catch { return null; }
 }
-function serveConnectorBridge(req, res, port = 4310) {
+async function serveConnectorBridge(req, res, port = 4310) {
   const write = req.method === 'POST';
   if (!write && req.method !== 'GET') {
     res.writeHead(405, {Allow:'GET, POST'}).end();
     return;
   }
   const headers = {Host:upstreamHost, Cookie:backendCookie, 'Accept-Encoding':'identity'};
+  let body;
   if (write) {
     // Origin and Fetch Metadata are browser-controlled; do not trust a caller's
     // custom forwarded origin. The upstream capability and bridge key still apply.
@@ -112,16 +113,26 @@ function serveConnectorBridge(req, res, port = 4310) {
     if (!origin || req.headers['sec-fetch-site'] !== 'same-origin' ||
         !/^[A-Za-z0-9_-]{43}$/.test(req.headers['x-nod-bridge'] || '') ||
         req.headers['content-type']?.split(';')[0] !== 'application/json' ||
-        !/^\d{1,4}$/.test(req.headers['content-length'] || '') ||
-        Number(req.headers['content-length']) > 4096 || req.headers['transfer-encoding']) {
+        (req.headers['content-length'] !== undefined &&
+          (!/^\d{1,4}$/.test(req.headers['content-length']) || Number(req.headers['content-length']) > 4096))) {
       res.writeHead(403, {'Content-Type':'application/json'}).end(JSON.stringify({error:'Open Home Assistant using trusted HTTPS and start the sign-in again.'}));
       return;
     }
+    const chunks=[];
+    let size=0;
+    try {
+      for await (const chunk of req) {
+        size+=chunk.length;
+        if(size>4096){res.writeHead(413).end();return;}
+        chunks.push(chunk);
+      }
+    } catch { if(!res.destroyed)res.writeHead(400).end();return; }
+    body=Buffer.concat(chunks,size);
     Object.assign(headers, {
       Origin:upstreamOrigin, 'Sec-Fetch-Site':'same-origin',
       'X-Nod-Bridge':req.headers['x-nod-bridge'],
       'X-Nod-HA-Bridge-Origin':origin,
-      'Content-Type':'application/json', 'Content-Length':req.headers['content-length'],
+      'Content-Type':'application/json', 'Content-Length':body.length,
     });
   }
   const upstream = http.request({
@@ -153,8 +164,7 @@ function serveConnectorBridge(req, res, port = 4310) {
     if(!res.headersSent&&!res.destroyed)res.writeHead(502).end();
     else if(!res.destroyed)res.destroy();
   });
-  if(write)pipeline(req,upstream,()=>{});
-  else upstream.end();
+  upstream.end(body);
 }
 
 const uiFiles = new Set(['/', '/theme-init.js', '/favicon.svg', '/favicon.ico', '/apple-touch-icon.png']);
@@ -220,7 +230,7 @@ const chatWrites = new Set(['/api/messages', '/api/account/welcome', '/api/onboa
 // Explicit method/path pairs for the pinned upstream UI. Never proxy webhooks.
 // Vault reveal operations retain upstream authorization and require the Ingress write marker.
 const settingsRoutes = [
-  ['POST', /^\/api\/apps\/setup-(?:status|cancel)$/],
+  ['POST', /^\/api\/apps\/setup-(?:status|cancel|complete)$/],
   ['GET', /^\/api\/artifacts\/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\/metadata$/],
   // Conversation search and focus: upstream checks owner, active thread and visibility.
   ['GET', /^\/api\/messages\/search$/],
@@ -329,7 +339,7 @@ const server = http.createServer((req, res) => {
     return;
   }
   if (directPanel && isConnectorBridge(req.url)) {
-    serveConnectorBridge(req,res);
+    void serveConnectorBridge(req,res).catch(()=>{if(!res.headersSent&&!res.destroyed)res.writeHead(502).end();else if(!res.destroyed)res.destroy();});
     return;
   }
   if (directPanel && isArtifactRead(req.url)) {
