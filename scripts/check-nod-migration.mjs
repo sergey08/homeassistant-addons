@@ -115,8 +115,8 @@ async function seed() {
   const proposal = await json('/api/apps/mcp', 'POST', {
     name: connectorName, auth: 'bearer', endpoint: fixtureOrigin + '/mcp',
   });
-  const proposalId = new URL(proposal.url, origin).searchParams.get('connect');
-  assert.match(proposalId, /^[a-f0-9-]{36}$/);
+  const proposalId = proposal.id;
+  assert.match(proposalId, /^[a-f0-9-]{36}$/, 'MCP setup proposal id');
   const connected = await json('/api/apps/discovery/' + proposalId + '/complete', 'POST', {
     token: mcpKey, accountName: connectorAccount,
   });
