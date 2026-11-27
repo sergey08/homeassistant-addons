@@ -6,7 +6,7 @@ import { pipeline } from 'node:stream';
 // The UI bundle is served by Nod on loopback. Only generated Vite assets
 // qualify here. Session, uploads and API routes use separate handlers.
 function isBundleAsset(path) {
-  return /^\/assets\/[A-Za-z0-9_-]+\.(?:js|css|woff2?|png|svg)(?:\?v=[A-Za-z0-9_-]+)?$/.test(path);
+  return /^\/assets\/[A-Za-z0-9_-]+\.(?:m?js|css|woff2?|png|svg)(?:\?v=[A-Za-z0-9_-]+)?$/.test(path);
 }
 
 function isBundledLogo(path) {
@@ -269,7 +269,7 @@ const server = http.createServer((req, res) => {
   }
   if (directPanel && isPanelRead(req.url)) {
     if (req.url === '/') {
-      res.setHeader('Content-Security-Policy', "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'self'; base-uri 'none'; form-action 'none'");
+      res.setHeader('Content-Security-Policy', "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; worker-src 'self'; connect-src 'self'; frame-ancestors 'self'; base-uri 'none'; form-action 'none'");
     }
     servePanelRead(req, res);
     return;
