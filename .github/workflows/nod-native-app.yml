@@ -170,6 +170,32 @@ jobs:
               assert.equal((await fetch(base+"/logos/models/%2e%2e%2fopenai.svg",{headers})).status,404);
               assert.equal((await fetch(base+"/api/apps/catalog/nonexistent-logo-ci/icon",{headers})).status,404);
               console.log("NOD_INGRESS_ORIGINAL_LOGOS_OK");
+              const history=await fetch(base+"/api/messages",{headers});
+              assert.equal(history.status,200);
+              const page=await history.json();
+              const unknownId="b6d4cc75-73e1-4d55-95a2-d3e0a03b3bff";
+              const around="/api/messages/around/"+unknownId;
+              const search="/api/messages/search?q=synthetic-ci-history";
+              for(const path of [around,search]){
+                assert.equal((await fetch(base+path)).status,403);
+                assert.equal((await fetch(base+path,{headers:{...headers,"x-remote-user-groups":"system-users"}})).status,403);
+                assert.equal((await fetch(base+path,{method:"POST",headers:writeHeaders,body:"{}"})).status,405);
+              }
+              const missing=await fetch(base+around,{headers});
+              assert.equal(missing.status,404);
+              assert.match(missing.headers.get("content-type")||"",/^application\/json/);
+              assert.match(JSON.stringify(await missing.json()),/Message not found/i);
+              const results=await fetch(base+search,{headers});
+              assert.equal(results.status,200);
+              assert.ok(Array.isArray(await results.json()));
+              assert.equal((await fetch(base+"/api/messages/around/not-a-uuid",{headers})).status,404);
+              if(page.messages.length){
+                const id=page.messages[0].id;
+                const actual=await fetch(base+"/api/messages/around/"+id,{headers});
+                assert.equal(actual.status,200);
+                assert.ok((await actual.json()).some(message=>message.id===id));
+              }
+              console.log("NOD_INGRESS_CHAT_HISTORY_OK");
               console.log("NOD_DIRECT_INGRESS_SETTINGS_OK");
             })().catch(e=>{console.error(e);process.exit(1)})'
       - name: Verify local HTTP UUID generation in real Chromium
