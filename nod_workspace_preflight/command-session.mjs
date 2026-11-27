@@ -1,6 +1,7 @@
 // Carries upstream request/output/cancellation frames unchanged. No program upload.
 import {spawn} from 'node:child_process';
 import {readFileSync} from 'node:fs';
+import {checkWorkspaceResources,resourceRefusalFrames} from './resource-policy.mjs';
 const manifest=JSON.parse(readFileSync('/opt/nod-workspace-programs/manifest.json','utf8'));
 const stopProgram=readFileSync('/opt/nod-workspace-programs/stop.py','utf8');
 const active=new Set();
@@ -25,7 +26,7 @@ export function openCommandSession(socket,header){
   }
   socket.once('close',()=>{closed=true;clearTimeout(initial);if(child)stop();});
   function append(chunk){
-    if(closed)return;
+    if(closed||finished)return;
     pending=Buffer.concat([pending,chunk]);
     const limit=started?1024:1024*1024;
     const first=pending.indexOf(10);
@@ -57,6 +58,15 @@ export function openCommandSession(socket,header){
         }else if(uncertain||recovering||active.size>=2)throw Error();
       }catch{socket.destroy();return;}
       started=true;clearTimeout(initial);
+      if(!recover){
+        const refusal=checkWorkspaceResources();
+        if(refusal){
+          finished=true;
+          console.warn('NOD_WORKSPACE_RESOURCE_REFUSED',refusal);
+          socket.end(resourceRefusalFrames(refusal));
+          return;
+        }
+      }
       child=spawn('/usr/bin/python3',['-I','-u','/app/command-entry.py',recover?'@recover':header.threadId],{
         cwd:'/var/tmp',shell:false,env:{PATH:'/opt/nod-artifacts/bin:/usr/local/bin:/usr/bin:/bin',HOME:'/data/workspace-home',LANG:'C.UTF-8'},
         stdio:['pipe','pipe','pipe']});
