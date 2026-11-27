@@ -184,3 +184,48 @@ for (const route of ['/api/artifacts/:id/metadata', '/api/artifacts/:id']) {
     "\n    const expectedAccount = request.headers['x-nod-account'];\n    if (expectedAccount !== undefined && expectedAccount !== ownerId) return reply.code(401).send({ error: 'Sign in to continue.' });");
 }
 writeFileSync(artifactServer, artifactSource);
+
+ // Hosted broker connection links must retain the canonical URL for hashing/polling.
+ // Only navigation of the exact internally generated capability uses HA Ingress.
+const connectorUrlFile = '/app/src/web/lib/connection-url.ts';
+writeFileSync(connectorUrlFile, "import { panelPath } from './panel-path.js';\n" +
+  readFileSync(connectorUrlFile, 'utf8') +
+  "\nexport function connectorNavigationUrl(value: string) {\n  const match = /^http:\\/\\/localhost:4310(\\/api\\/apps\\/connect\\/[A-Za-z0-9_-]{43})$/.exec(value);\n  return match ? panelPath(match[1]) === match[1] ? value : panelPath(match[1]) : value;\n}\n");
+const connectorSites = [
+  ['pages/apps.tsx', [['popup.location.href = url;', 'popup.location.href = connectorNavigationUrl(url);']]],
+  ['hooks/use-app-sign-in.ts', [['popup.location.href = url;', 'popup.location.href = connectorNavigationUrl(url);'], ["window.open(signInUrl, ", "window.open(connectorNavigationUrl(signInUrl), "]]],
+  ['components/app-connection-dialog.tsx', [['href={signIn.url}', 'href={signIn.url ? connectorNavigationUrl(signIn.url) : undefined}']]],
+  ['components/setup-link.tsx', [['popup.location.href = href;', 'popup.location.href = connectorNavigationUrl(href);'], ['href={href}', 'href={connectorNavigationUrl(href)}']]],
+  ['components/app-discovery-dialog.tsx', [['popup.location.href = url;', 'popup.location.href = connectorNavigationUrl(url);']]],
+];
+for (const [file, replacements] of connectorSites) {
+  const target = '/app/src/web/' + file;
+  let ui = readFileSync(target, 'utf8');
+  for (const [before, after] of replacements) {
+    if (!ui.includes(before)) throw Error('Missing connector navigation in ' + file);
+    ui = ui.replaceAll(before, () => after);
+  }
+  writeFileSync(target, "import { connectorNavigationUrl } from '../lib/connection-url';\n" + ui);
+}
+
+// Preserve upstream capability expiry, one-use bridge key and ECDSA challenge.
+// Only the dedicated HA proxy can supply the actual HTTPS browser origin.
+const hostedConnector = '/app/src/server/integration-browser-hosted.ts';
+let hosted = readFileSync(hostedConnector, 'utf8');
+const hostedStart = 'const remote = new URL(await attempt.start(browserKey, origin));';
+if (hosted.split(hostedStart).length !== 2) throw Error('Unexpected hosted connector start');
+hosted = hosted.replace(hostedStart, () =>
+  "const forwarded = request.headers['x-nod-ha-bridge-origin'];\n" +
+  "            let browserOrigin = origin;\n" +
+  "            if (forwarded !== undefined) {\n" +
+  "              if (origin !== 'http://localhost:4310' || typeof forwarded !== 'string' || forwarded.length > 512) throw new Error('Invalid HA connector origin');\n" +
+  "              const parsed = new URL(forwarded);\n" +
+  "              if (parsed.protocol !== 'https:' || parsed.origin !== forwarded || parsed.username || parsed.password) throw new Error('Invalid HA connector origin');\n" +
+  "              browserOrigin = parsed.origin;\n" +
+  "            }\n" +
+  "            const remote = new URL(await attempt.start(browserKey, browserOrigin));");
+const secureAnchor = "const status=document.getElementById('status');";
+if (hosted.split(secureAnchor).length !== 2) throw Error('Unexpected hosted connector page');
+hosted = hosted.replace(secureAnchor, () => secureAnchor +
+  "\nif(!window.isSecureContext||!crypto.subtle){button.disabled=true;status.textContent='Open Home Assistant with a trusted HTTPS certificate to connect apps.';}");
+writeFileSync(hostedConnector, hosted);
