@@ -232,6 +232,10 @@ const chatWrites = new Set(['/api/messages', '/api/account/welcome', '/api/onboa
 const settingsRoutes = [
   ['POST', /^\/api\/apps\/setup-(?:status|cancel|complete)$/],
   ['GET', /^\/api\/artifacts\/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\/metadata$/],
+  // Headless server exposes desktop capability status only, not desktop control.
+  ['GET', /^\/api\/computer-use$/],
+  // Upstream validates the exact failed turn and active thread; never clear history.
+  ['POST', /^\/api\/conversation\/restart-context$/],
   // Conversation search and focus: upstream checks owner, active thread and visibility.
   ['GET', /^\/api\/messages\/search$/],
   ['GET', /^\/api\/messages\/around\/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/],
