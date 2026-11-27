@@ -86,6 +86,77 @@ function serveArtifact(req, res, port = 4310) {
   upstream.end();
 }
 
+// Hosted connector consent uses an expiring capability and a separate bridge key.
+// Only the authenticated Supervisor admin panel can reach it through Ingress.
+function isConnectorBridge(path) {
+  return /^\/api\/apps\/connect\/[A-Za-z0-9_-]{43}$/.test(path);
+}
+function connectorHttpsOrigin(value) {
+  if (typeof value !== 'string' || value.length > 512) return null;
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' && url.origin === value && !url.username && !url.password ? url.origin : null;
+  } catch { return null; }
+}
+function serveConnectorBridge(req, res, port = 4310) {
+  const write = req.method === 'POST';
+  if (!write && req.method !== 'GET') {
+    res.writeHead(405, {Allow:'GET, POST'}).end();
+    return;
+  }
+  const headers = {Host:upstreamHost, Cookie:backendCookie, 'Accept-Encoding':'identity'};
+  if (write) {
+    // Origin and Fetch Metadata are browser-controlled; do not trust a caller's
+    // custom forwarded origin. The upstream capability and bridge key still apply.
+    const origin = connectorHttpsOrigin(req.headers.origin);
+    if (!origin || req.headers['sec-fetch-site'] !== 'same-origin' ||
+        !/^[A-Za-z0-9_-]{43}$/.test(req.headers['x-nod-bridge'] || '') ||
+        req.headers['content-type']?.split(';')[0] !== 'application/json' ||
+        !/^\d{1,4}$/.test(req.headers['content-length'] || '') ||
+        Number(req.headers['content-length']) > 4096 || req.headers['transfer-encoding']) {
+      res.writeHead(403, {'Content-Type':'application/json'}).end(JSON.stringify({error:'Open Home Assistant using trusted HTTPS and start the sign-in again.'}));
+      return;
+    }
+    Object.assign(headers, {
+      Origin:upstreamOrigin, 'Sec-Fetch-Site':'same-origin',
+      'X-Nod-Bridge':req.headers['x-nod-bridge'],
+      'X-Nod-HA-Bridge-Origin':origin,
+      'Content-Type':'application/json', 'Content-Length':req.headers['content-length'],
+    });
+  }
+  const upstream = http.request({
+    hostname:'127.0.0.1', port, path:req.url, method:req.method, headers,
+  }, reply => {
+    const type = (reply.headers['content-type'] || '').split(';')[0].trim();
+    const status = reply.statusCode;
+    const csp = reply.headers['content-security-policy'];
+    const html = !write && status === 200 && type === 'text/html' &&
+      typeof csp === 'string' && csp.includes("default-src 'none'") &&
+      csp.includes("frame-ancestors 'none'") && /script-src 'nonce-[A-Za-z0-9+/=]+'/.test(csp);
+    const json = type === 'application/json' && [200,400,401,403,404,409,413,429,503].includes(status);
+    if (!html && !json) {
+      reply.resume();
+      res.writeHead(502).end();
+      return;
+    }
+    res.writeHead(status, {
+      'Content-Type':reply.headers['content-type'],
+      'Cache-Control':'private, no-store', 'Referrer-Policy':'no-referrer',
+      'X-Content-Type-Options':'nosniff',
+      'Content-Security-Policy':html ? csp : "default-src 'none'; frame-ancestors 'none'",
+    });
+    pipeline(reply,res,()=>{});
+  });
+  res.once('close',()=>upstream.destroy());
+  upstream.setTimeout(30000,()=>upstream.destroy(new Error('Connector bridge timeout')));
+  upstream.on('error',()=>{
+    if(!res.headersSent&&!res.destroyed)res.writeHead(502).end();
+    else if(!res.destroyed)res.destroy();
+  });
+  if(write)pipeline(req,upstream,()=>{});
+  else upstream.end();
+}
+
 const uiFiles = new Set(['/', '/theme-init.js', '/favicon.svg', '/favicon.ico', '/apple-touch-icon.png']);
 function isPanelRead(path) {
   return uiFiles.has(path) || isBundleAsset(path) || isBundledLogo(path) || isAppIcon(path) || path === '/api/session';
@@ -149,6 +220,7 @@ const chatWrites = new Set(['/api/messages', '/api/account/welcome', '/api/onboa
 // Explicit method/path pairs for the pinned upstream UI. Never proxy webhooks.
 // Vault reveal operations retain upstream authorization and require the Ingress write marker.
 const settingsRoutes = [
+  ['POST', /^\/api\/apps\/setup-(?:status|cancel)$/],
   ['GET', /^\/api\/artifacts\/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\/metadata$/],
   // Conversation search and focus: upstream checks owner, active thread and visibility.
   ['GET', /^\/api\/messages\/search$/],
@@ -227,7 +299,8 @@ const directPanel = process.env.NOD_INGRESS_CHAT === 'true';
 const key = directPanel ? readFileSync(0, 'utf8').trimEnd() : '';
 if (directPanel && !/^[A-Za-z0-9_-]{43,}$/.test(key)) throw Error('Missing internal Nod credential');
 const backendCookie = 'nod-access-4310=' + key;
-const upstreamHost = new URL(process.env.NOD_UPSTREAM_ORIGIN || 'http://localhost:4310').host;
+const upstreamOrigin = new URL(process.env.NOD_UPSTREAM_ORIGIN || 'http://localhost:4310').origin;
+const upstreamHost = new URL(upstreamOrigin).host;
 const nodOrigin = process.env.NOD_INGRESS_NOD_ORIGIN || '';
 const haOrigin = process.env.NOD_INGRESS_HA_ORIGIN || '';
 function validOrigin(value) {
@@ -253,6 +326,10 @@ const server = http.createServer((req, res) => {
   }
   if (directPanel && !supervisorAdmin(req)) {
     res.writeHead(403).end('Home Assistant administrator session required');
+    return;
+  }
+  if (directPanel && isConnectorBridge(req.url)) {
+    serveConnectorBridge(req,res);
     return;
   }
   if (directPanel && isArtifactRead(req.url)) {
