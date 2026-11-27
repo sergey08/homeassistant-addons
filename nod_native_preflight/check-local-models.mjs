@@ -83,6 +83,25 @@ if(mode==='serve'){
     assert.equal((await request(models+'/connections/%2f/refresh','POST')).status,405);
     assert.equal((await request(models+'/oauth/callback')).status,404);
     assert.equal((await request(models+'/unknown','POST',{})).status,405);
+    const restart='/api/conversation/restart-context';
+    const recovery={threadId:id,turnId:id};
+    for(const [path,method,body] of [['/api/computer-use','GET',undefined],[restart,'POST',recovery]]){
+      assert.equal((await request(path,method,body,{})).status,403);
+      assert.equal((await request(path,method,body,{...marked,'x-remote-user-groups':'system-users'})).status,403);
+      assert.equal((await request(path,method,body,stale)).status,401);
+    }
+    const desktop=await ok('/api/computer-use');
+    assert.equal(desktop.available,false);assert.equal(desktop.enabled,false);assert.equal(desktop.permissions.ready,false);
+    assert.equal((await request('/api/computer-use','PATCH',{enabled:true})).status,405);
+    assert.equal((await request('/api/computer-use/permission','POST',{which:'screen'})).status,405);
+    assert.equal((await request('/api/computer-use/keep-out','DELETE',{bundle:'ci'})).status,405);
+    assert.equal((await request(restart,'POST',recovery,admin)).status,403);
+    assert.equal((await request(restart,'POST',{})).status,400);
+    const rejected=await request(restart,'POST',recovery);
+    assert.equal(rejected.status,409,await rejected.clone().text());
+    assert.match(JSON.stringify(await rejected.json()),/no longer needs a context restart/i);
+    assert.equal((await request('/api/conversation/unknown','POST',{})).status,405);
+    console.log('NOD_HEADLESS_STATUS_AND_RESTART_GUARDS_OK');
     const before=await get();
     let data=await ok(models+'/endpoints','POST',{url:endpoint+'/v1',key:''});
     const first=data.connections.find(row=>row.provider==='compatible'&&row.models.some(m=>m.id===model));
