@@ -1,0 +1,21 @@
+name: Verify Nod workspace resource admission
+on:
+  pull_request:
+    paths:
+      - 'nod_workspace_preflight/**'
+      - 'tests/nod-workspace-resource.test.mjs'
+      - '.github/workflows/nod-workspace-resources.yml'
+permissions:
+  contents: read
+jobs:
+  resource-admission:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: |
+          node --check nod_workspace_preflight/resource-policy.mjs
+          node --check nod_workspace_preflight/command-session.mjs
+          node --test tests/nod-workspace-resource.test.mjs
