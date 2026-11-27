@@ -90,6 +90,7 @@ export function createNodRelay({key,cert,origin,allowPeer,haAncestor=''}) {
     const pathname=new URL(req.url,origin).pathname;
     if(pathname==='/api/webhooks' || pathname.startsWith('/api/webhooks/')) return end(res,403);
     const headers=cleanHeaders(req.headers);
+    delete headers['x-nod-ha-bridge-origin'];
     // EventSource cannot set custom headers. Permit the same partitioned cookie
     // mapping only on the exact read-only SSE route and same-origin browser requests.
     const query = new URL(req.url,origin).searchParams;
