@@ -259,7 +259,7 @@ jobs:
       - name: Verify hosted connector bridge without external accounts
         run: |
           set -euo pipefail
-          docker run -d --name nod-connector-fixture --network nod-ingress-ci --network-alias nod-connector-fixture -v "$GITHUB_WORKSPACE/nod_native_preflight/check-connector-bridge.mjs:/app/check-connector-bridge.mjs:ro" --entrypoint node nod-native-app:ci --import tsx /app/check-connector-bridge.mjs serve
+          docker run -d --name nod-connector-fixture --network nod-ingress-ci --ip 172.30.32.10 --network-alias nod-connector-fixture -v "$GITHUB_WORKSPACE/nod_native_preflight/check-connector-bridge.mjs:/app/check-connector-bridge.mjs:ro" --entrypoint node nod-native-app:ci --import tsx /app/check-connector-bridge.mjs serve
           for i in {1..30}; do
             if docker logs nod-connector-fixture 2>&1 | grep -q '^NOD_NATIVE_INGRESS_LISTENING'; then break; fi
             sleep 1
