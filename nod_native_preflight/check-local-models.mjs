@@ -1,6 +1,6 @@
 // Isolated test server, no external model service or real credentials.
 import assert from 'node:assert/strict';
-import {createServer} from 'node:http';
+import {createServer, request as rawRequest} from 'node:http';
 const model='ci-local-tools:4b', nonTool='ci-no-tools:4b';
 const endpoint='http://nod-model-fixture:11434';
 const base='http://nod-ingress:8099';
@@ -40,6 +40,20 @@ if(mode==='serve'){
 }else{
   const request=(path,method='GET',body,headers=method==='GET'?admin:marked)=>
     fetch(base+path,{method,headers:{...(body===undefined?{}:{'content-type':'application/json'}),...headers},...(body===undefined?{}:{body:JSON.stringify(body)}),signal:AbortSignal.timeout(60000)});
+  // Match Supervisor's ingress_stream framing, which differs from browser fetch/Undici.
+  function chunkedPost(path, payload='', headers=marked){
+    return new Promise((resolve,reject)=>{
+      const req=rawRequest(base+path,{method:'POST',headers:{...headers,'Transfer-Encoding':'chunked'}},res=>{
+        let body='';res.setEncoding('utf8');res.on('data',chunk=>body+=chunk);
+        res.on('end',()=>resolve({status:res.statusCode,body}));
+        res.on('error',reject);
+      });
+      req.on('error',reject);
+      req.setTimeout(15000,()=>req.destroy(new Error('Chunked Ingress request timeout')));
+      if(payload)req.write(payload);
+      req.end();
+    });
+  }
   async function ok(path,method='GET',body){
     const res=await request(path,method,body);
     assert.equal(res.status,200,path+' '+method+' '+await res.clone().text());
@@ -83,6 +97,20 @@ if(mode==='serve'){
     assert.equal(data.connections.length,before.connections.length+1);
     data=await ok(models+'/connections/'+first.id+'/refresh','POST');
     assert.equal(data.connections.find(row=>row.id===first.id).models[0].contextWindow,65536);
+    const refresh=models+'/connections/'+first.id+'/refresh';
+    assert.equal((await chunkedPost(refresh,'',admin)).status,403);
+    assert.equal((await chunkedPost(refresh,'',{})).status,403);
+    assert.equal((await chunkedPost(refresh,'', {...marked,'x-remote-user-groups':'system-users'})).status,403);
+    assert.equal((await chunkedPost(refresh,'', {...marked,'x-nod-account':'wrong-account'})).status,401);
+    assert.equal((await chunkedPost(refresh,'{}')).status,403);
+    assert.equal((await chunkedPost(refresh,'unexpected content')).status,403);
+    assert.equal((await chunkedPost(models+'/endpoints','')).status,403);
+    assert.equal((await chunkedPost(models+'/connections/not-a-uuid/refresh','')).status,405);
+    const streamed=await chunkedPost(refresh);
+    assert.equal(streamed.status,200,streamed.body);
+    assert.equal(JSON.parse(streamed.body).connections.find(row=>row.id===first.id).models[0].contextWindow,65536);
+    console.log('NOD_INGRESS_EMPTY_STREAM_REFRESH_OK');
+
     const selection=choice(first);
     data=await ok(models+'/selection','PUT',selection);assert.deepEqual(data.selection,selection);
     for(const lane of ['schedule','background']){
