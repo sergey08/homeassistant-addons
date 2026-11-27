@@ -16,6 +16,14 @@ jobs:
       - uses: actions/checkout@v4
       - name: Build upstream-derived workspace
         run: docker build -t nod-workspace:ci nod_workspace_preflight
+      - name: Check real command admission below memory reserve
+        run: |
+          set -euo pipefail
+          docker run --rm --network none --memory 192m --memory-swap 192m --pids-limit 64 --security-opt no-new-privileges -v "$GITHUB_WORKSPACE/nod_workspace_preflight/check-resource-refusal.mjs:/tmp/check-resource-refusal.mjs:ro" --entrypoint sh nod-workspace:ci -ec '
+            mkdir -p /data/workspaces /run/nod-workspace
+            chown 1000:1000 /data/workspaces /run/nod-workspace
+            exec setpriv --reuid=1000 --regid=1000 --clear-groups --no-new-privs --bounding-set=-all --inh-caps=-all --ambient-caps=-all node /tmp/check-resource-refusal.mjs
+          '
       - name: Check isolation and synthetic artifact creation
         run: |
           set -euo pipefail
