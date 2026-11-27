@@ -130,3 +130,22 @@ for (const [file, module, replacements] of logoPatches) {
   }
   writeFileSync(target, "import { panelPath } from '" + module + "';\n" + ui);
 }
+
+ // Use the same secure UUID generator for all request and UI identifiers on HTTP.
+writeFileSync('/app/src/web/lib/request-uuid.mjs', readFileSync('/tmp/request-uuid.mjs'));
+const uuidSites = [
+  ['app.tsx', './lib/request-uuid.mjs', 1],
+  ['pages/chat.tsx', '../lib/request-uuid.mjs', 2],
+  ['pages/schedule.tsx', '../lib/request-uuid.mjs', 1],
+  ['components/schedule-run.tsx', '../lib/request-uuid.mjs', 1],
+  ['components/feedback.tsx', '../lib/request-uuid.mjs', 2],
+  ['components/composer.tsx', '../lib/request-uuid.mjs', 1],
+  ['components/browser-handoff.tsx', '../lib/request-uuid.mjs', 1],
+  ['components/survey-card.tsx', '../lib/request-uuid.mjs', 1],
+];
+for (const [file, module, count] of uuidSites) {
+  const target = '/app/src/web/' + file;
+  const ui = readFileSync(target, 'utf8');
+  if (ui.split('crypto.randomUUID()').length !== count + 1) throw Error('Unexpected UUID call sites in ' + file);
+  writeFileSync(target, "import { createRequestUuid } from '" + module + "';\n" + ui.replaceAll('crypto.randomUUID()', 'createRequestUuid()'));
+}
