@@ -229,3 +229,76 @@ if (hosted.split(secureAnchor).length !== 2) throw Error('Unexpected hosted conn
 hosted = hosted.replace(secureAnchor, () => secureAnchor +
   "\nif(!window.isSecureContext||!crypto.subtle){button.disabled=true;status.textContent='Open Home Assistant with a trusted HTTPS certificate to connect apps.';}");
 writeFileSync(hostedConnector, hosted);
+
+// The broker's callback contract uses /api/apps/callback at the loopback origin.
+// Do not disclose the private HA ingress capability to the external provider.
+// Offer a bounded, authenticated manual completion path using the same callback verification.
+const connectorServer = '/app/src/server/integrations.ts';
+let integrationSource = readFileSync(connectorServer, 'utf8');
+const callbackStart = 'const callback = async (request: FastifyRequest, reply: FastifyReply) => {';
+const callbackEnd = "scope.get('/api/apps/callback', callback);";
+const startAt = integrationSource.indexOf(callbackStart);
+const endAt = integrationSource.indexOf(callbackEnd);
+if (startAt < 0 || endAt <= startAt || integrationSource.split(callbackStart).length !== 2 ||
+    integrationSource.split(callbackEnd).length !== 2) throw Error('Unexpected connector callback implementation');
+let callbackBody = integrationSource.slice(startAt,endAt);
+callbackBody = callbackBody.replace(callbackStart,
+  'const callback = async (query: unknown, reply: FastifyReply, manual = false) => {')
+  .replaceAll('request.query', 'query');
+const destinationAnchor = "const destination = options.callbackReturnTo ? 'desktop' : returnTo;";
+if (callbackBody.split(destinationAnchor).length !== 2) throw Error('Unexpected connector callback return');
+callbackBody = callbackBody.replace(destinationAnchor,
+  "if (manual) return reply.header('Cache-Control', 'no-store').code(['connected','continued'].includes(outcome) ? 200 : 409).send({ outcome });\n        " + destinationAnchor);
+const manualRoute = [
+  "scope.get('/api/apps/callback', (request, reply) => callback(request.query, reply));",
+  "      scope.post('/api/apps/setup-complete', async (request, reply) => {",
+  "        if (request.headers['x-nod-account'] !== undefined && request.headers['x-nod-account'] !== configuredOwner) return reply.code(401).send({ error: 'Sign in to continue.' });",
+  "        const input = z.object({ state: z.string().regex(/^[A-Za-z0-9_-]{43}$/), completion_token: z.string().min(1).max(24000), hash: z.string().regex(/^[a-f0-9]{64}$/) }).strict().parse(request.body);",
+  "        const callbackHash = createHash('sha256').update(input.state).digest('hex');",
+  "        const pending = await pool.query(",
+  "          \"SELECT id FROM app_connections WHERE owner_id=$1 AND callback_hash=$2 AND setup_link_hash=$3 AND provider_id='composio' AND pending_account_id=$4 AND callback_verifier IS NOT NULL AND callback_expires>now() AND callback_claim_id IS NULL AND NOT revoked\",",
+  "          [configuredOwner, callbackHash, input.hash, 'pending_'+input.state]);",
+  "        if (!pending.rowCount) return reply.code(409).send({ error: 'This sign-in attempt is unavailable. Use the current connection window.' });",
+  "        return callback({ state: input.state, completion_token: input.completion_token }, reply, true);",
+  "      });",
+].join('\n');
+integrationSource = integrationSource.slice(0,startAt)+callbackBody+manualRoute+integrationSource.slice(endAt+callbackEnd.length);
+writeFileSync(connectorServer,integrationSource);
+
+const dialogFile = '/app/src/web/components/app-connection-dialog.tsx';
+let dialog = readFileSync(dialogFile,'utf8');
+const titleAnchor = '  const title = useRef<HTMLHeadingElement>(null);';
+if(dialog.split(titleAnchor).length !== 2) throw Error('Unexpected connector dialog');
+dialog = dialog.replace(titleAnchor, () => titleAnchor +
+  "\n  const [callbackAddress,setCallbackAddress] = useState('');\n  const [callbackNotice,setCallbackNotice] = useState('');\n  const [callbackBusy,setCallbackBusy] = useState(false);\n" +
+  "  const manual = Boolean(signIn?.url && connectorNavigationUrl(signIn.url) !== signIn.url && window.isSecureContext);\n" +
+  "  useEffect(() => { setCallbackAddress(''); setCallbackNotice(''); setCallbackBusy(false); }, [signIn?.url]);\n" +
+  "  async function completeHaConnector() {\n" +
+  "    if (!signIn?.url || !manual || callbackBusy) return;\n" +
+  "    setCallbackBusy(true); setCallbackNotice('');\n" +
+  "    try {\n" +
+  "      const address = new URL(callbackAddress.trim());\n" +
+  "      const state = address.searchParams.get('state');\n" +
+  "      const token = address.searchParams.get('completion_token');\n" +
+  "      if (address.origin !== 'http://localhost:4310' || address.pathname !== '/api/apps/callback' || address.username || address.password || address.hash || address.searchParams.size !== 2 || !state || !/^[A-Za-z0-9_-]{43}$/.test(state) || !token || token.length > 24000) throw new Error('Invalid callback address');\n" +
+  "      const hash = await setupLinkHash(signIn.url);\n" +
+  "      await post('/api/apps/setup-complete', { state, completion_token: token, hash });\n" +
+  "      setCallbackNotice('Authorization received. Checking the connection…');\n" +
+  "    } catch { setCallbackNotice('Could not complete the current sign-in. Check the return address and try again.'); }\n" +
+  "    finally { setCallbackAddress(''); setCallbackBusy(false); }\n" +
+  "  }");
+const actionsAnchor = '            <div className="app-connect-actions">';
+if(dialog.split(actionsAnchor).length!==2)throw Error('Missing connector actions');
+dialog = dialog.replace(actionsAnchor, () => 
+  "            {manual && !outcome && (\n" +
+  "              <div data-analytics-private style={{display:'grid',gap:8,textAlign:'left'}}>\n" +
+  "                <p>After approving access, your browser may return to localhost and show a connection error. Copy the complete address from that window and paste it here. Do not share that address with anyone.</p>\n" +
+  "                <label htmlFor=\"nod-ha-connector-return\">Return address</label>\n" +
+  "                <input id=\"nod-ha-connector-return\" type=\"password\" autoComplete=\"off\" spellCheck={false} value={callbackAddress} maxLength={100000} onChange={(event)=>setCallbackAddress(event.target.value)} />\n" +
+  "                <Button type=\"button\" disabled={callbackBusy || !callbackAddress.trim()} onClick={()=>void completeHaConnector()}>Complete sign-in</Button>\n" +
+  "                {callbackNotice && <p role=\"status\">{callbackNotice}</p>}\n" +
+  "              </div>\n" +
+  "            )}\n" + actionsAnchor);
+dialog=dialog.replace("import { useEffect, useRef, type ComponentProps } from 'react';","import { useEffect, useRef, useState, type ComponentProps } from 'react';");
+dialog=dialog.replace("import { connectorNavigationUrl } from '../lib/connection-url';","import { connectorNavigationUrl, setupLinkHash } from '../lib/connection-url';\nimport { post } from '../lib/api';");
+writeFileSync(dialogFile,dialog);
