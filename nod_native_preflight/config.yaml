@@ -1,5 +1,5 @@
 name: "Nod native preflight"
-version: "0.1.0-dev.34"
+version: "0.1.0-dev.35"
 slug: "nod_native_preflight"
 image: "ghcr.io/sergey08/nod-server-{arch}"
 description: "Experimental native Nod server and database health test"
