@@ -149,3 +149,26 @@ for (const [file, module, count] of uuidSites) {
   if (ui.split('crypto.randomUUID()').length !== count + 1) throw Error('Unexpected UUID call sites in ' + file);
   writeFileSync(target, "import { createRequestUuid } from '" + module + "';\n" + ui.replaceAll('crypto.randomUUID()', 'createRequestUuid()'));
 }
+
+ // Keep canonical artifact IDs/URLs unchanged; prefix only at network boundaries.
+const attachmentPath = '/app/src/web/lib/attachment-url.ts';
+writeFileSync(attachmentPath, "import { panelPath } from './panel-path.js';\n" + readFileSync(attachmentPath, 'utf8') +
+  "\nexport function artifactRequestUrl(url: string) { return ownedArtifactUrl(url) ? panelPath(url) : url; }\n");
+const artifactSites = [
+  ['components/file-actions.tsx', [["href={artifact.url}", "href={artifactRequestUrl(artifact.url)}"], ["new URL(artifact.url, location.origin)", "new URL(artifactRequestUrl(artifact.url), location.origin)"]]],
+  ['components/attachment-data.tsx', [["href={item.downloadUrl}", "href={artifactRequestUrl(item.downloadUrl)}"], ["fetch(item.url, {", "fetch(artifactRequestUrl(item.url), {"]]],
+  ['components/attachment-images.tsx', [["src={image.url}", "src={artifactRequestUrl(image.url)}"]]],
+  ['components/artifact-drawer.tsx', [["src={item.url}", "src={artifactRequestUrl(item.url)}"], ["const url = link?.getAttribute('href');", "const href = link?.getAttribute('href');\n          const url = href?.replace(/^\\/api\\/hassio_ingress\\/[A-Za-z0-9_-]+(?=\\/|$)/, '');"]]],
+  ['components/attachment-video.tsx', [["src={item.url}", "src={artifactRequestUrl(item.url)}"]]],
+  ['components/audio-player.tsx', [["src={visible ? item.url : undefined}", "src={visible ? artifactRequestUrl(item.url) : undefined}"], ["href={item.url}", "href={artifactRequestUrl(item.url)}"]]],
+  ['components/attachment-pdf.tsx', [["return pdf.getDocument({\n    url,", "return pdf.getDocument({\n    url: artifactRequestUrl(url),"]]],
+];
+for (const [file, replacements] of artifactSites) {
+  const target = '/app/src/web/' + file;
+  let ui = readFileSync(target, 'utf8');
+  for (const [before, after] of replacements) {
+    if (ui.split(before).length !== 2) throw Error('Unexpected artifact URL call site in ' + file);
+    ui = ui.replace(before, () => after);
+  }
+  writeFileSync(target, "import { artifactRequestUrl } from '../lib/attachment-url';\n" + ui);
+}
