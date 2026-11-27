@@ -16,6 +16,76 @@ function isAppIcon(path) {
   return /^\/api\/apps\/(?:catalog\/)?[A-Za-z0-9_-]{1,128}\/icon$/.test(path);
 }
 
+// Artifact bodies have a dedicated read-only handler. Never route arbitrary paths.
+function isArtifactRead(path) {
+  return /^\/api\/artifacts\/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(path);
+}
+
+function serveArtifact(req, res, port = 4310) {
+  if (!['GET', 'HEAD'].includes(req.method)) {
+    res.writeHead(405, {Allow: 'GET, HEAD'}).end();
+    return;
+  }
+  const headers = {Host: upstreamHost, Cookie: backendCookie, 'Accept-Encoding': 'identity'};
+  if (req.headers['x-nod-account']) headers['X-Nod-Account'] = req.headers['x-nod-account'];
+  if (req.headers.range) {
+    if (!/^bytes=(?:\d{1,16}-\d{0,16}|-\d{1,16})$/.test(req.headers.range)) {
+      res.writeHead(416).end();
+      return;
+    }
+    headers.Range = req.headers.range;
+  }
+  const upstream = http.request({
+    hostname: '127.0.0.1', port, path: req.url, method: req.method, headers,
+  }, reply => {
+    const status = reply.statusCode;
+    const type = (reply.headers['content-type'] || '').split(';')[0].trim();
+    const responseHeaders = {
+      'Cache-Control': 'private, no-store',
+      'X-Content-Type-Options': 'nosniff',
+      'Content-Security-Policy': "default-src 'none'; sandbox; frame-ancestors 'none'",
+      'Cross-Origin-Resource-Policy': 'same-origin',
+      'Referrer-Policy': 'no-referrer',
+    };
+    if (status === 416) {
+      if (reply.headers['content-range']) responseHeaders['Content-Range'] = reply.headers['content-range'];
+      reply.resume();
+      res.writeHead(416, responseHeaders).end();
+      return;
+    }
+    if ([400,401,403,404,409].includes(status) && type === 'application/json') {
+      res.writeHead(status, {...responseHeaders, 'Content-Type':'application/json'});
+      pipeline(reply, res, () => {});
+      return;
+    }
+    // Only successful file responses with Nod's attachment disposition.
+    // Preserve safe inline previews, but force everything else to download.
+    const disposition = reply.headers['content-disposition'];
+    const filename = typeof disposition === 'string' &&
+      /^(?:inline|attachment); (filename\*=UTF-8''[^\r\n;]+)$/.exec(disposition);
+    if (![200,206].includes(status) || !type || !filename) {
+      reply.resume();
+      res.writeHead(502, responseHeaders).end();
+      return;
+    }
+    const inline = /^(image\/(png|jpeg|webp|gif|avif|bmp|svg\+xml)|audio\/(mpeg|wav|x-wav|webm|ogg|mp4|aac|flac)|video\/(mp4|webm|ogg)|application\/pdf)$/.test(type);
+    responseHeaders['Content-Type'] = type;
+    responseHeaders['Content-Disposition'] = (inline && disposition.startsWith('inline;') ? 'inline' : 'attachment') + '; ' + filename[1];
+    for (const [key, name] of [['content-length','Content-Length'],['content-range','Content-Range'],['accept-ranges','Accept-Ranges']]) {
+      if (reply.headers[key]) responseHeaders[name] = reply.headers[key];
+    }
+    res.writeHead(status, responseHeaders);
+    pipeline(reply, res, () => {});
+  });
+  res.once('close', () => upstream.destroy());
+  upstream.setTimeout(30000, () => upstream.destroy(new Error('Artifact timeout')));
+  upstream.on('error', () => {
+    if (!res.headersSent && !res.destroyed) res.writeHead(502).end();
+    else if (!res.destroyed) res.destroy();
+  });
+  upstream.end();
+}
+
 const uiFiles = new Set(['/', '/theme-init.js', '/favicon.svg', '/favicon.ico', '/apple-touch-icon.png']);
 function isPanelRead(path) {
   return uiFiles.has(path) || isBundleAsset(path) || isBundledLogo(path) || isAppIcon(path) || path === '/api/session';
@@ -79,6 +149,7 @@ const chatWrites = new Set(['/api/messages', '/api/account/welcome', '/api/onboa
 // Explicit method/path pairs for the pinned upstream UI. Never proxy webhooks.
 // Vault reveal operations retain upstream authorization and require the Ingress write marker.
 const settingsRoutes = [
+  ['GET', /^\/api\/artifacts\/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\/metadata$/],
   // Conversation search and focus: upstream checks owner, active thread and visibility.
   ['GET', /^\/api\/messages\/search$/],
   ['GET', /^\/api\/messages\/around\/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/],
@@ -182,6 +253,10 @@ const server = http.createServer((req, res) => {
   }
   if (directPanel && !supervisorAdmin(req)) {
     res.writeHead(403).end('Home Assistant administrator session required');
+    return;
+  }
+  if (directPanel && isArtifactRead(req.url)) {
+    serveArtifact(req, res);
     return;
   }
   if (directPanel && (chatReads.has(req.url.split('?')[0]) || chatWrites.has(req.url.split('?')[0]) || settingsAllowed(req.method, req.url.split('?')[0]))) {
