@@ -15,7 +15,7 @@ jobs:
       - run: docker build -t nod-native-app:ci nod_native_preflight
       - uses: actions/checkout@v4
         with:
-          ref: 7fe396100922152e581921d5df1c327423254f70
+          ref: 5487ed948e31b0f32eb75f71f98e4ce577aec76f
           path: previous-port
       - run: docker build -t nod-native-app:previous previous-port/nod_native_preflight
       - name: Check persistent data across the upstream upgrade
