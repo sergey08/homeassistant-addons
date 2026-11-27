@@ -222,6 +222,7 @@ jobs:
               assert.equal((await fetch(base+path,{headers:{...headers,"x-remote-user-groups":"system-users"}})).status,403);
               assert.equal((await fetch(base+path,{method:"POST",headers,body:"{}"})).status,405);
               assert.equal((await fetch(base+path,{headers:{...headers,"x-nod-account":"wrong-account"}})).status,401);
+              assert.equal((await fetch(base+path+"/metadata",{headers:{...headers,"x-nod-account":"wrong-account"}})).status,401);
               const metadata=await fetch(base+path+"/metadata",{headers});
               assert.equal(metadata.status,200);
               assert.equal((await metadata.json()).name,"fixture.md");
