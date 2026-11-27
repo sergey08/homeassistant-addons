@@ -5,7 +5,7 @@ const model='ci-local-tools:4b', nonTool='ci-no-tools:4b';
 const endpoint='http://nod-model-fixture:11434';
 const base='http://nod-ingress:8099';
 const admin={'x-remote-user-id':'ci-admin','x-remote-user-groups':'system-admin'};
-const marked={...admin,'x-nod-ingress-request':'1','content-type':'application/json'};
+const marked={...admin,'x-nod-ingress-request':'1'};
 const models='/api/models';
 const mode=process.argv[2];
 if(mode==='serve'){
@@ -39,7 +39,7 @@ if(mode==='serve'){
   }).listen(11434,'0.0.0.0',()=>console.log('NOD_LOCAL_MODEL_FIXTURE_READY'));
 }else{
   const request=(path,method='GET',body,headers=method==='GET'?admin:marked)=>
-    fetch(base+path,{method,headers,...(body===undefined?{}:{body:JSON.stringify(body)}),signal:AbortSignal.timeout(60000)});
+    fetch(base+path,{method,headers:{...(body===undefined?{}:{'content-type':'application/json'}),...headers},...(body===undefined?{}:{body:JSON.stringify(body)}),signal:AbortSignal.timeout(60000)});
   async function ok(path,method='GET',body){
     const res=await request(path,method,body);
     assert.equal(res.status,200,path+' '+method+' '+await res.clone().text());
@@ -58,7 +58,8 @@ if(mode==='serve'){
     const stale={...marked,'x-nod-account':'wrong-account'};
     const id='00000000-0000-4000-8000-000000000001';
     for(const [path,method] of [[models,'GET'],[models+'/selection','PUT'],[models+'/backups','PUT'],[models+'/routes','PUT'],[models+'/connections/'+id,'DELETE'],[models+'/connections/'+id+'/refresh','POST'],['/api/memory/export','GET'],['/api/memory','PATCH'],['/api/preferences','PATCH'],['/api/speech/voices/refresh','POST'],['/api/speech/preview','POST']]){
-      assert.equal((await request(path,method,method==='GET'?undefined:{},stale)).status,401,path+' '+method+' stale account');
+      const body=method==='GET'||method==='DELETE'||path.endsWith('/refresh')?undefined:{};
+      assert.equal((await request(path,method,body,stale)).status,401,path+' '+method+' stale account');
     }
     assert.equal((await request(models+'/endpoints','POST',{url:endpoint+'/v1',key:''},{...admin,'content-type':'application/json'})).status,403);
     assert.equal((await request(models+'/endpoints','POST',{}, {...marked,'content-type':'text/plain'})).status,403);
