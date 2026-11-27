@@ -188,9 +188,16 @@ writeFileSync(artifactServer, artifactSource);
  // Hosted broker connection links must retain the canonical URL for hashing/polling.
  // Only navigation of the exact internally generated capability uses HA Ingress.
 const connectorUrlFile = '/app/src/web/lib/connection-url.ts';
-writeFileSync(connectorUrlFile, "import { panelPath } from './panel-path.js';\n" +
-  readFileSync(connectorUrlFile, 'utf8') +
-  "\nexport function connectorNavigationUrl(value: string) {\n  const match = /^http:\\/\\/localhost:4310(\\/api\\/apps\\/connect\\/[A-Za-z0-9_-]{43})$/.exec(value);\n  return match ? panelPath(match[1]) === match[1] ? value : panelPath(match[1]) : value;\n}\n");
+writeFileSync('/app/src/web/lib/connector-navigation.js',
+  "import { panelPath } from './panel-path.js';\n" +
+  "export function connectorNavigationUrl(value, current = window.location.pathname, origin = window.location.origin) {\n" +
+  "  const match = /^http:\\/\\/localhost:4310(\\/api\\/apps\\/connect\\/[A-Za-z0-9_-]{43})$/.exec(value);\n" +
+  "  if (!match) return value;\n" +
+  "  const target = panelPath(match[1], current);\n" +
+  "  return target === match[1] ? value : new URL(target, origin).href;\n" +
+  "}\n");
+writeFileSync(connectorUrlFile, readFileSync(connectorUrlFile,'utf8') +
+  "\nexport { connectorNavigationUrl } from './connector-navigation.js';\n");
 const connectorSites = [
   ['pages/apps.tsx', [['popup.location.href = url;', 'popup.location.href = connectorNavigationUrl(url);']]],
   ['hooks/use-app-sign-in.ts', [['popup.location.href = url;', 'popup.location.href = connectorNavigationUrl(url);'], ["window.open(signInUrl, ", "window.open(connectorNavigationUrl(signInUrl), "]]],
