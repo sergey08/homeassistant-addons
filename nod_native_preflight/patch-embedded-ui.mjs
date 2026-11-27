@@ -185,6 +185,12 @@ for (const route of ['/api/artifacts/:id/metadata', '/api/artifacts/:id']) {
   artifactSource = artifactSource.replace(before, () => before +
     "\n    const expectedAccount = request.headers['x-nod-account'];\n    if (expectedAccount !== undefined && expectedAccount !== ownerId) return reply.code(401).send({ error: 'Sign in to continue.' });");
 }
+// Apply the same optional owner guard as the upstream account settings to
+// the exact model, memory and speech routes (including encapsulated plugins).
+// Never intercept the public OAuth callback or require headers on direct downloads.
+const settingsGuardAnchor = "  app.addHook('preValidation', async (request) => {\n    validateRequestText([request.body, request.query, request.params]);\n  });";
+if (artifactSource.split(settingsGuardAnchor).length !== 2) throw Error('Unexpected upstream request validation hook');
+artifactSource = artifactSource.replace(settingsGuardAnchor, () => settingsGuardAnchor + "\n" + "  const accountScopedSettings = new Set([\"/api/models\",\"/api/models/keys\",\"/api/models/azure\",\"/api/models/endpoints\",\"/api/models/selection\",\"/api/models/backups\",\"/api/models/routes\",\"/api/models/connections/:id\",\"/api/models/connections/:id/refresh\",\"/api/models/oauth\",\"/api/models/oauth/status/:attempt\",\"/api/models/oauth/:attempt\",\"/api/models/oauth/complete\",\"/api/memory\",\"/api/memory/export\",\"/api/memory/notes\",\"/api/memory/import\",\"/api/memory/notes/:area/:slug\",\"/api/memory/notes/:area/:slug/archive\",\"/api/memory/archive/restore\",\"/api/memory/archive/forget\",\"/api/memory/skills/:name\",\"/api/speech\",\"/api/speech/voices/refresh\",\"/api/speech/prepare\",\"/api/speech/preview\",\"/api/preferences\"]);\n  app.addHook('preValidation', async (request, reply) => {\n    const expected = request.headers['x-nod-account'];\n    if (expected !== undefined && expected !== ownerId && accountScopedSettings.has(request.routeOptions.url ?? '')) {\n      return reply.code(401).send({ error: 'Sign in to continue.' });\n    }\n  });\n");
 writeFileSync(artifactServer, artifactSource);
 
  // Hosted broker connection links must retain the canonical URL for hashing/polling.
