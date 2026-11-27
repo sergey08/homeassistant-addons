@@ -24,29 +24,52 @@ jobs:
             chown 1000:1000 /data/workspaces /run/nod-workspace
             exec setpriv --reuid=1000 --regid=1000 --clear-groups --no-new-privs --bounding-set=-all --inh-caps=-all --ambient-caps=-all node /tmp/check-resource-refusal.mjs
           '
-      - name: Check isolation and synthetic artifact creation
+      - name: Pull the exact published Nod Workspace dev.6 baseline
+        run: |
+          set -euo pipefail
+          docker pull --platform linux/amd64 'ghcr.io/sergey08/nod-workspace-amd64@sha256:f6fe33944e6590c1a4a6d1ccf6858953421c99ebd4be9b83de1c577fac5b1201'
+          docker tag 'ghcr.io/sergey08/nod-workspace-amd64@sha256:f6fe33944e6590c1a4a6d1ccf6858953421c99ebd4be9b83de1c577fac5b1201' nod-workspace:previous
+      - name: Check Workspace upgrade, isolation and synthetic artifact creation
         run: |
           set -euo pipefail
           docker network create --internal --subnet 10.223.81.0/24 nod-workspace-ci
           docker run -d --name nod-workspace-fixture --network nod-workspace-ci --ip 10.223.81.34 --entrypoint node nod-workspace:ci -e 'require("node:http").createServer((q,r)=>{console.log("PRIVATE_REQUEST");r.end("fixture")}).listen(80,"0.0.0.0")'
           docker volume create nod-workspace-ci-data
-          docker run -d --name nod-workspace-test --network nod-workspace-ci --cap-drop ALL --cap-add NET_ADMIN --cap-add CHOWN --cap-add SETUID --cap-add SETGID --cap-add DAC_OVERRIDE --cap-add SETPCAP --cap-add FOWNER --cap-add KILL --security-opt no-new-privileges --pids-limit 128 --memory 2g -v nod-workspace-ci-data:/data nod-workspace:ci
-          for i in {1..45}; do
-            if docker logs nod-workspace-test 2>&1 | grep NOD_WORKSPACE_UNPRIVILEGED_READY >/dev/null; then break; fi
-            sleep 2
-          done
+          docker run --rm --network none -v nod-workspace-ci-data:/data --entrypoint node nod-workspace:previous -e 'require("fs").writeFileSync("/data/options.json",JSON.stringify({remote_enabled:false,command_enabled:false}),{mode:384})'
+          start_workspace() {
+            docker run -d --name nod-workspace-test --network nod-workspace-ci --cap-drop ALL --cap-add NET_ADMIN --cap-add CHOWN --cap-add SETUID --cap-add SETGID --cap-add DAC_OVERRIDE --cap-add SETPCAP --cap-add FOWNER --cap-add KILL --security-opt no-new-privileges --pids-limit 128 --memory 2g -v nod-workspace-ci-data:/data "$1"
+            for attempt in {1..45}; do
+              if docker logs nod-workspace-test 2>&1 | grep NOD_WORKSPACE_UNPRIVILEGED_READY >/dev/null; then return; fi
+              if [ "$(docker inspect -f '{{.State.Running}}' nod-workspace-test)" != true ]; then return 1; fi
+              sleep 2
+            done
+            return 1
+          }
+          check_workspace_files() {
+            docker exec --user 1000:1000 nod-workspace-test sh -ec 'test "$(cat /workspace/ci-persistence)" = synthetic; test ! -r /data/options.json'
+            test "$options" = "$(docker exec nod-workspace-test sha256sum /data/options.json)"
+          }
+          start_workspace nod-workspace:previous
+          options=$(docker exec nod-workspace-test sha256sum /data/options.json)
+          docker exec --user 1000:1000 nod-workspace-test sh -ec 'umask 077; printf synthetic > /workspace/ci-persistence'
+          check_workspace_files
+          docker stop -t 30 nod-workspace-test
+          docker rm nod-workspace-test
+
+          start_workspace nod-workspace:ci
+          check_workspace_files
+          echo NOD_WORKSPACE_DEV6_MIGRATION_OK
           docker logs nod-workspace-test 2>&1 | grep NOD_WORKSPACE_SYNTHETIC_ARTIFACTS_OK
           docker logs nod-workspace-test 2>&1 | grep NOD_WORKSPACE_UNPRIVILEGED_READY
           docker exec --user 1000:1000 nod-workspace-test sh -ec 'test ! -r /data/options.json; test ! -e /var/run/docker.sock; ! curl -fsS --connect-timeout 2 --max-time 3 http://10.223.81.34'
           if docker logs nod-workspace-fixture 2>&1 | grep PRIVATE_REQUEST >/dev/null; then exit 1; fi
-          docker exec --user 1000:1000 nod-workspace-test sh -ec 'umask 077; printf synthetic > /workspace/ci-persistence'
           docker restart nod-workspace-test
           for i in {1..45}; do
             if [ "$(docker logs nod-workspace-test 2>&1 | grep -c NOD_WORKSPACE_UNPRIVILEGED_READY)" -ge 2 ]; then break; fi
             sleep 2
           done
           test "$(docker logs nod-workspace-test 2>&1 | grep -c NOD_WORKSPACE_UNPRIVILEGED_READY)" -ge 2
-          docker exec --user 1000:1000 nod-workspace-test sh -ec 'test "$(cat /workspace/ci-persistence)" = synthetic'
+          check_workspace_files
           echo NOD_WORKSPACE_PERSISTENCE_OK
       - name: Test optional authenticated probe in actual workspace container
         run: |

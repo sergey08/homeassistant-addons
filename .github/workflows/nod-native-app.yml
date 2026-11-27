@@ -14,11 +14,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: docker build -t nod-native-app:ci nod_native_preflight
-      - uses: actions/checkout@v4
-        with:
-          ref: 5487ed948e31b0f32eb75f71f98e4ce577aec76f
-          path: previous-port
-      - run: docker build -t nod-native-app:previous previous-port/nod_native_preflight
+      - name: Pull the exact published Nod Server dev.34 baseline
+        run: |
+          set -euo pipefail
+          docker pull --platform linux/amd64 'ghcr.io/sergey08/nod-server-amd64@sha256:8403570c29a5694fb5734f682661d2c89747c3704f440a370530630ad577f5b1'
+          docker tag 'ghcr.io/sergey08/nod-server-amd64@sha256:8403570c29a5694fb5734f682661d2c89747c3704f440a370530630ad577f5b1' nod-native-app:previous
       - name: Check persistent data across the upstream upgrade
         run: |
           set -euo pipefail
