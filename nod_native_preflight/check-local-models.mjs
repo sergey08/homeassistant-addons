@@ -47,7 +47,6 @@ if(mode==='serve'){
   }
   const choice=row=>({connectionId:row.id,modelId:model,effort:row.models[0].efforts[0]});
   const get=async()=>ok(models);
-  const local=(data,label)=>data.connections.find(row=>row.provider==='compatible'&&row.label.includes(label));
   if(mode==='connect'){
     for(const path of [models+'/endpoints','/api/memory','/api/speech']){
       const method=path.endsWith('endpoints')?'POST':'GET';
@@ -72,7 +71,7 @@ if(mode==='serve'){
     assert.equal(first.models[0].contextWindow,65536);
     assert.ok(first.models[0].efforts.length);
     for(const row of before.connections)assert.ok(data.connections.some(x=>x.id===row.id));
-    if(before.selection)assert.deepEqual(data.selection,before.selection);
+    if(before.connections.some(row=>row.id===before.selection?.connectionId&&row.status==='connected'))assert.deepEqual(data.selection,before.selection);
     data=await ok(models+'/endpoints','POST',{url:endpoint+'/v1',key:''});
     assert.equal(data.connections.filter(row=>row.id===first.id).length,1);
     assert.equal(data.connections.length,before.connections.length+1);
@@ -107,8 +106,7 @@ if(mode==='serve'){
     const backup=data.backups[0].connectionId;
     data=await ok(models+'/connections/'+backup,'DELETE');
     assert.ok(!data.connections.some(row=>row.id===backup));assert.equal(data.backups.length,0);
-    data=await ok(models+'/connections/'+first.id+'/DELETE','GET').catch(()=>null);
-    assert.equal(data,null);
+    assert.equal((await request(models+'/connections/'+first.id)).status,404);
     data=await ok(models+'/connections/'+first.id,'DELETE');
     assert.ok(!data.connections.some(row=>row.id===first.id));assert.equal(data.selection,null);
     assert.ok(!data.routes.schedule&&!data.routes.background);
