@@ -5,7 +5,7 @@ RUN git init && git remote add origin https://github.com/n8n-io/nod.git && git f
 COPY extract-workspace.mjs /tmp/extract-workspace.mjs
 RUN node /tmp/extract-workspace.mjs /app /app/workspace-programs
 COPY workspace-runtime.mjs workspace-launcher.mjs workspace-command-client.mjs /app/
-COPY patch-embedded-ui.mjs patch-browser-launcher.mjs patch-browser-exposure.mjs patch-workspace-runtime.mjs /tmp/
+COPY patch-embedded-ui.mjs patch-browser-launcher.mjs patch-browser-exposure.mjs patch-workspace-runtime.mjs request-uuid.mjs /tmp/
 RUN node /tmp/patch-embedded-ui.mjs && node /tmp/patch-browser-launcher.mjs && node /tmp/patch-browser-exposure.mjs && node /tmp/patch-workspace-runtime.mjs
 RUN corepack enable && pnpm install --frozen-lockfile && pnpm exec vite build --base=./ && pnpm prune --prod && pnpm store prune
 
