@@ -172,3 +172,15 @@ for (const [file, replacements] of artifactSites) {
   }
   writeFileSync(target, "import { artifactRequestUrl } from '../lib/attachment-url';\n" + ui);
 }
+
+ // Artifact routes in the pinned upstream do not check the optional account header.
+ // Match the existing account guard, while retaining direct download links without it.
+const artifactServer = '/app/src/server/app.ts';
+let artifactSource = readFileSync(artifactServer, 'utf8');
+for (const route of ['/api/artifacts/:id/metadata', '/api/artifacts/:id']) {
+  const before = "app.get<{ Params: { id: string } }>('" + route + "', async (request, reply) => {";
+  if (artifactSource.split(before).length !== 2) throw Error('Unexpected artifact server route ' + route);
+  artifactSource = artifactSource.replace(before, () => before +
+    "\n    const expectedAccount = request.headers['x-nod-account'];\n    if (expectedAccount !== undefined && expectedAccount !== ownerId) return reply.code(401).send({ error: 'Sign in to continue.' });");
+}
+writeFileSync(artifactServer, artifactSource);
