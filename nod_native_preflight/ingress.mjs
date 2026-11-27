@@ -79,6 +79,9 @@ const chatWrites = new Set(['/api/messages', '/api/account/welcome', '/api/onboa
 // Explicit method/path pairs for the pinned upstream UI. Never proxy webhooks.
 // Vault reveal operations retain upstream authorization and require the Ingress write marker.
 const settingsRoutes = [
+  // Conversation search and focus: upstream checks owner, active thread and visibility.
+  ['GET', /^\/api\/messages\/search$/],
+  ['GET', /^\/api\/messages\/around\/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/],
   // Final onboarding save and account preferences (upstream strict schema).
   ['PATCH', /^\/api\/account$/],
   // Model sign-in uses explicit authenticated API routes; never proxy the public callback.
