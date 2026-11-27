@@ -196,6 +196,17 @@ jobs:
                 assert.ok((await actual.json()).some(message=>message.id===id));
               }
               console.log("NOD_INGRESS_CHAT_HISTORY_OK");
+              const setup="/api/apps/setup-status";
+              const complete="/api/apps/setup-complete";
+              const payload={state:"a".repeat(43),completion_token:"synthetic",hash:"b".repeat(64)};
+              assert.equal((await fetch(base+setup,{method:"POST",headers,body:"{}"})).status,403);
+              const setupResponse=await fetch(base+setup,{method:"POST",headers:writeHeaders,body:JSON.stringify({hashes:["b".repeat(64)]})});
+              assert.equal(setupResponse.status,200);
+              assert.equal((await fetch(base+complete,{method:"POST",headers:writeHeaders,body:"{}"})).status,400);
+              assert.equal((await fetch(base+complete,{method:"POST",headers:{...writeHeaders,"x-nod-account":"wrong-account"},body:JSON.stringify(payload)})).status,401);
+              assert.equal((await fetch(base+complete,{method:"POST",headers:writeHeaders,body:JSON.stringify(payload)})).status,409);
+              assert.equal((await fetch(base+"/api/apps/callback?state="+"a".repeat(43),{headers})).status,404);
+              console.log("NOD_INGRESS_CONNECTOR_MANUAL_GUARDS_OK");
               console.log("NOD_DIRECT_INGRESS_SETTINGS_OK");
             })().catch(e=>{console.error(e);process.exit(1)})'
       - name: Verify authenticated artifact downloads and ranges
@@ -245,8 +256,21 @@ jobs:
         run: |
           set -euo pipefail
           docker run --rm --network nod-ingress-ci --ip 172.30.32.2 --shm-size=1g -v "$RUNNER_TEMP/nod-browser:/test:ro" -v "$GITHUB_WORKSPACE/nod_native_preflight:/nod-test:ro" --entrypoint node mcr.microsoft.com/playwright:v1.56.1-noble /nod-test/check-http-uuid.mjs
+      - name: Verify hosted connector bridge without external accounts
+        run: |
+          set -euo pipefail
+          docker run -d --name nod-connector-fixture --network nod-ingress-ci --network-alias nod-connector-fixture -v "$GITHUB_WORKSPACE/nod_native_preflight/check-connector-bridge.mjs:/app/check-connector-bridge.mjs:ro" --entrypoint node nod-native-app:ci --import tsx /app/check-connector-bridge.mjs serve
+          for i in {1..30}; do
+            if docker logs nod-connector-fixture 2>&1 | grep -q '^NOD_NATIVE_INGRESS_LISTENING'; then break; fi
+            sleep 1
+          done
+          docker logs nod-connector-fixture 2>&1 | grep '^NOD_NATIVE_INGRESS_LISTENING'
+          path=$(docker logs nod-connector-fixture 2>&1 | sed -n 's/^NOD_CONNECTOR_FIXTURE_PATH //p')
+          docker run --rm --network nod-ingress-ci --ip 172.30.32.2 -e CONNECTOR_PATH="$path" -v "$GITHUB_WORKSPACE/nod_native_preflight/check-connector-bridge.mjs:/app/check-connector-bridge.mjs:ro" --entrypoint node nod-native-app:ci --import tsx /app/check-connector-bridge.mjs test
+          docker logs nod-connector-fixture 2>&1 | grep '^NOD_CONNECTOR_PROOF_ORIGIN_OK'
       - if: always()
         run: |
+          docker rm -f nod-connector-fixture || true
           docker rm -f nod-native-browser || true
           docker rm -f nod-native-app || true
           docker volume rm nod-native-ci-data || true
