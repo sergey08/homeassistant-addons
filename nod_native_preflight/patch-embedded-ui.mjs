@@ -56,18 +56,6 @@ for (const [file, module] of [['app.tsx', './lib/panel-path.js'], ['lib/navigati
   writeFileSync(target, "import { appPath, panelPath } from '" + module + "';\n" + ui);
 }
 
-// The new upstream Vault page owns its own query navigation.
-const vaultPath = '/app/src/web/pages/vault.tsx';
-let vaultUi = readFileSync(vaultPath, 'utf8');
-for (const [before, after] of [
-  ["window.location.pathname === '/vault'", "appPath(window.location.pathname) === '/vault'"],
-  ["window.history.replaceState(null, '', '/vault')", "window.history.replaceState(null, '', panelPath('/vault'))"],
-]) {
-  if (vaultUi.split(before).length !== 2) throw Error('Unexpected Vault navigation anchor: ' + before);
-  vaultUi = vaultUi.replace(before, () => after);
-}
-writeFileSync(vaultPath, "import { appPath, panelPath } from '../lib/panel-path.js';\n" + vaultUi);
-
 // Keep original Nod logo URLs under the authenticated Ingress mount.
 const logoPatches = [
   [
@@ -112,7 +100,16 @@ const logoPatches = [
       ]
     ]
   ],
-  // Nod 0.10.3 removed the Credentials page and its sign-in SVG assets.
+  [
+    "pages/credentials.tsx",
+    "../lib/panel-path.js",
+    [
+      [
+        "src={`/logos/sign-in/${provider}.svg`}",
+        "src={panelPath(`/logos/sign-in/${provider}.svg`)}"
+      ]
+    ]
+  ],
   [
     "pages/onboarding/steps/connection-preview.tsx",
     "../../../lib/panel-path.js",

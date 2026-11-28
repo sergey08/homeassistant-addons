@@ -14,7 +14,6 @@ jobs:
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
-      - run: node scripts/check-nod-upstream.mjs
       - name: Check whether this version is already published
         id: existing
         env:
@@ -39,7 +38,7 @@ jobs:
           set -euo pipefail
           version=$(python -c 'import yaml; print(yaml.safe_load(open("nod_native_preflight/config.yaml"))["version"])')
           image="ghcr.io/sergey08/nod-server-amd64:$version"
-          docker build --label org.opencontainers.image.source=https://github.com/sergey08/homeassistant-addons --label "org.opencontainers.image.revision=$GITHUB_SHA" --tag "$image" nod_native_preflight
+          docker build --label org.opencontainers.image.source=https://github.com/sergey08/homeassistant-addons --tag "$image" nod_native_preflight
           docker run --rm --network none --entrypoint sh "$image" -ec 'test -s /app/dist/web/index.html && node --version && postgres --version'
           echo "IMAGE=$image" >> "$GITHUB_ENV"
       - name: Publish image
