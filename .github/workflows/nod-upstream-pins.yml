@@ -6,6 +6,7 @@ on:
       - 'nod-upstream.json'
       - 'scripts/check-nod-upstream.mjs'
       - 'nod_*_preflight/Dockerfile'
+      - 'nod_*_preflight/config.yaml'
       - '.github/workflows/nod-*.yml'
   workflow_dispatch:
 
