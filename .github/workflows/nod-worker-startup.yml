@@ -1,0 +1,23 @@
+name: Verify Nod worker startup recovery
+on:
+  pull_request:
+    paths:
+      - 'nod_browser_preflight/**'
+      - 'nod_workspace_preflight/**'
+      - 'tests/nod-worker-peer.test.mjs'
+      - '.github/workflows/nod-worker-startup.yml'
+permissions:
+  contents: read
+jobs:
+  peer-resolution:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: |
+          cmp nod_browser_preflight/resolve-server-peer.mjs nod_workspace_preflight/resolve-server-peer.mjs
+          node --test tests/nod-worker-peer.test.mjs
+          sh -n nod_browser_preflight/run.sh
+          sh -n nod_workspace_preflight/run.sh

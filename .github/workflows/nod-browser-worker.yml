@@ -1,0 +1,142 @@
+name: Verify Nod upstream browser worker
+on:
+  pull_request:
+    paths:
+      - 'nod_browser_validation/**'
+      - 'nod_browser_preflight/**'
+      - 'nod_native_preflight/**'
+      - '.github/workflows/nod-browser-worker.yml'
+permissions:
+  contents: read
+jobs:
+  browser-transport:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test mutual PSK authentication and stream forwarding
+        run: |
+          docker run --rm --network none --cap-drop ALL --security-opt no-new-privileges --read-only --tmpfs /tmp:size=16m -v "$GITHUB_WORKSPACE/nod_browser_validation:/test:ro" node:24.21.0-bookworm-slim@sha256:d6aa754f16b3197301076f047b5def2f02ea1dbbc2ca920407d46d7ec7f87b20 node /test/check-transport.mjs
+  browser-worker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build exact upstream browser image
+        run: |
+          set -euo pipefail
+          git init "$RUNNER_TEMP/nod-upstream"
+          git -C "$RUNNER_TEMP/nod-upstream" remote add origin https://github.com/n8n-io/nod.git
+          git -C "$RUNNER_TEMP/nod-upstream" fetch --depth=1 origin 8494bcf12030451ad1093f0579bba57caf34c1d9
+          git -C "$RUNNER_TEMP/nod-upstream" checkout --detach FETCH_HEAD
+          test "$(git -C "$RUNNER_TEMP/nod-upstream" rev-parse HEAD)" = 8494bcf12030451ad1093f0579bba57caf34c1d9
+          docker build -t nod-browser:ci -f "$RUNNER_TEMP/nod-upstream/Dockerfile.browser" "$RUNNER_TEMP/nod-upstream"
+      - name: Test real browser worker with upstream isolation and synthetic pages
+        run: |
+          set -euo pipefail
+          # These networks are internal, disposable and exist only on the CI runner.
+          # The public-looking IP is a local synthetic fixture, never an Internet request.
+          docker network create --internal --subnet 93.184.216.0/24 nod-browser-public-ci
+          docker network create --internal --subnet 10.223.80.0/24 nod-browser-private-ci
+          docker run -d --name nod-browser-public-fixture --network nod-browser-public-ci --ip 93.184.216.34 --entrypoint node nod-browser:ci -e 'require("node:http").createServer((q,r)=>{r.writeHead(200,{"content-type":"text/html"});r.end("<html><title>Nod browser CI fixture</title><h1>Nod browser CI fixture</h1></html>")}).listen(80,"0.0.0.0")'
+          docker run -d --name nod-browser-private-fixture --network nod-browser-private-ci --ip 10.223.80.34 --entrypoint node nod-browser:ci -e 'require("node:http").createServer((q,r)=>{console.log("PRIVATE_REQUEST");r.writeHead(200,{"content-type":"text/html"});r.end("<h1>PRIVATE_FIXTURE_MUST_NOT_LOAD</h1>")}).listen(80,"0.0.0.0")'
+          docker run -d --name nod-browser-ci --network nod-browser-public-ci --init --cap-drop ALL --security-opt no-new-privileges --read-only --pids-limit 1024 --memory 3g --shm-size 512m --tmpfs /tmp:size=512m --tmpfs /home/node:uid=1000,gid=1000,mode=700,size=256m -v nod-browser-ci-data:/data nod-browser:ci
+          docker network connect nod-browser-private-ci nod-browser-ci
+          for attempt in {1..45}; do
+            if docker exec nod-browser-ci node -e 'const s=require("node:net").connect("/data/control.sock");s.on("connect",()=>{s.end();process.exit(0)});s.on("error",()=>process.exit(1))'; then break; fi
+            sleep 2
+          done
+          docker exec -i nod-browser-ci node --input-type=module < nod_browser_validation/check-worker.mjs
+          if docker logs nod-browser-private-fixture 2>&1 | grep PRIVATE_REQUEST >/dev/null; then echo 'Private target received traffic'; exit 1; fi
+      - name: Test network enforcement outside Chromium
+        run: |
+          set -euo pipefail
+          docker build -t nod-browser-guard:ci nod_browser_preflight
+          docker run -d --name nod-browser-guard-ci --network nod-browser-public-ci --init --cap-drop ALL --cap-add NET_ADMIN --cap-add SETUID --cap-add SETGID --cap-add SETPCAP --cap-add CHOWN --cap-add FOWNER --cap-add KILL --security-opt no-new-privileges --read-only --pids-limit 1024 --memory 3g --shm-size 512m --tmpfs /tmp:size=512m --tmpfs /run:size=16m --tmpfs /home/node:uid=1000,gid=1000,mode=700,size=256m -v nod-browser-guard-data:/data -v "$GITHUB_WORKSPACE/nod_browser_validation:/test:ro" nod-browser-guard:ci
+          for attempt in {1..45}; do
+            if docker exec --user node nod-browser-guard-ci node -e 'const s=require("node:net").connect("/run/nod-browser/control.sock");s.on("connect",()=>{s.end();process.exit(0)});s.on("error",()=>process.exit(1))'; then break; fi
+            sleep 2
+          done
+          docker logs nod-browser-guard-ci 2>&1 | grep NOD_BROWSER_FIREWALL_READY >/dev/null
+          docker network connect nod-browser-private-ci nod-browser-guard-ci
+          docker exec --user node -e NOD_TEST_SOCKET=/run/nod-browser/control.sock -i nod-browser-guard-ci node --input-type=module < nod_browser_validation/check-worker.mjs
+          docker exec --user node -e NOD_TEST_TLS=1 -e NOD_TEST_SOCKET=/run/nod-browser/control.sock nod-browser-guard-ci node /test/check-worker.mjs
+          docker exec --user node nod-browser-guard-ci node -e 'const a=require("node:assert/strict"); (async()=>{a.match(await(await fetch("http://93.184.216.34/",{signal:AbortSignal.timeout(3000)})).text(),/Nod browser CI fixture/);await a.rejects(fetch("http://10.223.80.34/",{signal:AbortSignal.timeout(3000)}));console.log("NOD_BROWSER_NETWORK_GUARD_OK")})().catch(e=>{console.error(e);process.exit(1)})'
+          docker exec --user node nod-browser-guard-ci sh -ec 'for p in /proc/[0-9]*/status; do if grep -q "^Name:.*node" "$p"; then grep -q "^CapEff:[[:space:]]*0000000000000000$" "$p"; grep -q "^CapBnd:[[:space:]]*0000000000000000$" "$p"; grep -q "^NoNewPrivs:[[:space:]]*1$" "$p"; fi; done'
+          if docker logs nod-browser-private-fixture 2>&1 | grep PRIVATE_REQUEST >/dev/null; then echo 'Private target received traffic'; exit 1; fi
+      - name: Verify separate client container and restricted return traffic
+        run: |
+          set -euo pipefail
+          # CI-only addresses. Do not reuse these firewall commands on the HA host.
+          peer=10.223.80.35
+          gateway_ip="$(docker inspect -f '{{(index .NetworkSettings.Networks "nod-browser-private-ci").IPAddress}}' nod-browser-guard-ci)"
+          test -n "$gateway_ip"
+          # Allow only this peer to initiate TLS connections. Replies must belong
+          # to an established flow from the gateway port, not a new connection.
+          docker exec nod-browser-guard-ci iptables -I INPUT 1 -s "$peer/32" -p tcp --dport 9592 -m conntrack --ctstate NEW,ESTABLISHED -j ACCEPT
+          docker exec nod-browser-guard-ci iptables -I OUTPUT 1 -d "$peer/32" -p tcp --sport 9592 -m conntrack --ctstate ESTABLISHED -j ACCEPT
+          dir="$(mktemp -d)"
+          trap 'rm -rf "$dir"' EXIT
+          chmod 700 "$dir"
+          node -e 'const fs=require("fs"),c=require("crypto");fs.writeFileSync(process.argv[1],JSON.stringify({psk:c.randomBytes(32).toString("hex"),host:process.argv[2]}),{mode:0o600})' "$dir/client.json" "$gateway_ip"
+          docker exec -i --user node nod-browser-guard-ci sh -c 'umask 077; cat >/tmp/ci-browser-config.json' < "$dir/client.json"
+          docker exec -d --user node nod-browser-guard-ci node /app/transport.mjs gateway /tmp/ci-browser-config.json
+          docker run -d --name nod-browser-client-ci --network nod-browser-private-ci --ip "$peer" --cap-drop ALL --security-opt no-new-privileges --read-only -v "$GITHUB_WORKSPACE/nod_browser_validation:/test:ro" -v "$dir:/test-config:ro" --entrypoint node nod-browser:ci -e 'require("node:http").createServer((q,r)=>r.end("PRIVATE_AGENT")).listen(80,"0.0.0.0")'
+          # The synthetic key file is owned by the CI runner uid 1001; root
+          # inside the disposable client has no additional capabilities.
+          chmod 755 "$dir"
+          chmod 644 "$dir/client.json"
+          for attempt in {1..20}; do
+            if docker exec --user node nod-browser-guard-ci node -e 'const s=require("node:net").connect(9592,"127.0.0.1");s.on("connect",()=>{s.destroy();process.exit(0)});s.on("error",()=>process.exit(1))'; then break; fi
+            sleep 1
+          done
+          docker exec nod-browser-client-ci node /test/check-remote-worker.mjs
+          docker exec --user node nod-browser-guard-ci node -e 'const a=require("node:assert/strict");a.rejects(fetch("http://10.223.80.35/",{signal:AbortSignal.timeout(3000)})).then(()=>console.log("NOD_BROWSER_PEER_OUTBOUND_BLOCKED")).catch(e=>{console.error(e);process.exit(1)})'
+          docker exec nod-browser-private-fixture node -e 'const s=require("node:net").connect(9592,process.argv[1]);s.setTimeout(3000,()=>{s.destroy();process.exit(0)});s.on("connect",()=>{s.destroy();process.exit(1)});s.on("error",()=>process.exit(0))' "$gateway_ip"
+          if docker logs nod-browser-private-fixture 2>&1 | grep PRIVATE_REQUEST >/dev/null; then exit 1; fi
+      - name: Test actual configured HA browser and server launcher
+        run: |
+          set -euo pipefail
+          docker build -t nod-native-browser-test:ci nod_native_preflight
+          # Create a synthetic PSK and provision both data volumes without logging it.
+          dir="$(mktemp -d)"
+          trap 'rm -rf "$dir"' EXIT
+          node -e 'const fs=require("fs"),c=require("crypto"),p=c.randomBytes(32).toString("hex");fs.writeFileSync(process.argv[1]+"/browser.json",JSON.stringify({remote_enabled:true,remote_key:p,server_host:"ci-nod-native-preflight"}),{mode:0o600});fs.writeFileSync(process.argv[1]+"/server.json",JSON.stringify({browser_enabled:true,browser_key:p,browser_host:"ci-nod-browser-preflight",https_enabled:false}),{mode:0o600})' "$dir"
+          docker run --rm -i -v nod-browser-enabled-data:/data --entrypoint sh nod-browser-guard:ci -c 'umask 077; cat >/data/options.json' < "$dir/browser.json"
+          docker run --rm -i -v nod-server-enabled-data:/data --entrypoint sh nod-native-browser-test:ci -c 'umask 077; cat >/data/options.json' < "$dir/server.json"
+          docker run -d --name nod-server-enabled-ci --network nod-browser-private-ci --network-alias ci-nod-native-preflight --init -v nod-server-enabled-data:/data nod-native-browser-test:ci
+          docker run -d --name nod-browser-enabled-ci --network nod-browser-private-ci --network-alias ci-nod-browser-preflight --init --cap-drop ALL --cap-add NET_ADMIN --cap-add SETUID --cap-add SETGID --cap-add SETPCAP --cap-add CHOWN --cap-add FOWNER --cap-add KILL --security-opt no-new-privileges --read-only --pids-limit 1024 --memory 3g --shm-size 512m --tmpfs /tmp:size=512m --tmpfs /run:size=16m --tmpfs /home/node:uid=1000,gid=1000,mode=700,size=256m -v nod-browser-enabled-data:/data nod-browser-guard:ci
+          for attempt in {1..90}; do
+            if docker logs nod-browser-enabled-ci 2>&1 | grep NOD_BROWSER_TRANSPORT_READY >/dev/null && docker logs nod-server-enabled-ci 2>&1 | grep NOD_NATIVE_SERVER_HEALTH_OK >/dev/null; then break; fi
+            sleep 2
+          done
+          docker logs nod-browser-enabled-ci 2>&1 | grep NOD_BROWSER_TRANSPORT_READY >/dev/null || { docker logs nod-browser-enabled-ci 2>&1; exit 1; }
+          docker logs nod-server-enabled-ci 2>&1 | grep NOD_BROWSER_CLIENT_CONFIGURED >/dev/null
+          docker logs nod-server-enabled-ci 2>&1 | grep NOD_NATIVE_SERVER_HEALTH_OK >/dev/null
+          docker network connect nod-browser-public-ci nod-browser-enabled-ci
+          docker exec --user 1000:1000 nod-browser-enabled-ci sh -ec 'test ! -r /data/options.json; test ! -w /data; test ! -r /run/nod-browser-gateway/settings.json; test ! -w /run/nod-browser-gateway; echo NOD_BROWSER_KEY_ISOLATED'
+          docker exec --user 1001:1000 nod-browser-enabled-ci sh -ec 'test -r /run/nod-browser-gateway/settings.json; test ! -r /data/options.json; test ! -r /data/browser; test -S /run/nod-browser/control.sock'
+          docker exec --user 1000:1000 nod-browser-enabled-ci sh -ec 'for p in /proc/[0-9]*/status; do if grep -q "^Name:.*node" "$p"; then grep -q "^CapEff:[[:space:]]*0000000000000000$" "$p"; grep -q "^CapBnd:[[:space:]]*0000000000000000$" "$p"; grep -q "^NoNewPrivs:[[:space:]]*1$" "$p"; fi; done'
+          docker exec --user node -e NOD_HA_BROWSER_REMOTE=1 -i nod-server-enabled-ci node --import tsx --input-type=module <<'JS'
+          import assert from 'node:assert/strict';
+          import {createContainerBrowserComputer} from './src/providers/container-browser/index.ts';
+          const browser=createContainerBrowserComputer({dataRoot:'/data/nod-native-v1/nod',container:'nod-browser-unavailable'});
+          try {
+            await browser.act('packaged-ci',{action:'open',url:'http://93.184.216.34/'});
+            const snapshot=await browser.act('packaged-ci',{action:'snapshot'});
+            assert.match(JSON.stringify(snapshot),/Nod browser CI fixture/);
+            const screenshot=await browser.screenshot('packaged-ci');
+            assert.ok(screenshot?.length>1000);
+            console.log('NOD_HA_PACKAGED_BROWSER_CLIENT_OK');
+          } finally { await browser.dispose(); }
+          JS
+          if docker logs nod-browser-private-fixture 2>&1 | grep PRIVATE_REQUEST >/dev/null; then exit 1; fi
+      - if: always()
+        run: |
+          docker logs nod-browser-ci 2>/dev/null || true
+          docker logs nod-browser-guard-ci 2>/dev/null || true
+          docker logs nod-browser-enabled-ci 2>&1 || true
+          docker logs nod-server-enabled-ci 2>&1 || true
+          docker rm -f nod-server-enabled-ci nod-browser-enabled-ci nod-browser-client-ci nod-browser-guard-ci nod-browser-ci nod-browser-public-fixture nod-browser-private-fixture || true
+          docker volume rm nod-server-enabled-data nod-browser-enabled-data nod-browser-ci-data nod-browser-guard-data || true
+          docker network rm nod-browser-public-ci nod-browser-private-ci || true

@@ -1,0 +1,144 @@
+name: Verify Nod offline workspace preflight
+on:
+  pull_request:
+    paths:
+      - 'nod_workspace_preflight/**'
+      - 'nod_native_preflight/**'
+      - 'nod_browser_preflight/**'
+      - '.github/workflows/nod-workspace-preflight.yml'
+permissions:
+  contents: read
+jobs:
+  offline-workspace:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build upstream-derived workspace
+        run: docker build -t nod-workspace:ci nod_workspace_preflight
+      - name: Check real command admission below memory reserve
+        run: |
+          set -euo pipefail
+          docker run --rm --network none --memory 192m --memory-swap 192m --pids-limit 64 --security-opt no-new-privileges -v "$GITHUB_WORKSPACE/nod_workspace_preflight/check-resource-refusal.mjs:/tmp/check-resource-refusal.mjs:ro" --entrypoint sh nod-workspace:ci -ec '
+            mkdir -p /data/workspaces /run/nod-workspace
+            chown 1000:1000 /data/workspaces /run/nod-workspace
+            exec setpriv --reuid=1000 --regid=1000 --clear-groups --no-new-privs --bounding-set=-all --inh-caps=-all --ambient-caps=-all node /tmp/check-resource-refusal.mjs
+          '
+      - name: Pull the exact published Nod Workspace dev.6 baseline
+        run: |
+          set -euo pipefail
+          docker pull --platform linux/amd64 'ghcr.io/sergey08/nod-workspace-amd64@sha256:f6fe33944e6590c1a4a6d1ccf6858953421c99ebd4be9b83de1c577fac5b1201'
+          docker tag 'ghcr.io/sergey08/nod-workspace-amd64@sha256:f6fe33944e6590c1a4a6d1ccf6858953421c99ebd4be9b83de1c577fac5b1201' nod-workspace:previous
+      - name: Check Workspace upgrade, isolation and synthetic artifact creation
+        run: |
+          set -euo pipefail
+          docker network create --internal --subnet 10.223.81.0/24 nod-workspace-ci
+          docker run -d --name nod-workspace-fixture --network nod-workspace-ci --ip 10.223.81.34 --entrypoint node nod-workspace:ci -e 'require("node:http").createServer((q,r)=>{console.log("PRIVATE_REQUEST");r.end("fixture")}).listen(80,"0.0.0.0")'
+          docker volume create nod-workspace-ci-data
+          docker run --rm --network none -v nod-workspace-ci-data:/data --entrypoint node nod-workspace:previous -e 'require("fs").writeFileSync("/data/options.json",JSON.stringify({remote_enabled:false,command_enabled:false}),{mode:384})'
+          start_workspace() {
+            docker run -d --name nod-workspace-test --network nod-workspace-ci --cap-drop ALL --cap-add NET_ADMIN --cap-add CHOWN --cap-add SETUID --cap-add SETGID --cap-add DAC_OVERRIDE --cap-add SETPCAP --cap-add FOWNER --cap-add KILL --security-opt no-new-privileges --pids-limit 128 --memory 2g -v nod-workspace-ci-data:/data "$1"
+            for attempt in {1..45}; do
+              if docker logs nod-workspace-test 2>&1 | grep NOD_WORKSPACE_UNPRIVILEGED_READY >/dev/null; then return; fi
+              if [ "$(docker inspect -f '{{.State.Running}}' nod-workspace-test)" != true ]; then return 1; fi
+              sleep 2
+            done
+            return 1
+          }
+          check_workspace_files() {
+            docker exec --user 1000:1000 nod-workspace-test sh -ec 'test "$(cat /workspace/ci-persistence)" = synthetic; test ! -r /data/options.json'
+            test "$options" = "$(docker exec nod-workspace-test sha256sum /data/options.json)"
+          }
+          start_workspace nod-workspace:previous
+          options=$(docker exec nod-workspace-test sha256sum /data/options.json)
+          docker exec --user 1000:1000 nod-workspace-test sh -ec 'umask 077; printf synthetic > /workspace/ci-persistence'
+          check_workspace_files
+          docker stop -t 30 nod-workspace-test
+          docker rm nod-workspace-test
+
+          start_workspace nod-workspace:ci
+          check_workspace_files
+          echo NOD_WORKSPACE_DEV6_MIGRATION_OK
+          docker logs nod-workspace-test 2>&1 | grep NOD_WORKSPACE_SYNTHETIC_ARTIFACTS_OK
+          docker logs nod-workspace-test 2>&1 | grep NOD_WORKSPACE_UNPRIVILEGED_READY
+          docker exec --user 1000:1000 nod-workspace-test sh -ec 'test ! -r /data/options.json; test ! -e /var/run/docker.sock; ! curl -fsS --connect-timeout 2 --max-time 3 http://10.223.81.34'
+          if docker logs nod-workspace-fixture 2>&1 | grep PRIVATE_REQUEST >/dev/null; then exit 1; fi
+          docker restart nod-workspace-test
+          for i in {1..45}; do
+            if [ "$(docker logs nod-workspace-test 2>&1 | grep -c NOD_WORKSPACE_UNPRIVILEGED_READY)" -ge 2 ]; then break; fi
+            sleep 2
+          done
+          test "$(docker logs nod-workspace-test 2>&1 | grep -c NOD_WORKSPACE_UNPRIVILEGED_READY)" -ge 2
+          check_workspace_files
+          echo NOD_WORKSPACE_PERSISTENCE_OK
+      - name: Test optional authenticated probe in actual workspace container
+        run: |
+          set -euo pipefail
+          docker run -d --name nod-workspace-peer --network nod-workspace-ci --network-alias ci-nod-native-preflight --entrypoint sleep nod-workspace:ci infinity
+          docker volume create nod-workspace-probe-data
+          docker run --rm --network none -v nod-workspace-probe-data:/data --entrypoint node nod-workspace:ci -e 'require("node:fs").writeFileSync("/data/options.json",JSON.stringify({remote_enabled:true,remote_key:"a".repeat(64),server_host:"ci-nod-native-preflight"}),{mode:384})'
+          docker run -d --name nod-workspace-probe --network nod-workspace-ci --network-alias nod-workspace-ci-worker --cap-drop ALL --cap-add NET_ADMIN --cap-add CHOWN --cap-add SETUID --cap-add SETGID --cap-add DAC_OVERRIDE --cap-add SETPCAP --cap-add FOWNER --cap-add KILL --security-opt no-new-privileges --pids-limit 128 --memory 2g -v nod-workspace-probe-data:/data nod-workspace:ci
+          for i in {1..30}; do
+            if docker logs nod-workspace-probe 2>&1 | grep NOD_WORKSPACE_TRANSPORT_READY >/dev/null; then break; fi
+            sleep 2
+          done
+          docker logs nod-workspace-probe 2>&1 | grep NOD_WORKSPACE_TRANSPORT_READY
+          docker cp nod_workspace_preflight/test-transport.mjs nod-workspace-peer:/tmp/test-transport.mjs
+          docker exec --user 1000:1000 nod-workspace-peer node /tmp/test-transport.mjs
+          docker exec --user 1000:1000 nod-workspace-probe sh -ec 'test ! -r /run/nod-workspace-gateway/settings.json; test ! -r /data/options.json; ! curl -fsS --connect-timeout 2 --max-time 3 http://10.223.81.34'
+          docker exec nod-workspace-fixture node -e 'const s=require("node:net").connect(9593,"nod-workspace-ci-worker");s.setTimeout(2000);s.on("connect",()=>process.exit(1));s.on("error",()=>process.exit(0));s.on("timeout",()=>{s.destroy();process.exit(0)})'
+          if docker logs nod-workspace-fixture 2>&1 | grep PRIVATE_REQUEST >/dev/null; then exit 1; fi
+          echo NOD_WORKSPACE_PEER_AND_KEY_ISOLATION_OK
+      - name: Verify fixed diagnostic from the actual Nod Server package
+        run: |
+          set -euo pipefail
+          docker rm -f nod-workspace-peer nod-workspace-probe
+          docker build -t nod-workspace-server:ci nod_native_preflight
+          docker volume create nod-workspace-server-data
+          docker run --rm --network none -v nod-workspace-server-data:/data --entrypoint node nod-workspace-server:ci -e 'require("node:fs").writeFileSync("/data/options.json",JSON.stringify({workspace_probe_enabled:true,workspace_command_probe_enabled:true,workspace_runtime_enabled:true,browser_enabled:true,browser_host:"ci-nod-browser-preflight",workspace_key:"a".repeat(64),workspace_host:"ci-nod-workspace-preflight",browser_key:"b".repeat(64),https_enabled:false}),{mode:384})'
+          docker run --rm --network none -v nod-workspace-probe-data:/data --entrypoint node nod-workspace:ci -e 'require("node:fs").writeFileSync("/data/options.json",JSON.stringify({remote_enabled:true,remote_key:"a".repeat(64),server_host:"ci-nod-native-preflight",command_enabled:true}),{mode:384})'
+          docker run -d --name nod-workspace-server --network nod-workspace-ci --network-alias ci-nod-native-preflight -v nod-workspace-server-data:/data nod-workspace-server:ci
+          docker run -d --name nod-workspace-probe --network nod-workspace-ci --network-alias ci-nod-workspace-preflight --cap-drop ALL --cap-add NET_ADMIN --cap-add CHOWN --cap-add SETUID --cap-add SETGID --cap-add DAC_OVERRIDE --cap-add SETPCAP --cap-add FOWNER --cap-add KILL --security-opt no-new-privileges --pids-limit 128 --memory 2g -v nod-workspace-probe-data:/data nod-workspace:ci
+          for i in {1..100}; do
+            if docker logs nod-workspace-server 2>&1 | grep NOD_WORKSPACE_PROTOCOL_RECOVERY_OK >/dev/null; then break; fi
+            if docker logs nod-workspace-server 2>&1 | grep NOD_WORKSPACE_DIAGNOSTIC_FAILED >/dev/null; then break; fi
+            sleep 2
+          done
+          docker logs nod-workspace-server 2>&1 | grep NOD_NATIVE_SERVER_HEALTH_OK
+          docker logs nod-workspace-server 2>&1 | grep NOD_WORKSPACE_DIAGNOSTIC_EXEC_OK
+          docker logs nod-workspace-server 2>&1 | grep NOD_WORKSPACE_DIAGNOSTIC_CANCEL_OK
+          docker logs nod-workspace-server 2>&1 | grep NOD_WORKSPACE_DIAGNOSTIC_ARBITRARY_REJECTED
+          docker logs nod-workspace-server 2>&1 | grep NOD_WORKSPACE_DIAGNOSTIC_RECOVERY_OK
+          if docker logs nod-workspace-server 2>&1 | grep NOD_WORKSPACE_DIAGNOSTIC_FAILED >/dev/null; then exit 1; fi
+          docker exec nod-workspace-server gosu nodrelay test ! -r /run/nod-workspace-client/settings.json
+          for marker in REVISION_MISMATCH_REJECTED FRAMES_OK STREAMING_OK CANCEL_CONFIRMED LIMITS_OK FILES_OK DISCONNECT_RECOVERED SYMLINK_REJECTED RECOVERY_OK; do
+            docker logs nod-workspace-server 2>&1 | grep "NOD_WORKSPACE_PROTOCOL_$marker"
+          done
+          echo NOD_WORKSPACE_PACKAGED_SERVER_OK
+      - name: Test upstream runtime task with real Workspace and Chromium
+        run: |
+          set -euo pipefail
+          docker build -t nod-runtime-browser:ci nod_browser_preflight
+          docker network create --internal --subnet 93.184.216.0/24 nod-runtime-public
+          docker run -d --name nod-runtime-fixture --network nod-runtime-public --ip 93.184.216.34 --entrypoint node nod-runtime-browser:ci -e 'require("node:http").createServer((q,r)=>{r.writeHead(200,{"content-type":"text/html"});r.end("<html><title>Nod runtime browser fixture</title><h1>Nod runtime browser fixture</h1></html>")}).listen(80,"0.0.0.0")'
+          docker volume create nod-runtime-browser-data
+          docker run --rm --network none -v nod-runtime-browser-data:/data --entrypoint node nod-runtime-browser:ci -e 'require("node:fs").writeFileSync("/data/options.json",JSON.stringify({remote_enabled:true,remote_key:"b".repeat(64),server_host:"ci-nod-native-preflight"}),{mode:384})'
+          docker run -d --name nod-runtime-browser --network nod-workspace-ci --network-alias ci-nod-browser-preflight --cap-drop ALL --cap-add NET_ADMIN --cap-add SETUID --cap-add SETGID --cap-add SETPCAP --cap-add CHOWN --cap-add FOWNER --cap-add KILL --security-opt no-new-privileges --pids-limit 1024 --memory 3g --shm-size 512m -v nod-runtime-browser-data:/data nod-runtime-browser:ci
+          for i in {1..50}; do
+            if docker logs nod-runtime-browser 2>&1 | grep NOD_BROWSER_TRANSPORT_READY >/dev/null; then break; fi
+            sleep 2
+          done
+          docker logs nod-runtime-browser 2>&1 | grep NOD_BROWSER_TRANSPORT_READY
+          docker network connect nod-runtime-public nod-runtime-browser
+          docker logs nod-workspace-server 2>&1 | grep NOD_HA_WORKSPACE_RUNTIME_CONNECTED
+          docker exec --user node -e NOD_HA_BROWSER_REMOTE=1 nod-workspace-server node --import tsx /app/check-workspace-runtime.mjs --ci
+      - name: Logs and cleanup
+        if: always()
+        run: |
+          docker logs nod-workspace-test 2>&1 || true
+          docker logs nod-workspace-probe 2>&1 || true
+          docker logs nod-workspace-server 2>&1 || true
+          docker logs nod-runtime-browser 2>&1 || true
+          docker rm -f nod-runtime-browser nod-runtime-fixture nod-workspace-server nod-workspace-test nod-workspace-fixture nod-workspace-probe nod-workspace-peer || true
+          docker volume rm nod-workspace-ci-data nod-workspace-probe-data nod-workspace-server-data nod-runtime-browser-data || true
+          docker network rm nod-workspace-ci nod-runtime-public || true

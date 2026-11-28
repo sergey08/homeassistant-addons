@@ -1,0 +1,355 @@
+name: Verify Nod native Home Assistant app
+on:
+  pull_request:
+    paths:
+      - 'nod_native_preflight/**'
+      - 'scripts/check-nod-migration.mjs'
+      - '.github/workflows/nod-native-app.yml'
+permissions:
+  contents: read
+jobs:
+  native-app:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t nod-native-app:ci nod_native_preflight
+      - name: Pull the exact published Nod Server dev.34 baseline
+        run: |
+          set -euo pipefail
+          docker pull --platform linux/amd64 'ghcr.io/sergey08/nod-server-amd64@sha256:8403570c29a5694fb5734f682661d2c89747c3704f440a370530630ad577f5b1'
+          docker tag 'ghcr.io/sergey08/nod-server-amd64@sha256:8403570c29a5694fb5734f682661d2c89747c3704f440a370530630ad577f5b1' nod-native-app:previous
+      - name: Check persistent data across the upstream upgrade
+        run: |
+          set -euo pipefail
+          data_volume=nod-native-ci-data
+          docker volume create "$data_volume"
+          docker run --rm --network none -v "$data_volume:/data" --entrypoint node nod-native-app:previous -e 'require("fs").writeFileSync("/data/options.json",JSON.stringify({ingress_chat:true}),{mode:384})'
+          start_and_check() {
+            local marker="$1"; shift
+            docker run -d --name nod-native-app --network none -v "$data_volume:/data" "$@" "$image"
+            for attempt in {1..110}; do
+              docker logs nod-native-app > probe.log 2>&1
+              if grep -q '^FAIL:' probe.log; then cat probe.log; return 1; fi
+              if grep -q '^PASS:' probe.log; then
+                cat probe.log
+                grep -q '^NOD_NATIVE_POSTGRES_OK' probe.log
+                grep -q '^NOD_NATIVE_SERVER_HEALTH_OK' probe.log
+                grep -q '^NOD_NATIVE_INGRESS_LISTENING' probe.log
+                grep -q '^NOD_NATIVE_INGRESS_DIRECT_DENIED' probe.log
+                grep -q "^$marker" probe.log
+                return
+              fi
+              if [ "$(docker inspect -f '{{.State.Running}}' nod-native-app)" != true ]; then cat probe.log; return 1; fi
+              sleep 2
+            done
+            cat probe.log
+            return 1
+          }
+          image=nod-native-app:previous
+          start_and_check NOD_NATIVE_STORAGE_CREATED
+          docker exec -i nod-native-app node --input-type=module < nod_native_preflight/check-web.mjs
+          docker exec -i nod-native-app node --input-type=module < nod_native_preflight/check-ha-mcp.mjs
+          snapshot=$(docker exec -i nod-native-app node --import tsx --input-type=module - seed < scripts/check-nod-migration.mjs)
+          docker exec nod-native-app sh -ec 'socket=$(find /tmp -maxdepth 1 -type d -name "nod-pg.*" | head -n 1); gosu postgres psql -h "$socket" -U postgres -v ON_ERROR_STOP=1 -d postgres -c "CREATE TABLE nod_native_ci_probe (value integer); INSERT INTO nod_native_ci_probe VALUES (42);"'
+          fingerprint=$(docker exec nod-native-app sha256sum /data/nod-native-v1/secrets)
+          docker stop -t 30 nod-native-app
+          test "$(docker inspect -f '{{.State.ExitCode}}' nod-native-app)" = 0
+          docker rm nod-native-app
+          # A stopped source gives PostgreSQL, private files and Supervisor options the same backup point.
+          backup="$RUNNER_TEMP/nod-dev34-ci.tar"
+          umask 077
+          docker run --rm --network none -e LC_ALL=C -v "$data_volume:/data:ro" --entrypoint gosu nod-native-app:previous postgres pg_controldata /data/nod-native-v1/db | grep -E '^Database cluster state:[[:space:]]+shut down$'
+          docker run --rm --network none -v "$data_volume:/data:ro" --entrypoint tar nod-native-app:previous --numeric-owner -C /data -cpf - . > "$backup"
+          test -s "$backup"
+          verify_fixtures() {
+            docker exec -i nod-native-app node --import tsx --input-type=module - verify "$snapshot" < scripts/check-nod-migration.mjs
+          }
+          image=nod-native-app:ci
+          start_and_check NOD_NATIVE_STORAGE_REUSED
+          verify_fixtures
+          test "$fingerprint" = "$(docker exec nod-native-app sha256sum /data/nod-native-v1/secrets)"
+          value=$(docker exec nod-native-app sh -ec 'socket=$(find /tmp -maxdepth 1 -type d -name "nod-pg.*" | head -n 1); gosu postgres psql -h "$socket" -U postgres -d postgres -Atc "SELECT value FROM nod_native_ci_probe"')
+          test "$value" = 42
+          docker stop -t 30 nod-native-app
+          docker rm nod-native-app
+          start_and_check NOD_NATIVE_STORAGE_REUSED
+          verify_fixtures
+          echo NOD_NATIVE_RESTART_PERSISTENCE_OK
+          docker stop -t 30 nod-native-app
+          docker rm nod-native-app
+
+          data_volume=nod-native-ci-restored
+          docker volume create "$data_volume"
+          docker run --rm -i --network none -v "$data_volume:/data" --entrypoint tar nod-native-app:previous --numeric-owner -C /data -xpf - < "$backup"
+          image=nod-native-app:previous
+          start_and_check NOD_NATIVE_STORAGE_REUSED
+          verify_fixtures
+          echo NOD_DEV34_BACKUP_RESTORE_OK
+          docker stop -t 30 nod-native-app
+          docker rm nod-native-app
+          docker volume rm "$data_volume"
+          rm -f "$backup"
+
+          # Test a dedicated HTTPS origin without altering the deployed run script.
+          data_volume=nod-native-ci-data
+          image=nod-native-app:ci
+          sed 's@NOD_PUBLIC_URL=http://localhost:4310@NOD_PUBLIC_URL=https://nod.test:8443@' nod_native_preflight/run.sh > "$RUNNER_TEMP/nod-https-run.sh"
+          chmod 0755 "$RUNNER_TEMP/nod-https-run.sh"
+          grep -q 'NOD_PUBLIC_URL=https://nod.test:8443' "$RUNNER_TEMP/nod-https-run.sh"
+          start_and_check NOD_NATIVE_STORAGE_REUSED --mount "type=bind,source=$RUNNER_TEMP/nod-https-run.sh,target=/usr/local/bin/nod-native-preflight,readonly"
+          docker cp nod_native_preflight/https-relay.mjs nod-native-app:/tmp/nod-https-relay.mjs
+          docker exec -i nod-native-app node --input-type=module < nod_native_preflight/check-https.mjs
+          # Exercise the actual opt-in runtime, with synthetic credentials and no host port.
+          docker stop -t 30 nod-native-app
+          docker rm nod-native-app
+          mkdir -p "$RUNNER_TEMP/nod-cert"
+          openssl req -x509 -newkey rsa:2048 -nodes -days 1 -subj /CN=nod.test -addext subjectAltName=DNS:nod.test -keyout "$RUNNER_TEMP/nod-cert/nod-privkey.pem" -out "$RUNNER_TEMP/nod-cert/nod-fullchain.pem" >/dev/null 2>&1
+          docker run --rm --network none -v nod-native-ci-data:/data --entrypoint node nod-native-app:ci -e 'require("fs").writeFileSync("/data/options.json",JSON.stringify({https_enabled:true,https_origin:"https://nod.test:8443",lan_cidr:"10.222.77.0/24",https_access_token:"x".repeat(64),ha_embed_origin:"https://ha.test:9443"}),{mode:384})'
+          docker network create --internal --subnet 10.222.77.0/24 nod-native-private-ci
+          docker run -d --name nod-native-app --network nod-native-private-ci --network-alias nod.test -v nod-native-ci-data:/data -v "$RUNNER_TEMP/nod-cert:/config:ro" nod-native-app:ci
+          for attempt in {1..110}; do
+            docker logs nod-native-app > probe.log 2>&1
+            if grep -q '^FAIL:' probe.log; then cat probe.log; exit 1; fi
+            if grep -q '^PASS:' probe.log; then break; fi
+            sleep 2
+          done
+          cat probe.log
+          grep -q '^NOD_NATIVE_HTTPS_RELAY_LISTENING' probe.log
+          grep -q '^PASS:' probe.log
+          docker run --rm --network nod-native-private-ci -v "$RUNNER_TEMP/nod-cert/nod-fullchain.pem:/tmp/ca.pem:ro" -e NODE_EXTRA_CA_CERTS=/tmp/ca.pem --entrypoint node nod-native-app:ci -e 'const assert=require("node:assert/strict"); (async()=>{const base="https://nod.test:8443"; assert.equal((await fetch(base+"/")).status,200); assert.equal((await fetch(base+"/api/session")).status,401); const r=await fetch(base+"/api/session",{headers:{authorization:"Bearer "+"x".repeat(64)}}); assert.equal(r.status,200); console.log("NOD_NATIVE_OPT_IN_HTTPS_OK")})().catch(e=>{console.error(e);process.exit(1)})'
+          docker exec nod-native-app node -e 'const h=require("node:https"); const r=h.get({hostname:"127.0.0.1",port:8443,servername:"nod.test",headers:{host:"nod.test:8443"},ca:require("fs").readFileSync("/run/nod-relay/cert.pem")},res=>{res.resume();process.exit(res.statusCode===403?0:1)});r.on("error",()=>process.exit(1))'
+      - name: Test isolated nested panel in real Chromium
+        run: |
+          set -euo pipefail
+          npm install --prefix "$RUNNER_TEMP/nod-browser" --no-save --no-package-lock --ignore-scripts playwright@1.56.1
+          docker pull mcr.microsoft.com/playwright:v1.56.1-noble
+          docker network create --internal --subnet 172.30.32.0/24 nod-ingress-ci
+          docker network connect --ip 172.30.32.3 --alias nod-ingress nod-ingress-ci nod-native-app
+          ip=$(docker inspect -f '{{(index .NetworkSettings.Networks "nod-native-private-ci").IPAddress}}' nod-native-app)
+          docker create --name nod-native-browser --network nod-native-private-ci --shm-size=1g -e NOD_TEST_IP="$ip" -v "$RUNNER_TEMP/nod-browser:/test:ro" -v "$RUNNER_TEMP/nod-cert:/cert:ro" -v "$GITHUB_WORKSPACE/nod_native_preflight/check-embedded.mjs:/check-embedded.mjs:ro" --entrypoint node mcr.microsoft.com/playwright:v1.56.1-noble /check-embedded.mjs
+          docker network connect --ip 172.30.32.2 nod-ingress-ci nod-native-browser
+          docker start -a nod-native-browser
+          test "$(docker inspect -f '{{.State.ExitCode}}' nod-native-browser)" = 0
+      - name: Verify direct Ingress settings API and authorization
+        run: |
+          set -euo pipefail
+          docker rm -f nod-native-browser nod-native-app
+          docker run --rm --network none -v nod-native-ci-data:/data --entrypoint node nod-native-app:ci -e 'require("fs").writeFileSync("/data/options.json",JSON.stringify({ingress_chat:true}),{mode:384})'
+          docker run -d --name nod-native-app --network nod-ingress-ci --ip 172.30.32.3 --network-alias nod-ingress -v nod-native-ci-data:/data nod-native-app:ci
+          for attempt in {1..110}; do
+            docker logs nod-native-app > probe.log 2>&1
+            if grep -q '^FAIL:' probe.log; then cat probe.log; exit 1; fi
+            if grep -q '^PASS:' probe.log; then break; fi
+            sleep 2
+          done
+          grep -q '^PASS:' probe.log
+          docker run --rm --network nod-ingress-ci --ip 172.30.32.2 --entrypoint node nod-native-app:ci -e '
+            const assert=require("node:assert/strict");
+            const base="http://nod-ingress:8099";
+            const headers={"x-remote-user-id":"ci-admin","x-remote-user-groups":"system-admin"};
+            (async()=>{
+              for(const path of ["/api/schedules","/api/tasks","/api/apps/catalog","/api/channels","/api/channel-settings","/api/trust","/api/trust/entries"]){
+                assert.equal((await fetch(base+path)).status,403,path+" anonymous");
+                const r=await fetch(base+path,{headers});
+                const data=await r.json();
+                if(path==="/api/apps/catalog" && r.status===503){
+                  console.log("NOD_CATALOG_OFFLINE_UNAVAILABLE",JSON.stringify(data));
+                } else { assert.equal(r.status,200,path+" "+JSON.stringify(data)); }
+                console.log("NOD_INGRESS_ROUTE",path,r.status);
+              }
+              const vault="/api/vault";
+              const activity=vault+"/activity?origin=https%3A%2F%2Fnod-migration.invalid";
+              for(const path of [vault,activity,vault+"/sessions"]){
+                assert.equal((await fetch(base+path)).status,403,path+" anonymous");
+                assert.equal((await fetch(base+path,{headers:{...headers,"x-remote-user-groups":"system-users"}})).status,403,path+" non-admin");
+              }
+              const entries=await fetch(base+vault,{headers});
+              assert.equal(entries.status,200);
+              assert.ok(Array.isArray(await entries.json()));
+              const historyResponse=await fetch(base+activity,{headers});
+              assert.equal(historyResponse.status,200);
+              assert.ok(Array.isArray((await historyResponse.json()).entries));
+              assert.equal((await fetch(base+vault+"/sessions",{headers})).status,404);
+              assert.equal((await fetch(base+vault,{method:"POST",headers:{...headers,"content-type":"application/json"},body:"{}"})).status,403);
+              console.log("NOD_INGRESS_VAULT_GUARDS_OK");
+              assert.equal((await fetch(base+"/api/schedules",{method:"POST",headers:{...headers,"content-type":"application/json"},body:"{}"})).status,403);
+              assert.equal((await fetch(base+"/api/webhooks/telegram",{headers})).status,404);
+              const oauth="/api/models/oauth";
+              const writeHeaders={...headers,"x-nod-ingress-request":"1","content-type":"application/json"};
+              const attempt="a".repeat(43);
+              assert.equal((await fetch(base+oauth,{method:"POST",headers:{...headers,"content-type":"application/json"},body:"{}"})).status,403);
+              assert.equal((await fetch(base+oauth,{method:"POST",headers:{"x-nod-ingress-request":"1","content-type":"application/json"},body:"{}"})).status,403);
+              for(const path of [oauth,oauth+"/complete"]){
+                const result=await fetch(base+path,{method:"POST",headers:writeHeaders,body:"{}"});
+                assert.equal(result.status,400,path);
+                await result.json();
+              }
+              const status=await fetch(base+oauth+"/status/"+attempt,{headers});
+              assert.equal(status.status,200);
+              assert.equal((await status.json()).status,"failed");
+              assert.equal((await fetch(base+oauth+"/callback",{headers})).status,404);
+              console.log("NOD_INGRESS_MODEL_OAUTH_ROUTES_OK");
+              const account="/api/account";
+              const update={method:"PATCH",headers:writeHeaders,body:JSON.stringify({theme:"dark"})};
+              assert.equal((await fetch(base+account,{...update,headers:{"content-type":"application/json"}})).status,403);
+              assert.equal((await fetch(base+account,{...update,headers:{...headers,"content-type":"application/json"}})).status,403);
+              assert.equal((await fetch(base+account,{...update,headers:{...writeHeaders,"x-nod-account":"wrong-account"}})).status,401);
+              const saved=await fetch(base+account,update);
+              assert.equal(saved.status,200);
+              assert.equal((await saved.json()).settings.theme,"dark");
+              const session=await fetch(base+"/api/session",{headers});
+              assert.equal(session.status,200);
+              assert.equal((await session.json()).settings.theme,"dark");
+              const finish=await fetch(base+account,{...update,body:JSON.stringify({onboardingCompleted:true})});
+              const finishData=await finish.json();
+              if(finish.status===409){assert.ok(["brain","email"].includes(finishData.step));}
+              else{assert.equal(finish.status,200);assert.equal(finishData.settings.onboardingCompleted,true);}
+              console.log("NOD_INGRESS_FINAL_ONBOARDING_ROUTE_OK",finish.status);
+
+              for(const path of ["/logos/models/openai.svg","/logos/telegram.svg","/logos/whatsapp.svg"]){
+                assert.equal((await fetch(base+path)).status,403,path+" anonymous");
+                const logo=await fetch(base+path,{headers});
+                assert.equal(logo.status,200,path);
+                assert.match(logo.headers.get("content-type")||"",/^image\/svg\+xml/);
+                assert.match(await logo.text(),/<svg\b/);
+              }
+              assert.equal((await fetch(base+"/logos/models/%2e%2e%2fopenai.svg",{headers})).status,404);
+              assert.equal((await fetch(base+"/api/apps/catalog/nonexistent-logo-ci/icon",{headers})).status,404);
+              console.log("NOD_INGRESS_ORIGINAL_LOGOS_OK");
+              const history=await fetch(base+"/api/messages",{headers});
+              assert.equal(history.status,200);
+              const page=await history.json();
+              const unknownId="b6d4cc75-73e1-4d55-95a2-d3e0a03b3bff";
+              const around="/api/messages/around/"+unknownId;
+              const search="/api/messages/search?q=synthetic-ci-history";
+              for(const path of [around,search]){
+                assert.equal((await fetch(base+path)).status,403);
+                assert.equal((await fetch(base+path,{headers:{...headers,"x-remote-user-groups":"system-users"}})).status,403);
+                assert.equal((await fetch(base+path,{method:"POST",headers:writeHeaders,body:"{}"})).status,405);
+              }
+              const missing=await fetch(base+around,{headers});
+              assert.equal(missing.status,404);
+              assert.match(missing.headers.get("content-type")||"",/^application\/json/);
+              assert.match(JSON.stringify(await missing.json()),/Message not found/i);
+              const results=await fetch(base+search,{headers});
+              assert.equal(results.status,200);
+              assert.ok(Array.isArray(await results.json()));
+              assert.equal((await fetch(base+"/api/messages/around/not-a-uuid",{headers})).status,404);
+              if(page.messages.length){
+                const id=page.messages[0].id;
+                const actual=await fetch(base+"/api/messages/around/"+id,{headers});
+                assert.equal(actual.status,200);
+                assert.ok((await actual.json()).some(message=>message.id===id));
+              }
+              console.log("NOD_INGRESS_CHAT_HISTORY_OK");
+              const setup="/api/apps/setup-status";
+              const complete="/api/apps/setup-complete";
+              const payload={state:"a".repeat(43),completion_token:"synthetic",hash:"b".repeat(64)};
+              assert.equal((await fetch(base+setup,{method:"POST",headers,body:"{}"})).status,403);
+              const setupResponse=await fetch(base+setup,{method:"POST",headers:writeHeaders,body:JSON.stringify({hashes:["b".repeat(64)]})});
+              assert.equal(setupResponse.status,200);
+              assert.equal((await fetch(base+complete,{method:"POST",headers:writeHeaders,body:"{}"})).status,400);
+              assert.equal((await fetch(base+complete,{method:"POST",headers:{...writeHeaders,"x-nod-account":"wrong-account"},body:JSON.stringify(payload)})).status,401);
+              assert.equal((await fetch(base+complete,{method:"POST",headers:writeHeaders,body:JSON.stringify(payload)})).status,409);
+              assert.equal((await fetch(base+"/api/apps/callback?state="+"a".repeat(43),{headers})).status,404);
+              console.log("NOD_INGRESS_CONNECTOR_MANUAL_GUARDS_OK");
+              console.log("NOD_DIRECT_INGRESS_SETTINGS_OK");
+            })().catch(e=>{console.error(e);process.exit(1)})'
+      - name: Verify authenticated artifact downloads and ranges
+        run: |
+          set -euo pipefail
+          artifact=$(docker exec nod-native-app node -e '
+            const token=require("node:fs").readFileSync("/data/nod-native-v1/secrets","utf8").split("\n")[1];
+            (async()=>{
+              const form=new FormData();
+              form.append("file",new Blob(["# Nod artifact CI\n"],{type:"text/markdown"}),"fixture.md");
+              const response=await fetch("http://localhost:4310/api/uploads",{method:"POST",headers:{Cookie:"nod-access-4310="+token},body:form});
+              if(!response.ok)throw Error("Fixture upload HTTP "+response.status);
+              const result=await response.json();
+              if(!/^[a-f0-9-]{36}$/.test(result.id))throw Error("Invalid fixture id");
+              console.log(result.id);
+            })().catch(e=>{console.error(e.message);process.exit(1)})')
+          echo "ARTIFACT_ID=$artifact" >> "$GITHUB_ENV"
+          docker run --rm --network nod-ingress-ci --ip 172.30.32.2 -e ARTIFACT_ID="$artifact" --entrypoint node nod-native-app:ci -e '
+            const assert=require("node:assert/strict");
+            const base="http://nod-ingress:8099";
+            const headers={"x-remote-user-id":"ci-admin","x-remote-user-groups":"system-admin"};
+            const path="/api/artifacts/"+process.env.ARTIFACT_ID;
+            (async()=>{
+              assert.equal((await fetch(base+path)).status,403);
+              assert.equal((await fetch(base+path,{headers:{...headers,"x-remote-user-groups":"system-users"}})).status,403);
+              assert.equal((await fetch(base+path,{method:"POST",headers,body:"{}"})).status,405);
+              assert.equal((await fetch(base+path,{headers:{...headers,"x-nod-account":"wrong-account"}})).status,401);
+              assert.equal((await fetch(base+path+"/metadata",{headers:{...headers,"x-nod-account":"wrong-account"}})).status,401);
+              const metadata=await fetch(base+path+"/metadata",{headers});
+              assert.equal(metadata.status,200);
+              assert.equal((await metadata.json()).name,"fixture.md");
+              const file=await fetch(base+path,{headers});
+              assert.equal(file.status,200);
+              assert.match(file.headers.get("content-disposition"),/^attachment;.*fixture\.md/);
+              assert.match(file.headers.get("content-security-policy"),/sandbox/);
+              assert.equal(file.headers.get("x-content-type-options"),"nosniff");
+              assert.equal(await file.text(),"# Nod artifact CI\n");
+              const partial=await fetch(base+path,{headers:{...headers,Range:"bytes=0-4"}});
+              assert.equal(partial.status,206);
+              assert.match(partial.headers.get("content-range"),/^bytes 0-4\//);
+              assert.equal(await partial.text(),"# Nod");
+              assert.equal((await fetch(base+path,{headers:{...headers,Range:"bytes=10000-"}})).status,416);
+              assert.equal((await fetch(base+"/api/artifacts/00000000-0000-4000-8000-000000000001",{headers})).status,404);
+              assert.equal((await fetch(base+"/api/artifacts/not-a-uuid",{headers})).status,404);
+              console.log("NOD_INGRESS_ARTIFACT_DOWNLOAD_OK");
+            })().catch(e=>{console.error(e);process.exit(1)})'
+      - name: Verify inline Markdown artifact links through HA Ingress
+        run: |
+          set -euo pipefail
+          docker run --rm --network nod-ingress-ci --ip 172.30.32.2 --shm-size=1g -e ARTIFACT_ID -v "$RUNNER_TEMP/nod-browser:/test:ro" -v "$GITHUB_WORKSPACE/nod_native_preflight:/nod-test:ro" --entrypoint node mcr.microsoft.com/playwright:v1.56.1-noble /nod-test/check-message-artifact-links.mjs
+      - name: Verify local HTTP UUID generation in real Chromium
+        run: |
+          set -euo pipefail
+          docker run --rm --network nod-ingress-ci --ip 172.30.32.2 --shm-size=1g -v "$RUNNER_TEMP/nod-browser:/test:ro" -v "$GITHUB_WORKSPACE/nod_native_preflight:/nod-test:ro" --entrypoint node mcr.microsoft.com/playwright:v1.56.1-noble /nod-test/check-http-uuid.mjs
+      - name: Verify hosted connector bridge without external accounts
+        run: |
+          set -euo pipefail
+          docker run -d --name nod-connector-fixture --network nod-ingress-ci --ip 172.30.32.10 --network-alias nod-connector-fixture -v "$GITHUB_WORKSPACE/nod_native_preflight/check-connector-bridge.mjs:/app/check-connector-bridge.mjs:ro" --entrypoint node nod-native-app:ci --import tsx /app/check-connector-bridge.mjs serve
+          for i in {1..30}; do
+            if docker logs nod-connector-fixture 2>&1 | grep -q '^NOD_NATIVE_INGRESS_LISTENING'; then break; fi
+            sleep 1
+          done
+          docker logs nod-connector-fixture 2>&1 | grep '^NOD_NATIVE_INGRESS_LISTENING'
+          path=$(docker logs nod-connector-fixture 2>&1 | sed -n 's/^NOD_CONNECTOR_FIXTURE_PATH //p')
+          docker run --rm --network nod-ingress-ci --ip 172.30.32.2 -e CONNECTOR_PATH="$path" -v "$GITHUB_WORKSPACE/nod_native_preflight/check-connector-bridge.mjs:/app/check-connector-bridge.mjs:ro" --entrypoint node nod-native-app:ci --import tsx /app/check-connector-bridge.mjs test
+          docker logs nod-connector-fixture 2>&1 | grep '^NOD_CONNECTOR_PROOF_ORIGIN_OK'
+      - name: Verify local OpenAI-compatible models and settings through Ingress
+        run: |
+          set -euo pipefail
+          docker run -d --name nod-model-fixture --network nod-ingress-ci --ip 172.30.32.11 --network-alias nod-model-fixture -v "$GITHUB_WORKSPACE/nod_native_preflight/check-local-models.mjs:/check-local-models.mjs:ro" --entrypoint node nod-native-app:ci /check-local-models.mjs serve
+          for i in {1..30}; do
+            if docker logs nod-model-fixture 2>&1 | grep -q '^NOD_LOCAL_MODEL_FIXTURE_READY'; then break; fi
+            sleep 1
+          done
+          docker logs nod-model-fixture 2>&1 | grep '^NOD_LOCAL_MODEL_FIXTURE_READY'
+          check_models() {
+            docker run --rm --network nod-ingress-ci --ip 172.30.32.2 -v "$GITHUB_WORKSPACE/nod_native_preflight/check-local-models.mjs:/check-local-models.mjs:ro" --entrypoint node nod-native-app:ci /check-local-models.mjs "$1"
+          }
+          check_models connect
+          docker rm -f nod-native-app
+          docker run -d --name nod-native-app --network nod-ingress-ci --ip 172.30.32.3 --network-alias nod-ingress -v nod-native-ci-data:/data nod-native-app:ci
+          for attempt in {1..110}; do
+            docker logs nod-native-app > probe.log 2>&1
+            if grep -q '^FAIL:' probe.log; then cat probe.log; exit 1; fi
+            if grep -q '^PASS:' probe.log; then break; fi
+            sleep 2
+          done
+          grep -q '^PASS:' probe.log
+          check_models restart
+      - if: always()
+        run: |
+          docker rm -f nod-model-fixture || true
+          docker rm -f nod-connector-fixture || true
+          docker rm -f nod-native-browser || true
+          docker rm -f nod-native-app || true
+          docker volume rm nod-native-ci-data nod-native-ci-restored || true
+          rm -f "$RUNNER_TEMP/nod-dev34-ci.tar"
+          docker network rm nod-native-private-ci || true
+          docker network rm nod-ingress-ci || true

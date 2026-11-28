@@ -1,0 +1,52 @@
+name: Build Nod Server image
+on:
+  push:
+    branches: [publish/nod-candidate]
+concurrency:
+  group: nod-server-image-publication
+  cancel-in-progress: false
+permissions:
+  contents: read
+  packages: write
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - run: node scripts/check-nod-upstream.mjs
+      - name: Check whether this version is already published
+        id: existing
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          version=$(python -c 'import yaml; print(yaml.safe_load(open("nod_native_preflight/config.yaml"))["version"])')
+          image="ghcr.io/sergey08/nod-server-amd64:$version"
+          echo "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          if result=$(docker manifest inspect "$image" 2>&1); then
+            echo "published=true" >> "$GITHUB_OUTPUT"
+            echo "NOD_EXISTING_IMAGE_PRESERVED $image"
+          elif printf '%s\n' "$result" | grep -Eiq 'manifest unknown|no such manifest|: not found'; then
+            echo "published=false" >> "$GITHUB_OUTPUT"
+          else
+            printf '%s\n' "$result" >&2
+            exit 1
+          fi
+      - name: Build and verify server image
+        if: steps.existing.outputs.published == 'false'
+        run: |
+          set -euo pipefail
+          version=$(python -c 'import yaml; print(yaml.safe_load(open("nod_native_preflight/config.yaml"))["version"])')
+          image="ghcr.io/sergey08/nod-server-amd64:$version"
+          docker build --label org.opencontainers.image.source=https://github.com/sergey08/homeassistant-addons --label "org.opencontainers.image.revision=$GITHUB_SHA" --tag "$image" nod_native_preflight
+          docker run --rm --network none --entrypoint sh "$image" -ec 'test -s /app/dist/web/index.html && node --version && postgres --version'
+          echo "IMAGE=$image" >> "$GITHUB_ENV"
+      - name: Publish image
+        if: steps.existing.outputs.published == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          echo "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          docker push "$IMAGE"

@@ -1,0 +1,31 @@
+name: "Nod Workspace (experimental)"
+version: "0.1.0-dev.7"
+slug: "nod_workspace_preflight"
+image: "ghcr.io/sergey08/nod-workspace-{arch}"
+description: "Isolated Nod workspace with authenticated internal transport and upstream command runtime"
+url: "https://github.com/sergey08/homeassistant-addons/pull/139"
+arch:
+  - amd64
+startup: application
+boot: manual
+init: false
+stage: experimental
+host_network: false
+host_pid: false
+host_ipc: false
+docker_api: false
+hassio_api: false
+homeassistant_api: false
+ingress: false
+privileged:
+  - NET_ADMIN
+options:
+  command_enabled: false
+  remote_enabled: false
+  remote_key: ""
+  server_host: ""
+schema:
+  command_enabled: bool
+  remote_enabled: bool
+  remote_key: password
+  server_host: str

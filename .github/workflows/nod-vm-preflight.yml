@@ -1,0 +1,32 @@
+name: Verify Nod VM preflight
+
+on:
+  pull_request:
+    paths:
+      - 'nod_vm_preflight/**'
+      - '.github/workflows/nod-vm-preflight.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  guest-boot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t nod-vm-preflight:ci nod_vm_preflight
+      - name: Require guest boot marker
+        run: |
+          docker run -d --name nod-vm-preflight --network=none -e NOD_PROBE_ONLINE=0 nod-vm-preflight:ci
+          for attempt in {1..330}; do
+            docker logs nod-vm-preflight > guest.log 2>&1
+            if grep -Eq '^(PASS|FAIL):' guest.log; then
+              cat guest.log
+              grep -q '^PASS:' guest.log && grep -q '^NOD_ENGINE_PROBE_OK' guest.log && grep -q '^NOD_COMPOSE_VOLUME_READ' guest.log && test "$(grep -c '^NOD_HTTP_TRANSPORT_OK' guest.log)" -eq 2 && test "$(grep -c '^NOD_CONTAINER_TLS_OFFLINE' guest.log)" -eq 2
+              exit $?
+            fi
+            sleep 2
+          done
+          cat guest.log
+          exit 1

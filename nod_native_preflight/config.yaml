@@ -1,0 +1,60 @@
+name: "Nod native preflight"
+version: "0.1.0-dev.35"
+slug: "nod_native_preflight"
+image: "ghcr.io/sergey08/nod-server-{arch}"
+description: "Experimental native Nod server and database health test"
+url: "https://github.com/sergey08/homeassistant-addons/pull/139"
+arch:
+  - amd64
+startup: application
+boot: manual
+init: false
+stage: experimental
+
+ingress: true
+ingress_stream: true
+ingress_port: 8099
+panel_title: Nod
+panel_icon: mdi:robot-outline
+panel_admin: true
+
+# No port is published until the administrator explicitly opts in.
+ports:
+  8443/tcp: null
+ports_description:
+  8443/tcp: "Optional private Nod HTTPS UI"
+map:
+  - type: addon_config
+    read_only: true
+options:
+  ingress_chat: false
+  https_enabled: false
+  https_origin: "https://nod.home.arpa:8443"
+  lan_cidr: "192.168.1.0/24"
+  https_access_token: ""
+  ha_embed_origin: ""
+  browser_enabled: false
+  browser_host: ""
+  browser_key: ""
+  workspace_command_probe_enabled: false
+  workspace_runtime_enabled: false
+  workspace_runtime_probe_enabled: false
+  workspace_probe_enabled: false
+  workspace_host: ""
+  workspace_key: ""
+schema:
+  ingress_chat: bool
+  https_enabled: bool
+  https_origin: str
+  lan_cidr: str
+  https_access_token: password
+  ha_embed_origin: str
+  browser_enabled: bool
+  browser_host: str
+  browser_key: password
+  workspace_command_probe_enabled: bool
+  workspace_runtime_enabled: bool
+  workspace_runtime_probe_enabled: bool
+  workspace_probe_enabled: bool
+  workspace_host: str
+  workspace_key: password
