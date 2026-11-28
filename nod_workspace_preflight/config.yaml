@@ -1,5 +1,5 @@
 name: "Nod Workspace (experimental)"
-version: "0.1.0-dev.7"
+version: "0.1.0-dev.6"
 slug: "nod_workspace_preflight"
 image: "ghcr.io/sergey08/nod-workspace-{arch}"
 description: "Isolated Nod workspace with authenticated internal transport and upstream command runtime"
