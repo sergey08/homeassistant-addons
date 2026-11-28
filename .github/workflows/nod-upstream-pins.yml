@@ -1,0 +1,33 @@
+name: Nod upstream pin consistency
+
+on:
+  pull_request:
+    paths:
+      - 'nod-upstream.json'
+      - 'scripts/check-nod-upstream.mjs'
+      - 'nod_*_preflight/Dockerfile'
+      - 'nod_*_preflight/config.yaml'
+      - '.github/workflows/nod-*.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: node scripts/check-nod-upstream.mjs
+      - name: Verify official tag resolves to pinned commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag=$(node -p "require('./nod-upstream.json').tag")
+          revision=$(node -p "require('./nod-upstream.json').revision")
+          git init "$RUNNER_TEMP/nod-pin"
+          git -C "$RUNNER_TEMP/nod-pin" fetch --depth=1 https://github.com/n8n-io/nod.git "refs/tags/$tag"
+          test "$(git -C "$RUNNER_TEMP/nod-pin" rev-parse 'FETCH_HEAD^{commit}')" = "$revision"
