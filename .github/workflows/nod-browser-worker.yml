@@ -27,9 +27,9 @@ jobs:
           set -euo pipefail
           git init "$RUNNER_TEMP/nod-upstream"
           git -C "$RUNNER_TEMP/nod-upstream" remote add origin https://github.com/n8n-io/nod.git
-          git -C "$RUNNER_TEMP/nod-upstream" fetch --depth=1 origin 1128fcfd770d619f3391e0bd9f1ca2f9966f2be6
+          git -C "$RUNNER_TEMP/nod-upstream" fetch --depth=1 origin 8494bcf12030451ad1093f0579bba57caf34c1d9
           git -C "$RUNNER_TEMP/nod-upstream" checkout --detach FETCH_HEAD
-          test "$(git -C "$RUNNER_TEMP/nod-upstream" rev-parse HEAD)" = 1128fcfd770d619f3391e0bd9f1ca2f9966f2be6
+          test "$(git -C "$RUNNER_TEMP/nod-upstream" rev-parse HEAD)" = 8494bcf12030451ad1093f0579bba57caf34c1d9
           docker build -t nod-browser:ci -f "$RUNNER_TEMP/nod-upstream/Dockerfile.browser" "$RUNNER_TEMP/nod-upstream"
       - name: Test real browser worker with upstream isolation and synthetic pages
         run: |
