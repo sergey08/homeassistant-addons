@@ -26,3 +26,19 @@ Latest release observed on 2026-11-27: nod-v0.10.3, after 0.10.0, 0.10.1 and 0.1
 ## Español — mantenimiento coordinado
 
 Mantener tres aplicaciones aisladas y una única referencia canónica de Nod. Los Dockerfiles conservan sus propios contextos de compilación para HA; el script genera los pins desde el manifiesto y CI detecta discrepancias. Automatizar la detección de versiones oficiales, análisis de cambios, compilación y pruebas de migración, pero no la promoción a producción. La actualización coordinada desde la integración es un objetivo pendiente, no una funcionalidad existente. La beta de adaptación a 0.10.3 será independiente y conservará la versión anterior hasta validar la migración.
+
+## Coordinated app update manifest
+
+The experimental catalog publishes `ha_upgrade` in `nod-upstream.json`. Its `target` names the exact Server, Browser and Workspace app versions in the three manifests. Each `supported_from` row names one complete set of installed versions approved for that target. Carry forward a source row only after its direct migration has passed validation. Worker versions may stay the same when they are compatible. At least one component must advance.
+
+When preparing a candidate, update the app versions, the upstream pin and the proposed migration together. Run `node scripts/check-nod-upstream.mjs --write`, then run it again without arguments. The check validates the version sets and compares the target against the three app configs. Promote a new migration row only after the matching images and regression gates have been verified. The integration reads the manifest from the trusted catalog, checks the exact versions offered by Supervisor, and asks the administrator to confirm.
+
+For an interrupted update, the integration preserves the reviewed baseline, target, upstream revision and original backup ID. Keep the approved catalog available while testing resume. When the catalog changes during an interruption, verify the installed versions and use the saved backup if recovery is required.
+
+## Español — migraciones coordinadas
+
+El catálogo experimental publica `ha_upgrade` en `nod-upstream.json`. `target` contiene las versiones exactas de Server, Browser y Workspace y debe coincidir con sus tres archivos de configuración. Cada fila de `supported_from` identifica un conjunto completo desde el que se ha validado la migración directa. Solo se conserva un origen si esa migración supera las pruebas. Algunos componentes pueden conservar su versión y al menos uno debe avanzar.
+
+Al preparar una candidata, actualiza conjuntamente las versiones de las aplicaciones, el pin upstream y la migración propuesta. Ejecuta `node scripts/check-nod-upstream.mjs --write` y repite el comando sin argumentos. La comprobación valida los conjuntos y verifica las versiones de destino en los tres manifiestos. Promueve la migración tras verificar imágenes y regresiones. La integración consulta el manifiesto del catálogo de confianza, comprueba la oferta exacta de Supervisor y solicita confirmación.
+
+Si hay una interrupción, la integración conserva las versiones de origen y destino, la revisión upstream y el ID de la copia original. Mantén disponible el catálogo aprobado durante la prueba de reanudación. Si el catálogo cambia durante una interrupción, comprueba las versiones instaladas y usa la copia guardada si hace falta recuperar la instalación.

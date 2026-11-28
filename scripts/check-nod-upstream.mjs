@@ -14,6 +14,55 @@ const args = process.argv.slice(2);
 if (args.length > 1 || (args.length && args[0] !== '--write')) {
   throw new Error('Usage: node scripts/check-nod-upstream.mjs [--write]');
 }
+const appRoles = {
+  Server: 'nod_native_preflight',
+  Browser: 'nod_browser_preflight',
+  Workspace: 'nod_workspace_preflight',
+};
+const stageOrder = ['dev', 'alpha', 'beta', 'rc', undefined];
+const number = '0|[1-9][0-9]{0,7}';
+const appVersion = new RegExp(
+  '^(' + number + ')\\.(' + number + ')\\.(' + number + ')' +
+  '(?:-(dev|alpha|beta|rc)\\.(' + number + '))?$'
+);
+function versionSet(versions) {
+  if (!versions || Object.keys(versions).length !== Object.keys(appRoles).length) {
+    throw new Error('Invalid Nod app version set');
+  }
+  return Object.entries(appRoles).map(([role, path]) => {
+    const value = versions[role];
+    const match = typeof value === 'string' && appVersion.exec(value);
+    if (!match || match[0] !== value) {
+      throw new Error('Invalid Nod app version for ' + path);
+    }
+    const [, major, minor, patch, stage, build] = match;
+    return [Number(major), Number(minor), Number(patch), stageOrder.indexOf(stage), Number(build || 0)];
+  });
+}
+const upgrade = manifest.ha_upgrade;
+if (!upgrade || Object.keys(upgrade).length !== 3 || upgrade.schema !== 1 ||
+    !Array.isArray(upgrade.supported_from) || !upgrade.supported_from.length) {
+  throw new Error('Invalid Nod coordinated upgrade schema');
+}
+const target = versionSet(upgrade.target);
+const seen = new Set();
+for (const baseline of upgrade.supported_from) {
+  const source = versionSet(baseline);
+  const ordered = source.map((version, i) =>
+    version.map((part, j) => part - target[i][j]).find(part => part !== 0) || 0
+  );
+  const key = JSON.stringify(source);
+  if (seen.has(key) || ordered.every(part => part === 0) || ordered.some(part => part > 0)) {
+    throw new Error('Invalid Nod coordinated upgrade transition');
+  }
+  seen.add(key);
+}
+for (const [role, path] of Object.entries(appRoles)) {
+  const matches = [...read(path + '/config.yaml').matchAll(/^version: "([^"]+)"[ \t]*$/gm)];
+  if (matches.length !== 1 || matches[0][1] !== upgrade.target[role]) {
+    throw new Error('Nod upgrade target does not match ' + path + '/config.yaml');
+  }
+}
 const targets = [
   ['nod_native_preflight/Dockerfile', /^(?:RUN git init).*git fetch --depth=1 origin [0-9a-f]{40}.*$/gm, 1, 2],
   ['nod_browser_preflight/Dockerfile', /^ARG NOD_UPSTREAM_REV=[0-9a-f]{40}$/gm, 1, 1],
