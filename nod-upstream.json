@@ -1,5 +1,20 @@
 {
   "repository": "n8n-io/nod",
-  "tag": "nod-v0.9.7",
-  "revision": "1128fcfd770d619f3391e0bd9f1ca2f9966f2be6"
+  "tag": "nod-v0.10.3",
+  "revision": "8494bcf12030451ad1093f0579bba57caf34c1d9",
+  "ha_upgrade": {
+    "schema": 1,
+    "target": {
+      "Server": "0.1.0-dev.35",
+      "Browser": "0.1.0-dev.7",
+      "Workspace": "0.1.0-dev.7"
+    },
+    "supported_from": [
+      {
+        "Server": "0.1.0-dev.34",
+        "Browser": "0.1.0-dev.6",
+        "Workspace": "0.1.0-dev.6"
+      }
+    ]
+  }
 }

@@ -54,6 +54,7 @@ jobs:
           test "$(docker image inspect --format '{{.Os}}/{{.Architecture}}' "$image")" = linux/amd64
           test "$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.source"}}' "$image")" = https://github.com/sergey08/homeassistant-addons
           docker image inspect --format '{{json .RepoDigests}}' "$image"
+          docker image inspect --format 'NOD_PUBLIC_IMAGE_REVISION {{index .Config.Labels "org.opencontainers.image.revision"}}' "$image"
           case "$COMPONENT" in
             server)
               docker run --rm --network none --entrypoint sh "$image" -ec 'test -s /app/dist/web/index.html && node --version && postgres --version'
